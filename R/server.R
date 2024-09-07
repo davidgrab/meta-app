@@ -1088,6 +1088,197 @@ server <- function(input, output, session) {
     ))
   })
   
+  observeEvent(input$re_effect_size_heterogeneity_info, {
+    showModal(modalDialog(
+      title = "Random Effects: Effect Size and Heterogeneity",
+      HTML(paste0(
+        "This section presents key results from the random effects meta-analysis:<br><br>",
+        "1. Forest Plot:<br>",
+        "   - Shows individual study effects and the overall random effects estimate<br>",
+        "   - Confidence intervals for each study and the pooled effect<br>",
+        "   - Study weights indicated by box sizes<br><br>",
+        "2. Heterogeneity Plot:<br>",
+        "   - Visualizes the extent of between-study variability<br>",
+        "   - Helps identify studies contributing most to overall heterogeneity<br><br>",
+        "3. Summary Statistics:<br>",
+        "   - Overall effect size and its confidence interval<br>",
+        "   - Heterogeneity measures (I², τ², Q statistic)<br>",
+        "   - P-value for the test of heterogeneity"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$re_model_diagnostics_info, {
+    showModal(modalDialog(
+      title = "Random Effects: Model Diagnostics",
+      HTML(paste0(
+        "This section helps assess model assumptions and effect size distribution:<br><br>",
+        "1. Q-Q Plot:<br>",
+        "   - Assesses whether effect sizes are normally distributed<br>",
+        "   - Points should roughly follow the diagonal line for normality<br><br>",
+        "2. Outlier Detection Plot:<br>",
+        "   - Identifies potential outliers based on standardized residuals<br>",
+        "   - Studies outside the dashed lines may be considered outliers<br><br>",
+        "3. Effect Distribution Plot:<br>",
+        "   - Histogram showing the distribution of effect sizes across studies<br>",
+        "   - Helps visualize the central tendency and spread of effects<br>",
+        "   - Can indicate skewness or multi-modality in effect sizes"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$fe_effect_size_heterogeneity_info, {
+    showModal(modalDialog(
+      title = "Fixed Effects: Effect Size and Heterogeneity",
+      HTML(paste0(
+        "This section presents key results from the fixed effects meta-analysis:<br><br>",
+        "1. Forest Plot:<br>",
+        "   - Shows individual study effects and the overall fixed effect estimate<br>",
+        "   - Confidence intervals for each study and the pooled effect<br>",
+        "   - Study weights indicated by box sizes<br><br>",
+        "2. Model Fit Plot:<br>",
+        "   - Visualizes the goodness of fit for the fixed effects model<br>",
+        "   - Helps assess whether the fixed effects assumption is appropriate<br><br>",
+        "3. Summary Statistics:<br>",
+        "   - Overall fixed effect size and its confidence interval<br>",
+        "   - Model fit statistics (e.g., Q statistic, p-value)<br><br>",
+        "4. Model Fit Statistics:<br>",
+        "   - Detailed numerical assessment of model fit<br>",
+        "   - Includes Q statistic, degrees of freedom, and p-value"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$fe_model_diagnostics_info, {
+    showModal(modalDialog(
+      title = "Fixed Effects: Model Diagnostics",
+      HTML(paste0(
+        "This section helps assess model assumptions for the fixed effects model:<br><br>",
+        "1. Q-Q Plot:<br>",
+        "   - Assesses whether residuals are normally distributed<br>",
+        "   - Points should roughly follow the diagonal line for normality<br><br>",
+        "2. Outlier Detection Plot:<br>",
+        "   - Identifies potential outliers in the fixed effects model<br>",
+        "   - Studies outside the dashed lines may be considered outliers<br><br>",
+        "3. Effect Distribution:<br>",
+        "   - Visualizes the distribution of effect sizes across studies<br>",
+        "   - Helps assess the appropriateness of the fixed effects assumption"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$biv_effect_size_heterogeneity_info, {
+    showModal(modalDialog(
+      title = "Bivariate Approach: Effect Size and Heterogeneity",
+      HTML(paste0(
+        "This section presents key results from the bivariate meta-analysis approach:<br><br>",
+        "1. Bivariate Forest Plot:<br>",
+        "   - Displays effect sizes for two outcomes simultaneously<br>",
+        "   - Allows for a more comprehensive view of the results<br><br>",
+        "2. Confidence Region Plot:<br>",
+        "   - Shows the joint confidence region for the two outcomes (μ and τ)<br>",
+        "   - Provides a visual representation of the uncertainty in both parameters<br><br>",
+        "3. Overall Summary:<br>",
+        "   - Provides numerical results for the bivariate analysis<br>",
+        "   - Includes estimates for both outcomes and their correlation"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$biv_model_diagnostics_info, {
+    showModal(modalDialog(
+      title = "Bivariate Approach: Model Diagnostics",
+      HTML(paste0(
+        "This section helps assess model assumptions for the bivariate approach:<br><br>",
+        "1. Q-Q Plot (μ):<br>",
+        "   - Assesses normality of residuals for the first outcome<br><br>",
+        "2. Q-Q Plot (τ):<br>",
+        "   - Assesses normality of residuals for the second outcome<br><br>",
+        "3. Efficacy-Harm Plot:<br>",
+        "   - Visualizes the relationship between efficacy and harm outcomes<br>",
+        "   - Helps balance benefits and risks in decision-making"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$publication_bias_info, {
+    showModal(modalDialog(
+      title = "Publication Bias",
+      HTML(paste0(
+        "This section assesses potential publication bias in the meta-analysis:<br><br>",
+        "1. Funnel Plot:<br>",
+        "   - Helps visualize potential publication bias<br>",
+        "   - X-axis: Effect size; Y-axis: Standard error or precision<br>",
+        "   - Asymmetry may indicate presence of bias<br><br>",
+        "2. Trim and Fill Plot:<br>",
+        "   - Adjusts for potential publication bias by imputing missing studies<br>",
+        "   - Provides an adjusted effect size estimate<br><br>",
+        "3. Egger's Test Results:<br>",
+        "   - Statistical test for funnel plot asymmetry<br>",
+        "   - Significant p-value suggests potential publication bias"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$sensitivity_analysis_info, {
+    showModal(modalDialog(
+      title = "Sensitivity Analysis",
+      HTML(paste0(
+        "This section assesses the robustness of meta-analysis results:<br><br>",
+        "1. Leave-One-Out Plot:<br>",
+        "   - Shows how the overall effect changes when each study is removed<br>",
+        "   - Helps identify influential studies<br><br>",
+        "2. Baujat Plot:<br>",
+        "   - Visualizes each study's contribution to overall heterogeneity and influence on results<br>",
+        "   - X-axis: Contribution to heterogeneity<br>",
+        "   - Y-axis: Influence on pooled result<br>",
+        "   - Studies in the upper-right corner are most influential<br><br>",
+        "3. Influence Summary:<br>",
+        "   - Provides numerical details on the influence of each study<br>",
+        "   - Includes changes in effect size, heterogeneity, and other key statistics when each study is omitted"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$quality_assessment_info, {
+    showModal(modalDialog(
+      title = "Quality Assessment",
+      HTML(paste0(
+        "This section provides an overall assessment of the evidence quality:<br><br>",
+        "1. GRADE Assessment:<br>",
+        "   - Grading of Recommendations, Assessment, Development and Evaluations<br>",
+        "   - Evaluates the quality of evidence based on several factors:<br>",
+        "     a) Risk of bias<br>",
+        "     b) Inconsistency<br>",
+        "     c) Indirectness<br>",
+        "     d) Imprecision<br>",
+        "     e) Publication bias<br><br>",
+        "2. Overall Interpretation:<br>",
+        "   - Summarizes the main findings of the meta-analysis<br>",
+        "   - Considers effect size, heterogeneity, and quality of evidence<br>",
+        "   - Provides context for clinical or practical significance of results"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
   # Modify or add these reactive expressions
   random_results <- reactive({
     req(input$analyze)

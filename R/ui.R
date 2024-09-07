@@ -147,7 +147,7 @@ ui <- page_fillable(
       nav_panel("Random Effects Analysis",
                 tabsetPanel(
                   tabPanel("Effect Size and Heterogeneity", 
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -166,7 +166,7 @@ ui <- page_fillable(
                            verbatimTextOutput("randomHeterogeneitySummary")
                   ),
                   tabPanel("Model Diagnostics",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("re_model_diagnostics_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -187,7 +187,7 @@ ui <- page_fillable(
                            )
                   ),
                   tabPanel("Publication Bias",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("publication_bias_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -205,7 +205,7 @@ ui <- page_fillable(
                            verbatimTextOutput("randomEggerTestResults")
                   ),
                   tabPanel("Sensitivity Analysis",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -227,7 +227,7 @@ ui <- page_fillable(
                            verbatimTextOutput("influenceSummary")
                   ),
                   tabPanel("Quality Assessment",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("randomGradeAssessment")
                   )
                 )
@@ -239,12 +239,12 @@ ui <- page_fillable(
                                plotOutput("fixedForestPlot"),
                                p("Fixed effects forest plot: Shows individual and overall fixed effect sizes.", class = "plot-explanation")
                            ),
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("fe_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("fixedOverallSummary"),
                            verbatimTextOutput("modelFitStatistics")
                   ),
                   tabPanel("Model Diagnostics",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("fe_model_diagnostics_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -265,7 +265,7 @@ ui <- page_fillable(
                            )
                   ),
                   tabPanel("Publication Bias",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("publication_bias_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -283,7 +283,7 @@ ui <- page_fillable(
                            verbatimTextOutput("fixedEggerTestResults")
                   ),
                   tabPanel("Sensitivity Analysis",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -301,7 +301,7 @@ ui <- page_fillable(
                            verbatimTextOutput("fixedInfluenceSummary")
                   ),
                   tabPanel("Quality Assessment",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("fixedGradeAssessment")
                   )
                 )
@@ -309,7 +309,7 @@ ui <- page_fillable(
       nav_panel("Bivariate Approach",
                 tabsetPanel(
                   tabPanel("Effect Size and Heterogeneity", 
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("biv_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -327,7 +327,7 @@ ui <- page_fillable(
                            verbatimTextOutput("bivariateOverallSummary")
                   ),
                   tabPanel("Model Diagnostics",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("biv_model_diagnostics_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -348,7 +348,7 @@ ui <- page_fillable(
                            )
                   ),
                   tabPanel("Publication Bias",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("publication_bias_info", "", icon = icon("info-circle"), class = "help-text"),
                            div(class = "plot-container",
                                plotOutput("bivariateAdaptedFunnelPlot"),
                                p("Adapted funnel plot: Visualizes potential publication bias in the bivariate context.", class = "plot-explanation")
@@ -356,7 +356,7 @@ ui <- page_fillable(
                            verbatimTextOutput("bivariateBiasTestResults")
                   ),
                   tabPanel("Sensitivity Analysis",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -378,7 +378,7 @@ ui <- page_fillable(
                            verbatimTextOutput("bivariateInfluenceSummary")
                   ),
                   tabPanel("Quality Assessment",
-                           actionButton("fixed_bias_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6,
                                     selectInput("risk_of_bias", "Risk of Bias:",

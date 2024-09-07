@@ -3,17 +3,20 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: rocker/verse:4.1.0  # Use a Docker image with R pre-installed
+      - image: rocker/verse:4.1.0
     steps:
       - checkout
       - run:
-          name: Install dependencies
+          name: Install system dependencies
           command: |
-            R -e 'install.packages(c("shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr","gridExtra","sp","sf","testthat"))'
+            apt-get update && apt-get install -y \
+            libgdal-dev \
+            libproj-dev \
+            libgeos-dev
       - run:
-          name: Run R script
+          name: Restore R package dependencies
           command: |
-            Rscript test-functions.R  # Replace 'your_script.R' with your actual script filename
+            R -e 'renv::restore()'
       - run:
           name: Run tests
           command: |
