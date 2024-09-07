@@ -5,7 +5,7 @@ account: modern-meta-analysis
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 12375404
-bundleId: 9073944
+bundleId: 9074391
 url: https://modern-meta-analysis.shinyapps.io/meta-app/
 version: 1
 asMultiple: FALSE

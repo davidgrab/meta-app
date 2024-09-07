@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   install_dependencies:
     docker:
-      - image: rocker/verse:4.4.0  # Official R docker image with necessary R packages pre-installed
+      - image: rocker/verse:4.4.0  # Official R docker image
     steps:
       - checkout
 
@@ -14,8 +14,18 @@ jobs:
             libcurl4-openssl-dev \
             libssl-dev \
             libxml2-dev \
+            libgeos-dev \
+            libproj-dev \
+            gdal-bin \
+            libgdal-dev \
             pandoc \
             pandoc-citeproc
+
+      # Optional: Manually install problematic packages to isolate the issue
+      - run:
+          name: Install sf package manually
+          command: |
+            R -e "install.packages('sf')"
 
       - restore_cache:
           keys:
