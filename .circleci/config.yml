@@ -33,31 +33,18 @@ jobs:
             R -e "install.packages('renv')"
             R -e "renv::restore()"
 
+      - run:
+          name: Run tests
+          command: |
+            R -e "testthat::test_dir('tests/testthat')"
+
       - save_cache:
           key: R-renv-cache-v1-{{ checksum "renv.lock" }}
           paths:
             - ~/.cache/R/renv
-
-  test:
-    docker:
-      - image: rocker/verse:4.4.0  # R environment for testing
-    steps:
-      - checkout
-
-      - restore_cache:
-          keys:
-            - R-renv-cache-v1-{{ checksum "renv.lock" }}
-            - R-renv-cache-v1
-
-      - run:
-          name: Run tests
-          command: |
-            R -e "renv::restore()"
-            R -e "testthat::test_dir('tests/testthat')"
 
 workflows:
   version: 2
   test_workflow:
     jobs:
       - install_dependencies
-      - test
