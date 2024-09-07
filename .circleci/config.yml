@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   install_dependencies:
     docker:
-      - image: rocker/verse:4.2.0  # Official R docker image with necessary R packages pre-installed
+      - image: rocker/verse:4.4.0  # Official R docker image with necessary R packages pre-installed
     steps:
       - checkout
 
