@@ -780,144 +780,6 @@ calculate_random_residuals <- function(model) {
 
 # Add these new functions at the end of your existing functions.R file
 
-generate_report_content <- function() {
-  return('
----
-title: "Comprehensive Meta-Analysis Report"
-output: 
-  html_document:
-    theme: cosmo
-    toc: true
-    toc_float: true
-params:
-  random_results: NA
-  fixed_results: NA
-  bivariate_results: NA
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-library(ggplot2)
-library(knitr)
-library(meta)
-library(plotly)
-```
-
-# Overall Results
-
-## Method Comparison
-
-```{r method-comparison-plot, fig.width=10, fig.height=6}
-methodComparisonPlot <- method_comparison_plot(params$random_results, params$fixed_results, params$bivariate_results)
-ggplotly(methodComparisonPlot)
-```
-
-## Summary Table
-
-```{r summary-table}
-summaryTable <- compare_models(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
-kable(summaryTable)
-```
-
-## Overall Interpretation
-
-```{r overall-interpretation}
-interpretation <- interpret_results(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
-cat(interpretation)
-```
-
-# Random Effects Analysis
-
-## Forest Plot
-
-```{r random-forest-plot, fig.width=12, fig.height=8}
-randomForestPlot <- random_forest_plot(params$random_results)
-print(randomForestPlot)
-```
-
-## Heterogeneity Plot
-
-```{r random-heterogeneity-plot, fig.width=10, fig.height=6}
-heterogeneityPlot <- heterogeneity_plot(params$random_results)
-ggplotly(heterogeneityPlot)
-```
-
-## Leave-One-Out Analysis
-
-```{r leave-one-out-plot, fig.width=10, fig.height=6}
-leaveOneOutPlot <- random_leave_one_out(params$random_results)
-print(leaveOneOutPlot)
-```
-
-## Funnel Plot
-
-```{r random-funnel-plot, fig.width=10, fig.height=6}
-randomFunnelPlot <- random_funnel_plot(params$random_results)
-print(randomFunnelPlot)
-```
-
-# Fixed Effects Analysis
-
-## Forest Plot
-
-```{r fixed-forest-plot, fig.width=12, fig.height=8}
-fixedForestPlot <- fixed_forest_plot(params$fixed_results)
-print(fixedForestPlot)
-```
-
-## Model Fit Plot
-
-```{r fixed-model-fit-plot, fig.width=10, fig.height=6}
-modelFitPlot <- model_fit_plot(params$fixed_results)
-ggplotly(modelFitPlot)
-```
-
-## Funnel Plot
-
-```{r fixed-funnel-plot, fig.width=10, fig.height=6}
-fixedFunnelPlot <- fixed_funnel_plot(params$fixed_results)
-print(fixedFunnelPlot)
-```
-
-# Bivariate Approach
-
-## Bivariate Forest Plot
-
-```{r bivariate-forest-plot, fig.width=12, fig.height=8}
-bivariateForestPlot <- forest.metabiv(params$bivariate_results)
-print(bivariateForestPlot)
-```
-
-## Confidence Region Plot
-
-```{r confidence-region-plot, fig.width=10, fig.height=6}
-confidenceRegionPlot <- plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]], 
-                                       params$bivariate_results$dev_pvals[[2]], 
-                                       mlb = "Confidence Region for (μ, τ)",
-                                       mu_mle = params$bivariate_results$mu,
-                                       tau_mle = params$bivariate_results$tau)
-print(confidenceRegionPlot)
-```
-
-## Efficacy-Harm Plot
-
-```{r efficacy-harm-plot, fig.width=10, fig.height=6}
-efficacyHarmPlot <- comp.eff.harm.plot(comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals),
-                                       efficacy.is.OR.le1 = (params$bivariate_results$sm == "OR"),
-                                       mlb = paste("Efficacy/Harm plot for", params$bivariate_results$sm))
-print(efficacyHarmPlot)
-```
-
-# Quality Assessment
-
-## GRADE Assessment
-
-```{r grade-assessment}
-gradeAssessment <- grade_assessment(params$random_results, "Random Effects")
-cat(gradeAssessment)
-```
-')
-}
 
 render_report <- function(random_results, fixed_results, bivariate_results) {
   report_content <- generate_report_content()
@@ -961,4 +823,200 @@ ggplot_metainf <- function(metainf_result) {
     labs(title = "Leave-One-Out Analysis", x = "Effect Size", y = "Study Omitted")
   
   return(p)
+}
+
+
+generate_report_content <- function() {
+  return('
+---
+title: "Comprehensive Meta-Analysis Report"
+output: 
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+params:
+  random_results: NA
+  fixed_results: NA
+  bivariate_results: NA
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(ggplot2)
+library(knitr)
+library(meta)
+library(plotly)
+```
+
+# Overall Results
+
+This section provides a high-level overview of results from all methods, allowing for easy comparison across different meta-analytic approaches.
+
+## Method Comparison
+
+The following plot compares the effect size estimates and their confidence intervals across the three meta-analytic methods: random effects, fixed effects, and bivariate approach.
+
+```{r method-comparison-plot, fig.width=10, fig.height=6}
+methodComparisonPlot <- method_comparison_plot(params$random_results, params$fixed_results, params$bivariate_results)
+ggplotly(methodComparisonPlot)
+```
+
+## Summary Table
+
+This table presents key statistics from each meta-analytic method, including effect sizes, confidence intervals, and heterogeneity measures where applicable.
+
+```{r summary-table}
+summaryTable <- compare_models(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
+kable(summaryTable)
+```
+
+## Overall Interpretation
+
+Below is an overall interpretation of the meta-analysis results, considering all three methods.
+
+```{r overall-interpretation}
+interpretation <- interpret_results(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
+cat(interpretation)
+```
+
+# Random Effects Analysis
+
+This section provides a comprehensive analysis using the random effects model, which assumes that the true effect size may vary between studies.
+
+## Effect Size and Heterogeneity
+
+### Forest Plot
+
+The forest plot below shows individual study effects and the overall effect size with confidence intervals.
+
+```{r random-forest-plot, fig.width=12, fig.height=8}
+randomForestPlot <- random_forest_plot(params$random_results)
+print(randomForestPlot)
+```
+
+### Heterogeneity Plot
+
+This plot visualizes the extent of heterogeneity among studies.
+
+```{r random-heterogeneity-plot, fig.width=10, fig.height=6}
+heterogeneityPlot <- heterogeneity_plot(params$random_results)
+ggplotly(heterogeneityPlot)
+```
+
+## Model Diagnostics
+
+### Leave-One-Out Analysis
+
+This analysis shows how the overall effect changes when each study is removed, helping to identify influential studies.
+
+```{r leave-one-out-plot, fig.width=10, fig.height=6}
+leaveOneOutPlot <- random_leave_one_out(params$random_results)
+print(leaveOneOutPlot)
+```
+
+## Publication Bias
+
+### Funnel Plot
+
+The funnel plot helps visualize potential publication bias.
+
+```{r random-funnel-plot, fig.width=10, fig.height=6}
+randomFunnelPlot <- random_funnel_plot(params$random_results)
+print(randomFunnelPlot)
+```
+
+## Quality Assessment
+
+### GRADE Assessment
+
+Below is a GRADE assessment for the random effects model, evaluating the quality of evidence.
+
+```{r grade-assessment}
+gradeAssessment <- grade_assessment(params$random_results, "Random Effects")
+cat(gradeAssessment)
+```
+
+# Fixed Effects Analysis
+
+This section provides a comprehensive analysis using the fixed effects model, which assumes that all studies share a common true effect size.
+
+## Effect Size and Heterogeneity
+
+### Forest Plot
+
+The forest plot below shows individual study effects and the overall fixed effect size with confidence intervals.
+
+```{r fixed-forest-plot, fig.width=12, fig.height=8}
+fixedForestPlot <- fixed_forest_plot(params$fixed_results)
+print(fixedForestPlot)
+```
+
+## Model Diagnostics
+
+### Model Fit Plot
+
+This plot visualizes the goodness of fit for the fixed effects model.
+
+```{r fixed-model-fit-plot, fig.width=10, fig.height=6}
+modelFitPlot <- model_fit_plot(params$fixed_results)
+ggplotly(modelFitPlot)
+```
+
+## Publication Bias
+
+### Funnel Plot
+
+The funnel plot helps visualize potential publication bias in the fixed effects model.
+
+```{r fixed-funnel-plot, fig.width=10, fig.height=6}
+fixedFunnelPlot <- fixed_funnel_plot(params$fixed_results)
+print(fixedFunnelPlot)
+```
+
+# Bivariate Approach
+
+This section presents results from the bivariate approach, which models two outcomes simultaneously.
+
+## Effect Size and Heterogeneity
+
+### Bivariate Forest Plot
+
+This forest plot displays effect sizes for two outcomes simultaneously.
+
+```{r bivariate-forest-plot, fig.width=12, fig.height=8}
+bivariateForestPlot <- forest.metabiv(params$bivariate_results)
+print(bivariateForestPlot)
+```
+
+## Model Diagnostics
+
+### Confidence Region Plot
+
+This plot shows the joint confidence region for the two outcomes (μ and τ).
+
+```{r confidence-region-plot, fig.width=10, fig.height=6}
+#confidenceRegionPlot <- plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]], 
+#                                       params$bivariate_results$dev_pvals[[2]], 
+#                                       mlb = "Confidence Region for (μ, τ)",
+#                                       mu_mle = params$bivariate_results$mu,
+#                                       tau_mle = params$bivariate_results$tau)
+#print(confidenceRegionPlot)
+```
+
+## Publication Bias
+
+### Efficacy-Harm Plot
+
+This plot visualizes the relationship between efficacy and harm outcomes, helping to balance benefits and risks.
+
+```{r efficacy-harm-plot, fig.width=10, fig.height=6}
+efficacyHarmPlot <- comp.eff.harm.plot(comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals),
+                                       efficacy.is.OR.le1 = (params$bivariate_results$sm == "OR"),
+                                       mlb = paste("Efficacy/Harm plot for", params$bivariate_results$sm))
+print(efficacyHarmPlot)
+```
+
+This comprehensive report provides a detailed overview of the meta-analysis results using multiple methodological approaches. By comparing results across different models and examining various diagnostic plots, we can gain a more nuanced understanding of the effect size, heterogeneity, and potential biases in the meta-analysis. This multi-faceted approach supports more informed decision-making in interpreting and applying the results of the meta-analysis.
+')
 }
