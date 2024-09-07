@@ -665,20 +665,38 @@ server <- function(input, output, session) {
   # App Info
   observeEvent(input$app_info, {
     showModal(modalDialog(
-      title = "Comprehensive Meta-Analysis App",
+      title = "Comprehensive Meta-Analysis App: User Guide",
       HTML(paste0(
-        "This app provides a comprehensive tool for conducting and interpreting meta-analyses using various methods:<br><br>",
-        "1. Random Effects Model<br>",
-        "2. Fixed Effects Model<br>",
-        "3. Bivariate Approach<br><br>",
-        "Key features:<br>",
-        "- Data upload and preview<br>",
-        "- Multiple analysis methods<br>",
-        "- Extensive visualizations (forest plots, funnel plots, etc.)<br>",
-        "- Heterogeneity assessment<br>",
-        "- Sensitivity and influence analyses<br>",
+        "This app provides a comprehensive tool for conducting and interpreting meta-analyses. Here's how to use it:<br><br>",
+        
+        "<b>1. Data Input:</b><br>",
+        "- Upload your data CSV file using the 'Upload Data' button in the sidebar<br>",
+        "- Ensure your data includes columns for study name, intervention events, intervention total, placebo events, and placebo total<br>",
+        "- You can use the 'Load Example Dataset' button to see the required format<br><br>",
+        
+        "<b>2. Analysis Settings:</b><br>",
+        "- Choose your heterogeneity estimator and effect measure in the sidebar<br>",
+        "- Click 'Analyze' to run the meta-analysis<br><br>",
+        
+        "<b>3. Results Tabs:</b><br>",
+        "- <i>Data Preview:</i> Check your uploaded data<br>",
+        "- <i>Overall Results:</i> Compare results across all methods<br>",
+        "- <i>Random Effects Analysis:</i> Detailed random effects model results<br>",
+        "- <i>Fixed Effects Analysis:</i> Detailed fixed effects model results<br>",
+        "- <i>Bivariate Approach:</i> Results from the bivariate analysis<br><br>",
+        
+        "<b>4. Key Features in Each Analysis Tab:</b><br>",
+        "- Effect size and heterogeneity assessment<br>",
+        "- Model diagnostics<br>",
         "- Publication bias evaluation<br>",
+        "- Sensitivity analysis<br>",
         "- Quality assessment (GRADE)<br><br>",
+        
+        "<b>5. Generating Reports:</b><br>",
+        "- Use the 'Download Report' button to create a comprehensive HTML report of all analyses<br><br>",
+        
+        "Throughout the app, look for info buttons (?) for additional guidance on interpreting results and using features.<br><br>",
+        
         "This tool is designed to help researchers thoroughly examine their meta-analytic data and draw robust conclusions from their analyses."
       )),
       easyClose = TRUE,
