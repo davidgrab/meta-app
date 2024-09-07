@@ -1,6 +1,6 @@
 # 🚀 Modern Meta-Analysis Shiny App
 
-[![CircleCI](https://circleci.com/gh/yourusername/meta-app.svg?style=svg)](https://circleci.com/davidgrab/meta-app)
+[![CircleCI](https://www.svgrepo.com/show/330149/circleci.svg)](https://app.circleci.com/pipelines/github/davidgrab/meta-app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![R Version](https://img.shields.io/badge/R-≥4.0.0-blue.svg)](https://cran.r-project.org/)
 
