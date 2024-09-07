@@ -33,7 +33,7 @@ jobs:
 
   test:
     docker:
-      - image: rocker/verse:4.2.0  # R environment for testing
+      - image: rocker/verse:4.4.0  # R environment for testing
     steps:
       - checkout
 
