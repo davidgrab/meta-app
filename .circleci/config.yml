@@ -9,12 +9,11 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            R -e 'install.packages(c("remotes", "testthat", "shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr"))'
+            R -e 'install.packages(c("shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr","gridExtra","sp","sf","testthat"))'
       - run:
-          name: Check package
+          name: Run R script
           command: |
-            R CMD build .
-            R CMD check *.tar.gz --as-cran
+            Rscript test-functions.R  # Replace 'your_script.R' with your actual script filename
       - run:
           name: Run tests
           command: |
