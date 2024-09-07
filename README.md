@@ -1,8 +1,16 @@
 # 🚀 Modern Meta-Analysis Shiny App
 
-[![CircleCI](https://www.svgrepo.com/show/330149/circleci.svg)](https://app.circleci.com/pipelines/github/davidgrab/meta-app)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![R Version](https://img.shields.io/badge/R-≥4.0.0-blue.svg)](https://cran.r-project.org/)
+<p>
+  <a href="https://app.circleci.com/pipelines/github/davidgrab/meta-app">
+    <img src="https://www.svgrepo.com/show/330149/circleci.svg" width="50" height="50" alt="CircleCI">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  </a>
+  <a href="https://cran.r-project.org/">
+    <img src="https://img.shields.io/badge/R-≥4.0.0-blue.svg" alt="R Version">
+  </a>
+</p>
 
 Revolutionize your meta-analysis workflow with our cutting-edge Shiny app! 📊✨ Harness the power of advanced statistical methods and stunning visualizations to elevate your research.
 
