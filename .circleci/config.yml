@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  r: circleci/r@1.1.1
+  r: circleci/r@1.0.4
 
 jobs:
   build-and-test:
