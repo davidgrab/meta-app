@@ -26,15 +26,16 @@ library(knitr)
 
 
 
-source("ui.R")  # 
-# server.R
+source("R/ui.R")
+# Source external function files
+source("R/functions.R")  # Make sure to update this file with new functions
+source("R/bivariate_meta.R")# 
+
 # server.R
 server <- function(input, output, session) {
   print("Server function started")
   
-  # Source external function files
-  source("functions.R")  # Make sure to update this file with new functions
-  source("bivariate_meta.R")
+
   
   print("Functions sourced")
   

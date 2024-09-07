@@ -11,7 +11,7 @@ library(bsicons)
 
 
 # Source the functions file
-source("functions.R")
+source("R/functions.R")
 
 # Define the custom theme for light mode
 light_theme <- bs_theme(
