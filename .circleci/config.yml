@@ -1,28 +1,20 @@
 version: 2.1
 
-orbs:
-  r: circleci/r@1.0.4
-
 jobs:
-  build-and-test:
+  build:
     docker:
-      - image: rocker/verse:4.1.0
+      - image: rocker/verse:4.1.0  # Use a Docker image with R pre-installed
     steps:
       - checkout
-      - r/install-packages:
-          packages: |
-            remotes
-            testthat
-            shiny
-            meta
-            metafor
-            ggplot2
-            plotly
-            DT
-            bslib
-            shinyjs
-            rmarkdown
-            knitr
+      - run:
+          name: Install dependencies
+          command: |
+            R -e 'install.packages(c("remotes", "testthat", "shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr"))'
+      - run:
+          name: Check package
+          command: |
+            R CMD build .
+            R CMD check *.tar.gz --as-cran
       - run:
           name: Run tests
           command: |
@@ -32,4 +24,4 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - build-and-test
+      - build
