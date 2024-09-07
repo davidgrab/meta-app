@@ -7,6 +7,10 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install packages
+          command: |
+            R -e 'install.packages(c("shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr","gridExtra","sp","sf","testthat"), repos = "https://cloud.r-project.org/")'
+      - run:
           name: Run tests
           command: |
             R -e 'testthat::test_dir("tests/testthat")'
