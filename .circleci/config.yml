@@ -13,23 +13,25 @@ jobs:
             sudo apt-get update && sudo apt-get install -y \
             libcurl4-openssl-dev \
             libssl-dev \
-            libxml2-dev
+            libxml2-dev \
+            pandoc \
+            pandoc-citeproc
 
       - restore_cache:
           keys:
-            - R-packages-v1-{{ checksum "renv.lock" }}
-            - R-packages-v1
+            - R-renv-cache-v1-{{ checksum "renv.lock" }}
+            - R-renv-cache-v1
 
       - run:
-          name: Install R packages
+          name: Restore R environment via renv
           command: |
-            R -e "install.packages(c("devtools', "remotes"","shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr","gridExtra","sp","sf","testthat"))"
-            R -e "remotes::install_deps(dependencies = TRUE)"
+            R -e "install.packages('renv')"
+            R -e "renv::restore()"
 
       - save_cache:
-          key: R-packages-v1-{{ checksum "renv.lock" }}
+          key: R-renv-cache-v1-{{ checksum "renv.lock" }}
           paths:
-            - ~/.R
+            - ~/.cache/R/renv
 
   test:
     docker:
@@ -39,12 +41,13 @@ jobs:
 
       - restore_cache:
           keys:
-            - R-packages-v1-{{ checksum "renv.lock" }}
-            - R-packages-v1
+            - R-renv-cache-v1-{{ checksum "renv.lock" }}
+            - R-renv-cache-v1
 
       - run:
           name: Run tests
           command: |
+            R -e "renv::restore()"
             R -e "testthat::test_dir('tests/testthat')"
 
 workflows:
