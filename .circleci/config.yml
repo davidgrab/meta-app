@@ -23,8 +23,7 @@ jobs:
       - run:
           name: Install R packages
           command: |
-            R -e "install.packages(c("devtools', "remotes"","shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr",
-"gridExtra","sp","sf","testthat"))"
+            R -e "install.packages(c("devtools', "remotes"","shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr","gridExtra","sp","sf","testthat"))"
             R -e "remotes::install_deps(dependencies = TRUE)"
 
       - save_cache:
