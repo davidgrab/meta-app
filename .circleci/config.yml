@@ -1,22 +1,56 @@
 version: 2.1
 
 jobs:
-  build-and-test:
+  install_dependencies:
     docker:
-      - image: rocker/verse:4.1.0
+      - image: rocker/verse:4.2.0  # Official R docker image with necessary R packages pre-installed
     steps:
       - checkout
+
       - run:
-          name: Install packages
+          name: Install system dependencies
           command: |
-            R -e 'install.packages(c("shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr","gridExtra","sp","sf","testthat"), repos = "https://cloud.r-project.org/")'
+            sudo apt-get update && sudo apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev
+
+      - restore_cache:
+          keys:
+            - R-packages-v1-{{ checksum "renv.lock" }}
+            - R-packages-v1
+
+      - run:
+          name: Install R packages
+          command: |
+            R -e "install.packages(c("devtools', "remotes"","shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr",
+"gridExtra","sp","sf","testthat"))"
+            R -e "remotes::install_deps(dependencies = TRUE)"
+
+      - save_cache:
+          key: R-packages-v1-{{ checksum "renv.lock" }}
+          paths:
+            - ~/.R
+
+  test:
+    docker:
+      - image: rocker/verse:4.2.0  # R environment for testing
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - R-packages-v1-{{ checksum "renv.lock" }}
+            - R-packages-v1
+
       - run:
           name: Run tests
           command: |
-            R -e 'testthat::test_dir("tests/testthat")'
+            R -e "testthat::test_dir('tests/testthat')"
 
 workflows:
   version: 2
-  build-test:
+  test_workflow:
     jobs:
-      - build-and-test
+      - install_dependencies
+      - test
