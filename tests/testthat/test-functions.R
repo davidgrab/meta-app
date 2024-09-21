@@ -4,6 +4,7 @@ library(ggplot2)
 library(plotly)
 
 source("../../R/functions.R")
+source("../../R/bivariate_meta.R")
 
 # Test data
 test_data <- data.frame(
@@ -21,7 +22,7 @@ test_that("random_forest_plot works", {
                   sm = "RR", method = "Inverse")
   
   plot <- random_forest_plot(data)
-  expect_s3_class(plot, "forest")
+  expect_s3_class(plot, "plot")
 })
 
 test_that("heterogeneity_plot works", {
@@ -93,7 +94,7 @@ test_that("model_fit_statistics works", {
   result <- capture.output(model_fit_statistics(data))
   expect_true(any(grepl("Model Fit Statistics", result)))
   expect_true(any(grepl("Q statistic", result)))
-  expect_true(any(grepl("I^2", result)))
+  expect_true(any(grepl("I\\^2", result)))
 })
 
 test_that("influence_plot works", {

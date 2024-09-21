@@ -2,7 +2,7 @@
 # This package implements the methodology described in Saad et al. (2019)
 # for conducting bivariate meta-analysis in the presence of unexplained heterogeneity.
 
-# Required libraries
+# Required librarie
 library(meta)
 library(ggplot2)
 library(plotly)
@@ -290,39 +290,106 @@ summary.metabiv <- function(object, ...) {
 #' Forest plot method for metabiv objects
 #'
 #' @param x A metabiv object
+#' @param xlab Label for the x-axis (default: "Effect Size")
+#' @param refline Reference line (default: 0)
+#' @param leftcols Vector of column names to include on the left side of the plot
+#' @param rightcols Vector of column names to include on the right side of the plot
+#' @param digits Number of digits for rounding (default: 2)
 #' @param ... Additional arguments passed to the forest function
+#'
+#' @importFrom meta forest metagen
+#' @importFrom graphics par
+#'
 #' @export
-forest.metabiv <- function(x, ...) {
+forest.metabiv <- function(x, xlab = "Effect Size", refline = 0, 
+                           leftcols = c("studlab"), 
+                           rightcols = c("effect", "ci"), 
+                           digits = 2, ...) {
+  
+  # Input validation
+  if (!inherits(x, "metabiv")) {
+    stop("Input must be a metabiv object")
+  }
+  
+  # Print diagnostic information
+  cat("Input data summary:\n")
+  print(summary(x$y.k))
+  print(summary(x$sigma.2.k))
+  print(summary(x$mu))
+  print(summary(x$tau))
+  
   # Create a data frame for the forest plot
   forest_data <- data.frame(
     studlab = x$studlab,
     TE = x$y.k,
-    seTE = sqrt(x$sigma.2.k),
-    lower = x$y.k - qnorm(0.975) * sqrt(x$sigma.2.k),
-    upper = x$y.k + qnorm(0.975) * sqrt(x$sigma.2.k)
+    seTE = sqrt(pmax(x$sigma.2.k, 0)),  # Ensure non-negative values
+    lower = x$y.k - qnorm(0.975) * sqrt(pmax(x$sigma.2.k, 0)),
+    upper = x$y.k + qnorm(0.975) * sqrt(pmax(x$sigma.2.k, 0)),
+    effect = sprintf("%.*f", digits, x$y.k),
+    ci = sprintf("[%.*f, %.*f]", digits, 
+                 x$y.k - qnorm(0.975) * sqrt(pmax(x$sigma.2.k, 0)),
+                 digits, 
+                 x$y.k + qnorm(0.975) * sqrt(pmax(x$sigma.2.k, 0)))
   )
   
   # Add the overall effect
   forest_data <- rbind(forest_data,
-                       data.frame(studlab = "Overall",
-                                  TE = x$mu,
-                                  seTE = x$tau,
-                                  lower = x$mu - qnorm(0.975) * x$tau,
-                                  upper = x$mu + qnorm(0.975) * x$tau))
+                       data.frame(
+                         studlab = "Overall",
+                         TE = x$mu,
+                         seTE = max(x$tau, 0),  # Ensure non-negative value
+                         lower = x$mu - qnorm(0.975) * max(x$tau, 0),
+                         upper = x$mu + qnorm(0.975) * max(x$tau, 0),
+                         effect = sprintf("%.*f", digits, x$mu),
+                         ci = sprintf("[%.*f, %.*f]", digits, 
+                                      x$mu - qnorm(0.975) * max(x$tau, 0),
+                                      digits, 
+                                      x$mu + qnorm(0.975) * max(x$tau, 0))
+                       ))
+  
+  # Remove any rows with NA or infinite values
+  forest_data <- forest_data[complete.cases(forest_data) & 
+                               is.finite(rowSums(forest_data[,c("TE","seTE","lower","upper")])), ]
+  
+  # Check if we have any valid data left
+  if(nrow(forest_data) == 0) {
+    stop("No valid data available for forest plot")
+  }
   
   # Create the forest plot
-  forest(metagen(TE = TE, seTE = seTE, studlab = studlab, data = forest_data,
-                 sm = x$sm, fixed = FALSE, random = TRUE),
-         leftlabs = c("Study", "95% CI"),
-         print.tau2 = FALSE,
-         col.diamond = "blue",
-         col.diamond.lines = "blue",
-         col.predict = "red",
-         addpred = TRUE,
-         smlab = paste("Random Effects Model for", x$sm),
-         hetstat = FALSE,
-         overall = FALSE,
-         ...)
+  tryCatch({
+    # Set up the plotting area
+    old_par <- par(no.readonly = TRUE)
+    on.exit(par(old_par))
+    par(mar = c(4, 4, 2, 2) + 0.1)
+    
+    # Create meta object
+    m <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = forest_data,
+                 sm = x$sm, fixed = FALSE, random = TRUE)
+    
+    # Generate forest plot
+    forest(m,
+           leftcols = leftcols,
+           rightcols = rightcols,
+           leftlabs = c("Study", "Effect Size", "95% CI"),
+           xlab = xlab,
+           refline = refline,
+           print.tau2 = FALSE,
+           col.diamond = "blue",
+           col.diamond.lines = "blue",
+           col.predict = "red",
+           addpred = TRUE,
+           smlab = paste("Random Effects Model for", x$sm),
+           hetstat = FALSE,
+           overall = TRUE,
+           ...)
+    
+  }, error = function(e) {
+    cat("Error in creating forest plot:", conditionMessage(e), "\n")
+    cat("Data used for forest plot:\n")
+    print(forest_data)
+    stop("Forest plot creation failed")
+  })
 }
 
 #' Efficacy/Harm Plot
@@ -495,7 +562,7 @@ bivariate_gosh_plot <- function(bivariate_result, n_subsets = 1000, subset_size 
 }
 
 
-confidence_region_shift_plot <- function(x, alpha = 0.05) {
+Copyconfidence_region_shift_plot <- function(x, alpha = 0.05) {
   k <- nrow(x$tbl)
   sm <- x$sm  # Get the summary measure (OR or RR)
   
@@ -513,15 +580,28 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
   }
   
   # Compute full model CI
+  mu_range <- range(x$y.k) + c(-1, 1) * 2 * sqrt(max(x$sigma.2.k))
+  tau_range <- c(0.01, max(2, 2 * sqrt(max(x$sigma.2.k))))
+  
   aa1 <- dev_func(x$tbl, 
-                  mu.vec.tst = seq(0, 1, length = 100), 
-                  tau.vec.tst = seq(0.01, 1, length = 100))
-  aa2 <- mle_func(x$tbl, initial.value = c(0.4, 0.4))
+                  mu.vec.tst = seq(mu_range[1], mu_range[2], length = 100), 
+                  tau.vec.tst = seq(tau_range[1], tau_range[2], length = 100))
+  aa2 <- mle_func(x$tbl, initial.value = c(mean(x$y.k), sqrt(var(x$y.k))))
   
   # Function to compute CI contours
   get_contours <- function(pval_mat, level) {
-    contourLines(seq(0, 1, length = 100), seq(0.01, 1, length = 100), 
-                 pval_mat, levels = level)
+    cl <- contourLines(seq(mu_range[1], mu_range[2], length = 100), 
+                       seq(tau_range[1], tau_range[2], length = 100), 
+                       pval_mat, levels = level)
+    # Ensure contours are closed
+    cl <- lapply(cl, function(c) {
+      if (!identical(c$x[1], c$x[length(c$x)]) || !identical(c$y[1], c$y[length(c$y)])) {
+        c$x <- c(c$x, c$x[1])
+        c$y <- c(c$y, c$y[1])
+      }
+      return(c)
+    })
+    return(cl)
   }
   
   full_contour_50 <- get_contours(aa1[[2]], 0.50)
@@ -530,10 +610,10 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
   # Compute leave-one-out estimates and CIs
   loo_results <- lapply(1:k, function(i) {
     tbl_mod <- x$tbl[-i, ]
-    aa2_i <- mle_func(tbl_mod, initial.value = c(0.4, 0.4))
+    aa2_i <- mle_func(tbl_mod, initial.value = c(mean(x$y.k[-i]), sqrt(var(x$y.k[-i]))))
     aa_i <- dev_func(tbl_mod, 
-                     mu.vec.tst = seq(0, 1, length = 100), 
-                     tau.vec.tst = seq(0.01, 1, length = 100))
+                     mu.vec.tst = seq(mu_range[1], mu_range[2], length = 100), 
+                     tau.vec.tst = seq(tau_range[1], tau_range[2], length = 100))
     contour_50 <- get_contours(aa_i[[2]], 0.50)
     contour_95 <- get_contours(aa_i[[2]], 0.05)
     
@@ -553,7 +633,6 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
          hellinger = hellinger, kld = kld, rmse = rmse, 
          coverage_prob = coverage_prob, combined_score = combined_score)
   })
-  
   # Prepare data for plotting
   plot_data <- data.frame(
     study = 1:k,
@@ -684,20 +763,45 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
 
 
 # Helper functions for calculating metrics
-calculate_iou <- function(contour1, contour2) {
-  poly1 <- st_polygon(list(cbind(contour1$x, contour1$y)))
-  poly2 <- st_polygon(list(cbind(contour2$x, contour2$y)))
-  
-  intersection <- st_intersection(st_sfc(poly1), st_sfc(poly2))
-  union <- st_union(st_sfc(poly1), st_sfc(poly2))
-  
-  if (st_area(intersection) == 0) {
-    return(0)
-  } else {
-    return(as.numeric(st_area(intersection) / st_area(union)))
+library(sf)
+
+# Helper function to close a polygon if it's not already closed
+close_polygon <- function(x, y) {
+  if (!identical(x[1], x[length(x)]) || !identical(y[1], y[length(y)])) {
+    x <- c(x, x[1])
+    y <- c(y, y[1])
   }
+  return(list(x = x, y = y))
 }
 
+# Helper function to create a valid polygon
+create_valid_polygon <- function(contour) {
+  closed <- close_polygon(contour$x, contour$y)
+  poly <- st_polygon(list(cbind(closed$x, closed$y)))
+  if (!st_is_valid(poly)) {
+    poly <- st_make_valid(poly)
+  }
+  return(poly)
+}
+
+calculate_iou <- function(contour1, contour2) {
+  tryCatch({
+    poly1 <- create_valid_polygon(contour1)
+    poly2 <- create_valid_polygon(contour2)
+    
+    intersection <- st_intersection(st_sfc(poly1), st_sfc(poly2))
+    union <- st_union(st_sfc(poly1), st_sfc(poly2))
+    
+    if (st_area(intersection) == 0) {
+      return(0)
+    } else {
+      return(as.numeric(st_area(intersection) / st_area(union)))
+    }
+  }, error = function(e) {
+    warning("Error in calculate_iou: ", e$message)
+    return(0)  # Return 0 if there's an error
+  })
+}
 calculate_shift <- function(mu_main, mu_secondary) {
   return(abs(mu_main - mu_secondary))
 }
@@ -779,53 +883,64 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05) {
 
 #	3.1 Function that computes log-OR deviance  p-value for each mu and tau value
 
-comp.tau.mu.log.OR.dev.pvals	<- function(data.tbl,mu.vec.tst ,tau.vec.tst,plt = F,N.sig = 100,zero.approx = T)
-{	
-  n.mu			<- length(mu.vec.tst)
-  n.tau			<- 	length(tau.vec.tst)	
-  a 				<- comp.log.OR.y.sigma.stats(data.tbl)
-  y.k				<- a[[1]]
-  sigma.2.k		<- a[[2]]
-  K				<- length(y.k)	
-  y.mat.k.i		<- rep(c(y.k),each = n.mu*n.tau)
-  sigma.2.k.i		<- rep(c(sigma.2.k),each = n.mu*n.tau)
-  tau.k.i			<- rep(rep(tau.vec.tst,each = n.mu),K)
-  mu.k.i			<- rep(mu.vec.tst,n.tau*K)
+# Function for OR MLE
+comp.tau.mu.log.OR.MLE <- function(data.tbl, initial.value) {
+  a <- comp.log.OR.y.sigma.stats(data.tbl)
+  y.k <- a[[1]]
+  sigma.2.k <- a[[2]]
   
-  #	Compute deviance matrix
+  minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
+  a <- nlminb(initial.value, minus.loglik)
   
-  loglik.vec			<- dnorm(y.mat.k.i,mean = mu.k.i,sd = sqrt(tau.k.i^2+sigma.2.k.i),log = T)
-  loglik.mu.tau		<- c(array(loglik.vec,dim=c(n.mu*n.tau,K)) %*% cbind(rep(1,K)))
-  dev.mat				<- array(-2*(loglik.mu.tau - max(loglik.mu.tau)),dim=c(n.mu,n.tau))
-  dimnames(dev.mat)	<- list(paste("mu = ",round(mu.vec.tst,2)),paste("tau = ",round(tau.vec.tst,3)))
+  return(list(mu = a$par[1], tau = a$par[2]))
+}
+
+# Function for OR deviance p-values
+comp.tau.mu.log.OR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
+  n.mu <- length(mu.vec.tst)
+  n.tau <- length(tau.vec.tst) 
+  a <- comp.log.OR.y.sigma.stats(data.tbl)
+  y.k <- a[[1]]
+  sigma.2.k <- a[[2]]
+  K <- length(y.k) 
+  y.mat.k.i <- rep(c(y.k), each = n.mu*n.tau)
+  sigma.2.k.i <- rep(c(sigma.2.k), each = n.mu*n.tau)
+  tau.k.i <- rep(rep(tau.vec.tst, each = n.mu), K)
+  mu.k.i <- rep(mu.vec.tst, n.tau*K)
   
-  #	Compute exact deviance p-value matrix
+  loglik.vec <- dnorm(y.mat.k.i, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i), log = TRUE)
+  loglik.mu.tau <- c(array(loglik.vec, dim=c(n.mu*n.tau, K)) %*% cbind(rep(1,K)))
+  dev.mat <- array(-2*(loglik.mu.tau - max(loglik.mu.tau)), dim=c(n.mu, n.tau))
+  dimnames(dev.mat) <- list(paste("mu = ", round(mu.vec.tst, 2)), paste("tau = ", round(tau.vec.tst, 3)))
   
-  pval.mat			<- dev.mat*0
-  for(j1 in 1: length(mu.vec.tst)) 
-    for(j2 in 1:length(tau.vec.tst))
-    {
-      if(j2 == 1)    cat(date(), 'computing', j1, 'of', length(mu.vec.tst), '\n')
-      
-      if(zero.approx == T  &	 dev.mat[j1,j2] < qchisq(1 - 0.00001,2)) 
-      {
-        for(i in 1:N.sig)
-        {
-          smp.tbl			<- samp.log.OR.data.tbl(data.tbl,mu = mu.vec.tst[j1],tau = tau.vec.tst[j2])
-          a 				<- comp.log.OR.y.sigma.stats(smp.tbl)
-          y.k				<- a[[1]]
-          sigma.2.k		<- a[[2]]
-          y.mat.k.i		<- rep(c(y.k),each = n.mu*n.tau)
-          sigma.2.k.i		<- rep(c(sigma.2.k),each = n.mu*n.tau)
-          tau.k.i			<- rep(rep(tau.vec.tst,each = n.mu),K)
-          mu.k.i			<- rep(mu.vec.tst,n.tau*K)
-          loglik.vec		<- dnorm(y.mat.k.i,mean = mu.k.i,sd = sqrt(tau.k.i^2+sigma.2.k.i),log = T)
-          loglik.mu.tau	<- array(loglik.vec,dim=c(n.mu*n.tau,K)) %*% cbind(rep(1,K))	
-          
-          dev.mu.tau			<- -2*(array(loglik.mu.tau,dim=c(n.mu,n.tau))[j1,j2] - max(loglik.mu.tau))
-          pval.mat[j1,j2]		<- pval.mat[j1,j2] + (dev.mu.tau > dev.mat[j1,j2])/N.sig
-        }
-      }
-    }
-  return(list(dev.mat,pval.mat))
+  pval.mat <- array(1 - pchisq(dev.mat, 2), dim=c(n.mu, n.tau))
+  dimnames(pval.mat) <- dimnames(dev.mat)
+  
+  return(list(dev.mat, pval.mat))
+}
+
+# Function to generate sample data (not used in confidence_region_shift_plot, but included for completeness)
+samp.log.OR.data.tbl <- function(data.tbl, mu = 0, tau = 1) {
+  theta.k <- exp(rnorm(nrow(data.tbl), mu, tau))
+  data.mat <- cbind(data.tbl[,3], data.tbl[,5], data.tbl[,2] + data.tbl[,4], theta.k)
+  x.vec <- apply(data.mat, 1, function(vec) {
+    rbinom(1, vec[1] + vec[2], (vec[4] * vec[2]) / (vec[4] * vec[2] + vec[1]))
+  })
+  samp.data <- data.tbl
+  samp.data[,2] <- x.vec
+  samp.data[,4] <- data.tbl[,2] + data.tbl[,4] - x.vec
+  return(samp.data)
+}
+
+# Helper function for both OR and RR
+comp.log.OR.y.sigma.stats <- function(data.tbl) {
+  n.11 <- data.tbl$event.e
+  n.21 <- data.tbl$event.c
+  n.12 <- data.tbl$n.e - data.tbl$event.e
+  n.22 <- data.tbl$n.c - data.tbl$event.c
+  pls.5 <- 0.5 * (n.11 == 0 | n.12 == 0 | n.21 == 0 | n.22 == 0)
+  y.k <- log((n.11 + pls.5) * (n.22 + pls.5) / ((n.12 + pls.5) * (n.21 + pls.5)))
+  sigma.2.k <- 1 / (n.11 + pls.5) + 1 / (n.12 + pls.5) + 1 / (n.21 + pls.5) + 1 / (n.22 + pls.5)
+  
+  return(list(y.k, sigma.2.k))
 }

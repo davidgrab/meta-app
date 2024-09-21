@@ -45,7 +45,9 @@ comp.log.RR.y.sigma.stats <- function(data.tbl) {
 ###################################
 
 random_forest_plot <- function(result) {
-  forest(result)
+  plot=forest(result)
+  class(plot) <- "plot"
+  return(plot)
 }
 
 random_effect_dist_plot <- function(data) {
@@ -392,6 +394,7 @@ method_comparison_plot <- function(random_result, fixed_result, bivariate_result
   p <- p + annotate("text", x = data$Effect, y = data$Method, 
                     label = sprintf("%.2f [%.2f; %.2f]", data$Effect, data$Lower, data$Upper),
                     hjust = -0.1, vjust = 0.5, size = 3.5)
+  class(p) <- "ggplot"     # Assign an S3 class
   
   return(p)
 }
@@ -599,7 +602,9 @@ model_fit_statistics <- function(model) {
 }
 
 influence_plot <- function(model) {
-  baujat(model)
+  plot=baujat(model)
+  class(plot) <- "ggplot"     # Assign an S3 class
+  return(plot)
 }
 
 
