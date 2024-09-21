@@ -44,51 +44,7 @@ dark_theme <- bs_theme(
 ui <- page_fillable(
   useShinyjs(),
   tags$head(
-    tags$style(HTML("
-        /* Adjust the line under the title */
-        .app-title {
-          margin-bottom: 5px;
-        }
-        hr {
-          margin-top: 0;
-        }
-        /* Make App Info button smaller */
-        #app_info {
-          font-size: 0.8em;
-          padding: 2px 5px;
-        }
-         /* New styles for info buttons */
-      .info-btn {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        z-index: 9999;
-        font-size: 0.8em;
-        padding: 0;
-        width: 25px;
-        height: 25px;
-        border-radius: 50%;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        color: #495057;
-      }
-
-      .info-btn:hover {
-        background-color: #e9ecef;
-      }
-
-      /* Make sure the parent container has a relative position */
-      .tab-pane {
-        position: relative;
-        
-      /* Position the help text */
-      .help-text {
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-        font-size: 0.9em;
-        }
-      "))
+    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
   ),
   
   

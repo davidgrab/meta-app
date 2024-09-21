@@ -5,9 +5,9 @@ account: modern-meta-analysis
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 12375404
-bundleId: 9074543
+bundleId: 9129946
 url: https://modern-meta-analysis.shinyapps.io/meta-app/
 version: 1
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: .circleci/config.yml|.Rprofile|CODE_OF_CONDUCT.md|CONTRIBUTING.md|DESCRIPTION|LICENSE|README.md|renv.lock|tests/testthat/test-bivariate_meta.R|tests/testthat/test-functions.R
+ignoredFiles: .circleci/config.yml|.RData|.Rprofile|CODE_OF_CONDUCT.md|CONTRIBUTING.md|DESCRIPTION|LICENSE|README.md|renv.lock|temp.R|tests/testthat/Rplots.pdf|tests/testthat/test-bivariate_meta.R|tests/testthat/test-functions.R

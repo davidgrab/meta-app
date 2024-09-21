@@ -38,8 +38,8 @@ test_that("metabiv function works correctly for RR and OR", {
   expect_equal(biv_RR$mu, 0.40, tolerance = 0.01)
   expect_equal(biv_RR$tau, 0.36, tolerance = 0.01)
   
-  #expect_equal(biv_OR$mu, 0.811, tolerance = 0.05)
-  #expect_equal(biv_OR$tau, 0.658, tolerance = 0.05)
+  expect_equal(biv_OR$mu, 0.744, tolerance = 0.01)
+  expect_equal(biv_OR$tau, 0.688, tolerance = 0.01)
 })
 
 test_that("comp.tau.mu.MLE function works correctly", {

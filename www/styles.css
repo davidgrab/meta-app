@@ -1,0 +1,30 @@
+.app-title {
+  margin-bottom: 5px;
+}
+
+hr {
+  margin-top: 0;
+}
+
+.info-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  font-size: 0.8em;
+  padding: 0;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+}
+
+.info-btn:hover {
+  background-color: #e9ecef;
+}
+
+.help-text {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  font-size: 0.9em;
+}
