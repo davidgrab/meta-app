@@ -28,18 +28,6 @@ calculate_log_rr <- function(n11, n12, n21, n22) {
   return(list(yi = log_rr, vi = var_log_rr))
 }
 
-comp.log.RR.y.sigma.stats <- function(data.tbl) {
-  n.11 <- data.tbl[,2]
-  n.21 <- data.tbl[,4]
-  n.12 <- data.tbl[,3] - data.tbl[,2]
-  n.22 <- data.tbl[,5] - data.tbl[,4]
-  pls.5 <- 0.5 * (n.11 == 0 | n.12 == 0 | n.21 == 0 | n.22 == 0)
-  pi.1g1 <- (n.11+pls.5) / (n.11 + n.12 + 2*pls.5)
-  pi.1g2 <- (n.21+pls.5) / (n.21 + n.22 + 2*pls.5)
-  sigma.2.k <- (1 - pi.1g1) / ( pi.1g1 * (n.11 + n.12 + 2*pls.5) ) + (1 - pi.1g2) / ( pi.1g2 * (n.21 + n.22 + 2*pls.5) )   
-  y.k <- log(pi.1g1 / pi.1g2)
-  return(list(y.k, sigma.2.k))
-}
 
 # Random Effects Analysis Functions
 ###################################
@@ -87,66 +75,6 @@ fixed_effect_dist_plot <- function(data) {
 fixed_funnel_plot <- function(result) {
   funnel(result)
 }
-
-# Bivariate Approach Functions
-##############################
-
-comp.tau.mu.log.RR.MLE <- function(data.tbl, initial.value) {
-  a <- comp.log.RR.y.sigma.stats(data.tbl)
-  y.k <- a[[1]]
-  sigma.2.k <- a[[2]]
-  minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
-  a <- nlminb(initial.value, minus.loglik)
-  return(list(mu = a$par[1], tau = a$par[2]))
-}
-
-comp.tau.mu.log.RR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
-  n.mu <- length(mu.vec.tst)
-  n.tau <- length(tau.vec.tst) 
-  a <- comp.log.RR.y.sigma.stats(data.tbl)
-  y.k <- a[[1]]
-  sigma.2.k <- a[[2]]
-  K <- length(y.k) 
-  y.mat.k.i <- rep(c(y.k), each = n.mu*n.tau)
-  sigma.2.k.i <- rep(c(sigma.2.k), each = n.mu*n.tau)
-  tau.k.i <- rep(rep(tau.vec.tst, each = n.mu), K)
-  mu.k.i <- rep(mu.vec.tst, n.tau*K)
-  
-  loglik.vec <- dnorm(y.mat.k.i, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i), log = TRUE)
-  loglik.mu.tau <- c(array(loglik.vec, dim=c(n.mu*n.tau, K)) %*% cbind(rep(1,K)))
-  dev.mat <- array(-2*(loglik.mu.tau - max(loglik.mu.tau)), dim=c(n.mu, n.tau))
-  dimnames(dev.mat) <- list(paste("mu = ", round(mu.vec.tst, 2)), paste("tau = ", round(tau.vec.tst, 3)))
-  
-  pval.mat <- array(1 - pchisq(dev.mat, 2), dim=c(n.mu, n.tau))
-  dimnames(pval.mat) <- dimnames(dev.mat)
-  
-  return(list(dev.mat, pval.mat))
-}
-
-# Confidence Region Plot
-plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "") {
-  n.mu <- dim(pval.mat)[1]
-  n.tau <- dim(pval.mat)[2]
-  seq.mu <- sapply((strsplit(dimnames(pval.mat)[[1]], "mu =")), as.numeric)[2,]
-  seq.tau <- sapply((strsplit(dimnames(pval.mat)[[2]], "tau =")), as.numeric)[2,]
-  x.mu <- rep(seq.mu, n.tau)
-  x.tau <- rep(seq.tau, each = n.mu)
-  
-  mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length = 100)
-  tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length = 100)
-  
-  logit.p <- log.odds(c(pval.mat))
-  logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
-  logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
-  
-  logit.p.loess <- loess(logit.p ~ x.mu + x.tau, span = .1)
-  smth.pval.mat <- array(inv.log.odds(predict(logit.p.loess, data.frame(x.mu = rep(mu.pred.vec,100), x.tau = rep(tau.pred.vec,each = 100)))), dim=c(100,100))
-  dimnames(smth.pval.mat) <- list(paste("mu = ", round(mu.pred.vec,2)), paste("tau = ", round(tau.pred.vec,3)))
-  
-  contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, col=3, lwd = 2, xlab = "mu", ylab = "tau", main = mlb)
-  contour(seq.mu, seq.tau, dev.mat, col=3, lty=2, levels = round(qchisq(1 - p.cntr.vec,2),1), add=T)
-}
-
 
 # GRADE Assessment Functions
 ############################

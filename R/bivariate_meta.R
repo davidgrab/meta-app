@@ -99,6 +99,20 @@ comp.log.RR.y.sigma.stats <- function(data.tbl) {
   return(list(y.k, sigma.2.k))
 }
 
+#comp.log.RR.y.sigma.stats <- function(data.tbl) {
+#  n.11 <- data.tbl[,2]
+# n.21 <- data.tbl[,4]
+# n.12 <- data.tbl[,3] - data.tbl[,2]
+#  n.22 <- data.tbl[,5] - data.tbl[,4]
+#  pls.5 <- 0.5 * (n.11 == 0 | n.12 == 0 | n.21 == 0 | n.22 == 0)
+#  pi.1g1 <- (n.11+pls.5) / (n.11 + n.12 + 2*pls.5)
+#  pi.1g2 <- (n.21+pls.5) / (n.21 + n.22 + 2*pls.5)
+#  sigma.2.k <- (1 - pi.1g1) / ( pi.1g1 * (n.11 + n.12 + 2*pls.5) ) + (1 - pi.1g2) / ( pi.1g2 * (n.21 + n.22 + 2*pls.5) )   
+#  y.k <- log(pi.1g1 / pi.1g2)
+#  return(list(y.k, sigma.2.k))
+#}
+
+
 comp.log.OR.y.sigma.stats <- function(data.tbl) {
   n.11 <- data.tbl$event.e
   n.21 <- data.tbl$event.c
@@ -562,46 +576,56 @@ bivariate_gosh_plot <- function(bivariate_result, n_subsets = 1000, subset_size 
 }
 
 
-Copyconfidence_region_shift_plot <- function(x, alpha = 0.05) {
+confidence_region_shift_plot <- function(x, alpha = 0.05) {
   k <- nrow(x$tbl)
   sm <- x$sm  # Get the summary measure (OR or RR)
   
-  # Choose the appropriate function based on summary measure
   if (sm == "OR") {
+    # OR calculations (as before)
     comp_func <- comp.log.OR.y.sigma.stats
     dev_func <- comp.tau.mu.log.OR.dev.pvals
     mle_func <- comp.tau.mu.log.OR.MLE
+    
+    # Compute full model CI
+    aa1 <- dev_func(x$tbl, 
+                    mu.vec.tst = seq(0, 1, length = 100), 
+                    tau.vec.tst = seq(0.01, 1, length = 100))
+    aa2 <- mle_func(x$tbl, initial.value = c(0.4, 0.4))
+    
+    # Function to compute CI contours
+    get_contours <- function(pval_mat, level) {
+      contourLines(seq(0, 1, length = 100), seq(0.01, 1, length = 100), 
+                   pval_mat, levels = level)
+    }
+    
+    mu_range <- c(0, 1)
+    tau_range <- c(0.01, 1)
+    
   } else if (sm == "RR") {
+    # RR calculations (new method)
     comp_func <- comp.log.RR.y.sigma.stats
     dev_func <- comp.tau.mu.log.RR.dev.pvals
     mle_func <- comp.tau.mu.log.RR.MLE
+    
+    # Compute full model CI
+    mu_range <- range(x$y.k) + c(-1, 1) * 2 * sqrt(max(x$sigma.2.k))
+    tau_range <- c(0.01, max(2, 2 * sqrt(max(x$sigma.2.k))))
+    
+    # Compute full model CI
+    aa1 <- dev_func(x$tbl, 
+                    mu.vec.tst = seq(0, 1, length = 100), 
+                    tau.vec.tst = seq(0.01, 1, length = 100))
+    aa2 <- mle_func(x$tbl, initial.value = c(0.4, 0.4))
+    
+    # Function to compute CI contours
+    # Function to compute CI contours
+    get_contours <- function(pval_mat, level) {
+      contourLines(seq(0, 1, length = 100), seq(0.01, 1, length = 100), 
+                   pval_mat, levels = level)
+    }
+     
   } else {
     stop("Unsupported summary measure. Use 'OR' or 'RR'.")
-  }
-  
-  # Compute full model CI
-  mu_range <- range(x$y.k) + c(-1, 1) * 2 * sqrt(max(x$sigma.2.k))
-  tau_range <- c(0.01, max(2, 2 * sqrt(max(x$sigma.2.k))))
-  
-  aa1 <- dev_func(x$tbl, 
-                  mu.vec.tst = seq(mu_range[1], mu_range[2], length = 100), 
-                  tau.vec.tst = seq(tau_range[1], tau_range[2], length = 100))
-  aa2 <- mle_func(x$tbl, initial.value = c(mean(x$y.k), sqrt(var(x$y.k))))
-  
-  # Function to compute CI contours
-  get_contours <- function(pval_mat, level) {
-    cl <- contourLines(seq(mu_range[1], mu_range[2], length = 100), 
-                       seq(tau_range[1], tau_range[2], length = 100), 
-                       pval_mat, levels = level)
-    # Ensure contours are closed
-    cl <- lapply(cl, function(c) {
-      if (!identical(c$x[1], c$x[length(c$x)]) || !identical(c$y[1], c$y[length(c$y)])) {
-        c$x <- c(c$x, c$x[1])
-        c$y <- c(c$y, c$y[1])
-      }
-      return(c)
-    })
-    return(cl)
   }
   
   full_contour_50 <- get_contours(aa1[[2]], 0.50)
@@ -610,10 +634,10 @@ Copyconfidence_region_shift_plot <- function(x, alpha = 0.05) {
   # Compute leave-one-out estimates and CIs
   loo_results <- lapply(1:k, function(i) {
     tbl_mod <- x$tbl[-i, ]
-    aa2_i <- mle_func(tbl_mod, initial.value = c(mean(x$y.k[-i]), sqrt(var(x$y.k[-i]))))
+    aa2_i <- mle_func(tbl_mod, initial.value = c(0.4, 0.4))
     aa_i <- dev_func(tbl_mod, 
-                     mu.vec.tst = seq(mu_range[1], mu_range[2], length = 100), 
-                     tau.vec.tst = seq(tau_range[1], tau_range[2], length = 100))
+                     mu.vec.tst = seq(0, 1, length = 100), 
+                     tau.vec.tst = seq(0.01, 1, length = 100))
     contour_50 <- get_contours(aa_i[[2]], 0.50)
     contour_95 <- get_contours(aa_i[[2]], 0.05)
     
@@ -633,6 +657,7 @@ Copyconfidence_region_shift_plot <- function(x, alpha = 0.05) {
          hellinger = hellinger, kld = kld, rmse = rmse, 
          coverage_prob = coverage_prob, combined_score = combined_score)
   })
+  
   # Prepare data for plotting
   plot_data <- data.frame(
     study = 1:k,
@@ -720,12 +745,13 @@ Copyconfidence_region_shift_plot <- function(x, alpha = 0.05) {
                  type = "scatter", mode = "markers",
                  marker = list(size = 10, color = "red"),
                  hoverinfo = "text", text = hover_text_full,
-                 showlegend = FALSE)
+                 showlegend = FALSE,
+                 name = "Full Model MLE")
   
   # Set layout
   p <- p %>% layout(title = paste("Confidence Region Shift Plot for", sm),
-                    xaxis = list(title = "μ"),
-                    yaxis = list(title = "τ"),
+                    xaxis = list(title = "μ", range = mu_range),
+                    yaxis = list(title = "τ", range = tau_range),
                     hovermode = "closest")
   
   # Add JavaScript for interactive hover
@@ -760,8 +786,6 @@ Copyconfidence_region_shift_plot <- function(x, alpha = 0.05) {
   
   return(p)
 }
-
-
 # Helper functions for calculating metrics
 library(sf)
 
@@ -884,17 +908,82 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05) {
 #	3.1 Function that computes log-OR deviance  p-value for each mu and tau value
 
 # Function for OR MLE
+#comp.tau.mu.log.OR.MLE <- function(data.tbl, initial.value) {
+#  a <- comp.log.OR.y.sigma.stats(data.tbl)
+#  y.k <- a[[1]]
+#  sigma.2.k <- a[[2]]
+#  
+#  minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
+#  a <- nlminb(initial.value, minus.loglik)
+#  
+#  return(list(mu = a$par[1], tau = a$par[2]))
+#}
+
 comp.tau.mu.log.OR.MLE <- function(data.tbl, initial.value) {
+  # Step 1: Calculate initial estimates using DerSimonian and Laird method
   a <- comp.log.OR.y.sigma.stats(data.tbl)
   y.k <- a[[1]]
   sigma.2.k <- a[[2]]
   
-  minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
-  a <- nlminb(initial.value, minus.loglik)
+  # DerSimonian and Laird estimate for tau^2
+  w <- 1 / sigma.2.k
+  mu.init <- sum(w * y.k) / sum(w)
+  Q <- sum(w * (y.k - mu.init)^2)
+  df <- length(y.k) - 1
+  tau2.init <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
   
-  return(list(mu = a$par[1], tau = a$par[2]))
+  # Initial parameter vector
+  par.init <- c(mu.init, sqrt(tau2.init))
+  
+  # Step 2: Define the negative log-likelihood function
+  neg.loglik <- function(par) {
+    mu <- par[1]
+    tau <- par[2]
+    -sum(dnorm(y.k, mean = mu, sd = sqrt(tau^2 + sigma.2.k), log = TRUE))
+  }
+  
+  # Step 3: Define gradient and Hessian functions
+  gradient <- function(par) {
+    mu <- par[1]
+    tau <- par[2]
+    v <- tau^2 + sigma.2.k
+    d_mu <- sum((y.k - mu) / v)
+    d_tau <- sum(tau * ((y.k - mu)^2 / v^2 - 1 / v))
+    c(d_mu, d_tau)
+  }
+  
+  hessian <- function(par) {
+    mu <- par[1]
+    tau <- par[2]
+    v <- tau^2 + sigma.2.k
+    h11 <- -sum(1 / v)
+    h12 <- h21 <- -2 * sum(tau * (y.k - mu) / v^2)
+    h22 <- sum((y.k - mu)^2 / v^2 - 1 / v - 2 * tau^2 * (y.k - mu)^2 / v^3)
+    matrix(c(h11, h12, h21, h22), nrow = 2)
+  }
+  
+  # Step 4: Implement Newton-Raphson method
+  newton_raphson <- function(par, max_iter = 100, tol = 1e-6) {
+    for (i in 1:max_iter) {
+      g <- gradient(par)
+      H <- hessian(par)
+      delta <- solve(H, g)
+      par_new <- par - delta
+      if (sqrt(sum(delta^2)) < tol) {
+        return(par_new)
+      }
+      par <- par_new
+    }
+    warning("Newton-Raphson did not converge")
+    par
+  }
+  
+  # Step 5: Run Newton-Raphson
+  result <- newton_raphson(par.init)
+  
+  # Return results
+  list(mu = result[1], tau = result[2])
 }
-
 # Function for OR deviance p-values
 comp.tau.mu.log.OR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
   n.mu <- length(mu.vec.tst)
@@ -944,3 +1033,65 @@ comp.log.OR.y.sigma.stats <- function(data.tbl) {
   
   return(list(y.k, sigma.2.k))
 }
+
+# Bivariate Approach Functions
+##############################
+
+comp.tau.mu.log.RR.MLE <- function(data.tbl, initial.value) {
+  a <- comp.log.RR.y.sigma.stats(data.tbl)
+  y.k <- a[[1]]
+  sigma.2.k <- a[[2]]
+  minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
+  a <- nlminb(initial.value, minus.loglik)
+  return(list(mu = a$par[1], tau = a$par[2]))
+}
+
+comp.tau.mu.log.RR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
+  n.mu <- length(mu.vec.tst)
+  n.tau <- length(tau.vec.tst) 
+  a <- comp.log.RR.y.sigma.stats(data.tbl)
+  y.k <- a[[1]]
+  sigma.2.k <- a[[2]]
+  K <- length(y.k) 
+  y.mat.k.i <- rep(c(y.k), each = n.mu*n.tau)
+  sigma.2.k.i <- rep(c(sigma.2.k), each = n.mu*n.tau)
+  tau.k.i <- rep(rep(tau.vec.tst, each = n.mu), K)
+  mu.k.i <- rep(mu.vec.tst, n.tau*K)
+  
+  loglik.vec <- dnorm(y.mat.k.i, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i), log = TRUE)
+  loglik.mu.tau <- c(array(loglik.vec, dim=c(n.mu*n.tau, K)) %*% cbind(rep(1,K)))
+  dev.mat <- array(-2*(loglik.mu.tau - max(loglik.mu.tau)), dim=c(n.mu, n.tau))
+  dimnames(dev.mat) <- list(paste("mu = ", round(mu.vec.tst, 2)), paste("tau = ", round(tau.vec.tst, 3)))
+  
+  pval.mat <- array(1 - pchisq(dev.mat, 2), dim=c(n.mu, n.tau))
+  dimnames(pval.mat) <- dimnames(dev.mat)
+  
+  return(list(dev.mat, pval.mat))
+}
+
+# Confidence Region Plot
+plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "") {
+  n.mu <- dim(pval.mat)[1]
+  n.tau <- dim(pval.mat)[2]
+  seq.mu <- sapply((strsplit(dimnames(pval.mat)[[1]], "mu =")), as.numeric)[2,]
+  seq.tau <- sapply((strsplit(dimnames(pval.mat)[[2]], "tau =")), as.numeric)[2,]
+  x.mu <- rep(seq.mu, n.tau)
+  x.tau <- rep(seq.tau, each = n.mu)
+  
+  mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length = 100)
+  tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length = 100)
+  
+  logit.p <- log.odds(c(pval.mat))
+  logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
+  logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
+  
+  logit.p.loess <- loess(logit.p ~ x.mu + x.tau, span = .1)
+  smth.pval.mat <- array(inv.log.odds(predict(logit.p.loess, data.frame(x.mu = rep(mu.pred.vec,100), x.tau = rep(tau.pred.vec,each = 100)))), dim=c(100,100))
+  dimnames(smth.pval.mat) <- list(paste("mu = ", round(mu.pred.vec,2)), paste("tau = ", round(tau.pred.vec,3)))
+  
+  contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, col=3, lwd = 2, xlab = "mu", ylab = "tau", main = mlb)
+  contour(seq.mu, seq.tau, dev.mat, col=3, lty=2, levels = round(qchisq(1 - p.cntr.vec,2),1), add=T)
+}
+
+
+
