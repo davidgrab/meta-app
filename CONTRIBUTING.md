@@ -1,56 +1,77 @@
 # Contributing to Modern Meta-Analysis Shiny App
 
-We love your input! We want to make contributing to this project as easy and transparent as possible, whether it's:
+First off, thank you for considering contributing to the Modern Meta-Analysis Shiny App! It's people like you that make this tool a great resource for researchers worldwide.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
+## Code of Conduct
 
-## We Develop with Github
+This project and everyone participating in it is governed by the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [conduct@example.com](mailto:conduct@example.com).
 
-We use github to host code, to track issues and feature requests, as well as accept pull requests.
+## How Can I Contribute?
 
-## We Use [Github Flow](https://guides.github.com/introduction/flow/index.html)
+### Reporting Bugs
 
-Pull requests are the best way to propose changes to the codebase. We actively welcome your pull requests:
+This section guides you through submitting a bug report. Following these guidelines helps maintainers and the community understand your report, reproduce the behavior, and find related reports.
 
-1. Fork the repo and create your branch from `master`.
-2. If you've added code that should be tested, add tests.
-3. Update the documentation.
-4. Ensure the test suite passes locally by running `testthat::test_dir("tests/testthat")`. CircleCI will also run the tests automatically when you submit your pull request.
-5. Make sure your code lints.
-6. Issue that pull request!
+- Use a clear and descriptive title for the issue to identify the problem.
+- Describe the exact steps which reproduce the problem in as many details as possible.
+- Provide specific examples to demonstrate the steps.
 
-## Any contributions you make will be under the MIT Software License
+### Suggesting Enhancements
 
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project.
+This section guides you through submitting an enhancement suggestion, including completely new features and minor improvements to existing functionality.
 
-## Report bugs using Github's [issues](https://github.com/davidgrab/meta-app/issues)
+- Use a clear and descriptive title for the issue to identify the suggestion.
+- Provide a step-by-step description of the suggested enhancement in as many details as possible.
+- Provide specific examples to demonstrate the steps.
 
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/yourusername/meta-app/issues/new); it's that easy!
+### Pull Requests
 
-## Write bug reports with detail, background, and sample code
+- Fill in the required template
+- Do not include issue numbers in the PR title
+- Include screenshots and animated GIFs in your pull request whenever possible.
+- Follow the [R Style Guide](https://style.tidyverse.org/).
+- Document new code based on the [Documentation Guide](http://r-pkgs.had.co.nz/man.html)
 
-**Great Bug Reports** tend to have:
+## Styleguides
 
-- A quick summary and/or background
-- Steps to reproduce
-  - Be specific!
-  - Give sample code if you can.
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
+### Git Commit Messages
 
-## Use a Consistent Coding Style
+- Use the present tense ("Add feature" not "Added feature")
+- Use the imperative mood ("Move cursor to..." not "Moves cursor to...")
+- Limit the first line to 72 characters or less
+- Reference issues and pull requests liberally after the first line
 
-* 2 spaces for indentation rather than tabs
-* You can try running `lintr::lint_package()` for style unification
+### R Styleguide
 
-## License
+All R code must adhere to the [tidyverse style guide](https://style.tidyverse.org/).
 
-By contributing, you agree that your contributions will be licensed under its MIT License.
+### Documentation Styleguide
 
-## References
+- Use [Roxygen2](https://cran.r-project.org/web/packages/roxygen2/vignettes/roxygen2.html) for documentation.
+- Use [Markdown](https://daringfireball.net/projects/markdown/) for formatting.
 
-This document was adapted from the open-source contribution guidelines for [Facebook's Draft](https://github.com/facebook/draft-js/blob/a9316a723f9e918afde44dea68b5f9f39b7d9b00/CONTRIBUTING.md)
+## Additional Notes
+
+### Issue and Pull Request Labels
+
+This section lists the labels we use to help us track and manage issues and pull requests.
+
+* `bug` - Issues for bugs in the codebase
+* `documentation` - Issues or PRs related to documentation
+* `enhancement` - Issues for new features or improvements
+* `good first issue` - Good for newcomers
+* `help wanted` - Extra attention is needed
+
+## Getting Started
+
+To get started with development:
+
+1. Fork the repo
+2. Clone your fork
+3. Create a new branch (`git checkout -b feature/AmazingFeature`)
+4. Make your changes
+5. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+6. Push to the branch (`git push origin feature/AmazingFeature`)
+7. Open a Pull Request
+
+Thank you for your contributions!
