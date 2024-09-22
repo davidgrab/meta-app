@@ -12,9 +12,17 @@ This project and everyone participating in it is governed by the [Contributor Co
 
 This section guides you through submitting a bug report. Following these guidelines helps maintainers and the community understand your report, reproduce the behavior, and find related reports.
 
+To report a bug, please open an issue on our [GitHub Issues page](https://github.com/davidgrab/meta-app/issues).
+
+When reporting a bug, please include:
+
 - Use a clear and descriptive title for the issue to identify the problem.
 - Describe the exact steps which reproduce the problem in as many details as possible.
 - Provide specific examples to demonstrate the steps.
+- Describe the behavior you observed after following the steps and point out what exactly is the problem with that behavior.
+- Explain which behavior you expected to see instead and why.
+- Include screenshots and animated GIFs which show you following the described steps and clearly demonstrate the problem.
+
 
 ### Suggesting Enhancements
 

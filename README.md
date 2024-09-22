@@ -72,6 +72,8 @@ testthat::test_dir("tests/testthat")
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for more details.
 
+To report a bug or request a feature, please open an issue on our [GitHub Issues page](https://github.com/davidgrab/meta-app/issues).
+
 ## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
