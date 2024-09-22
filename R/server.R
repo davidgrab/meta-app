@@ -125,7 +125,9 @@ server <- function(input, output, session) {
     names(df) <- c("study", "ie", "it", "pe", "pt")
     df
   })
-  # New download handler
+  
+  # New download
+  handler
   output$downloadSampleStructure <- downloadHandler(
     filename = function() {
       "sample_data_structure.csv"
@@ -164,7 +166,7 @@ server <- function(input, output, session) {
   )
   
   # Example dataset
-  exampleData <- read.csv(text = "study,Intervention-effected,Intervention-total,Placebo-effected,Placebo-total
+  exampleData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
 1,22,54,21,55
 2,17,45,9,43
 3,35,53,12,55
@@ -257,14 +259,13 @@ server <- function(input, output, session) {
     summary(combinedResults()$random)
   })
   
-  output$randomHeterogeneitySummary <- renderPrint({
-    req(combinedResults()$random)
-    random_heterogeneity_summary(combinedResults()$random)
-  })
-  
   output$leaveOneOutPlot <- renderPlot({
     req(combinedResults()$random)
-    metainf(combinedResults()$random)
+    inf <- metainf(combinedResults()$random)
+    forest(inf, 
+           leftlabs = c("Omitted Study", "Effect Size", "95% CI"),
+           xlab = "Effect Size",
+           title = "Leave-One-Out Analysis")
   })
   
   output$baujatPlot <- renderPlot({
@@ -321,7 +322,12 @@ server <- function(input, output, session) {
   
   output$randomTrimFillPlot <- renderPlot({
     req(combinedResults()$random)
-    trimfill(combinedResults()$random)
+    tf <- trimfill(combinedResults()$random)
+    funnel(tf, 
+           studlab = FALSE,
+           xlab = combinedResults()$random$sm,
+           ylab = "Standard Error",
+           main = "Trim and Fill Funnel Plot")
   })
   
   output$randomGradeAssessment <- renderPrint({
@@ -344,7 +350,7 @@ server <- function(input, output, session) {
   
   output$fixedModelFitPlot <- renderPlot({
     req(combinedResults()$fixed)
-    #model_fit_plot(combinedResults()$fixed)
+    radial(combinedResults()$fixed)
   })
   
   output$fixedOverallSummary <- renderPrint({
@@ -359,12 +365,16 @@ server <- function(input, output, session) {
   
   output$fixedLeaveOneOutPlot <- renderPlot({
     req(combinedResults()$fixed)
-    metainf(combinedResults()$fixed)
+    inf <- metainf(combinedResults()$fixed)
+    forest(inf, 
+           leftlabs = c("Omitted Study", "Effect Size", "95% CI"),
+           xlab = "Effect Size",
+           title = "Leave-One-Out Analysis")
   })
   
   output$fixedInfluencePlot <- renderPlot({
     req(combinedResults()$fixed)
-    influence_plot(combinedResults()$fixed)
+    baujat(combinedResults()$fixed)
   })
   
   output$fixedInfluenceSummary <- renderPrint({
@@ -401,7 +411,12 @@ server <- function(input, output, session) {
   
   output$fixedTrimFillPlot <- renderPlot({
     req(combinedResults()$fixed)
-    trimfill(combinedResults()$fixed)
+    tf <- trimfill(combinedResults()$fixed)
+    funnel(tf, 
+           studlab = FALSE,
+           xlab = combinedResults()$fixed$sm,
+           ylab = "Standard Error",
+           main = "Trim and Fill Funnel Plot")
   })
   
   output$fixedEggerTestResults <- renderPrint({

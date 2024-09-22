@@ -2,7 +2,7 @@
 # This package implements the methodology described in Saad et al. (2019)
 # for conducting bivariate meta-analysis in the presence of unexplained heterogeneity.
 
-# Required librarie
+# Required libraries
 library(meta)
 library(ggplot2)
 library(plotly)
@@ -60,6 +60,20 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
   # Compute confidence region
   conf_region <- compute_confidence_region(dev_pvals[[2]], level.ma)
   
+  # Diagnostic Plot
+  draw.diagnostic.plot(data.tbl, mlb = "Diagnostic plot")
+  
+  # Exact tests or normal approximation for rr
+  exact_test_results <- if (any(n.e + n.c < 50)) {
+    if (sm == "OR") {
+      exact_tests(data.tbl, sm)
+    } else {
+      normal_approximation(data.tbl, sm)
+    }
+  } else {
+    NULL
+  }
+  
   # Prepare results
   res <- list(
     studlab = studlab,
@@ -74,12 +88,69 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
     tau = mle_result$tau,
     dev_pvals = dev_pvals,
     conf_region = conf_region,
+    exact_tests = exact_test_results,
     call = match.call(),
     tbl = data.tbl
   )
   
   class(res) <- c("metabiv", "meta")
   res
+}
+
+# Function for exact tests (OR only)
+exact_tests <- function(data.tbl, sm) {
+  if (sm == "OR") {
+    samp_data <- samp.log.OR.data.tbl(data.tbl)
+    exact_test_result <- comp.tau.mu.log.OR.dev.pvals(samp_data, mu.vec.tst = seq(-1, 1, length = 100), tau.vec.tst = seq(0.01, 1, length = 100))
+    return(exact_test_result)
+  } else {
+    stop("Exact tests currently only supported for OR")
+  }
+}
+
+# Function for normal approximation (RR)
+normal_approximation <- function(data.tbl, sm) {
+  if (sm == "RR") {
+    approx_result <- comp.tau.mu.log.RR.dev.pvals(data.tbl, mu.vec.tst = seq(-1, 1, length = 100), tau.vec.tst = seq(0.01, 1, length = 100))
+    return(approx_result)
+  } else {
+    stop("Normal approximation is only available for RR.")
+  }
+}
+
+# Function for generating diagnostic plots
+draw.diagnostic.plot <- function(tbl, mlb = "Diagnostic plot for Meta-analysis") {
+  ggplot(tbl, aes(x = event.e/n.e, y = event.c/n.c)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    labs(x = "Treatment Group Success Rate", y = "Control Group Success Rate", title = mlb) +
+    theme_minimal()
+}
+
+# Deviance statistic calculation
+comp.tau.mu.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst, sm) {
+  n.mu <- length(mu.vec.tst)
+  n.tau <- length(tau.vec.tst)
+  a <- switch(sm,
+              "RR" = comp.log.RR.y.sigma.stats(data.tbl),
+              "OR" = comp.log.OR.y.sigma.stats(data.tbl))
+  y.k <- a[[1]]
+  sigma.2.k <- a[[2]]
+  K <- length(y.k)
+  y.mat.k.i <- rep(c(y.k), each = n.mu * n.tau)
+  sigma.2.k.i <- rep(c(sigma.2.k), each = n.mu * n.tau)
+  tau.k.i <- rep(rep(tau.vec.tst, each = n.mu), K)
+  mu.k.i <- rep(mu.vec.tst, n.tau * K)
+  
+  loglik.vec <- dnorm(y.mat.k.i, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i), log = TRUE)
+  loglik.mu.tau <- c(array(loglik.vec, dim = c(n.mu * n.tau, K)) %*% cbind(rep(1, K)))
+  dev.mat <- array(-2 * (loglik.mu.tau - max(loglik.mu.tau)), dim = c(n.mu, n.tau))
+  dimnames(dev.mat) <- list(paste("mu = ", round(mu.vec.tst, 2)), paste("tau = ", round(tau.vec.tst, 3)))
+  
+  pval.mat <- array(1 - pchisq(dev.mat, 2), dim = c(n.mu, n.tau))
+  dimnames(pval.mat) <- dimnames(dev.mat)
+  
+  return(list(dev.mat, pval.mat))
 }
 
 # Helper functions for effect size calculations
@@ -141,31 +212,6 @@ comp.tau.mu.MLE <- function(data.tbl, initial.value, sm) {
   return(list(mu = a$par[1], tau = a$par[2]))
 }
 
-# Compute deviance and p-values
-comp.tau.mu.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst, sm) {
-  n.mu <- length(mu.vec.tst)
-  n.tau <- length(tau.vec.tst)
-  a <- switch(sm,
-              "RR" = comp.log.RR.y.sigma.stats(data.tbl),
-              "OR" = comp.log.OR.y.sigma.stats(data.tbl))
-  y.k <- a[[1]]
-  sigma.2.k <- a[[2]]
-  K <- length(y.k)
-  y.mat.k.i <- rep(c(y.k), each = n.mu * n.tau)
-  sigma.2.k.i <- rep(c(sigma.2.k), each = n.mu * n.tau)
-  tau.k.i <- rep(rep(tau.vec.tst, each = n.mu), K)
-  mu.k.i <- rep(mu.vec.tst, n.tau * K)
-  
-  loglik.vec <- dnorm(y.mat.k.i, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i), log = TRUE)
-  loglik.mu.tau <- c(array(loglik.vec, dim = c(n.mu * n.tau, K)) %*% cbind(rep(1, K)))
-  dev.mat <- array(-2 * (loglik.mu.tau - max(loglik.mu.tau)), dim = c(n.mu, n.tau))
-  dimnames(dev.mat) <- list(paste("mu = ", round(mu.vec.tst, 2)), paste("tau = ", round(tau.vec.tst, 3)))
-  
-  pval.mat <- array(1 - pchisq(dev.mat, 2), dim = c(n.mu, n.tau))
-  dimnames(pval.mat) <- dimnames(dev.mat)
-  
-  return(list(dev.mat, pval.mat))
-}
 
 # Compute confidence region
 compute_confidence_region <- function(pval.mat, level.ma) {

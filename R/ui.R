@@ -250,8 +250,7 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("fixedInfluencePlot"),
-                                        p("Influence plot: Identifies influential studies in the fixed effects model.", class = "plot-explanation")
-                                    )
+                                        p("Baujat plot: Visualizes each study's contribution to heterogeneity and influence on the overall result in the fixed effects model.", class = "plot-explanation")                                    )
                              )
                            ),
                            verbatimTextOutput("fixedInfluenceSummary")

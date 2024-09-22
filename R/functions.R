@@ -6,7 +6,7 @@ library(plotly)
 library(metafor)
 library(BiasedUrn)
 library(gridExtra)
-library(grid)  # Add this line
+library(grid) 
 library(sp)
 library(sf)
 
@@ -133,8 +133,15 @@ grade_assessment <- function(result, model_type) {
 }
 
 
-
-
+# Helper function to safely extract and exponentiate values
+  safe_exp <- function(x) {
+    if (is.numeric(x)) {
+      return(exp(x))
+    } else {
+      return(NA)
+    }
+  }
+  
 
 combined_forest_plot <- function(results, options) {
   # Helper function to safely extract and compute values
@@ -206,71 +213,6 @@ combined_forest_plot <- function(results, options) {
   return(p)
 }
 
-compare_models <- function(results) {
-  # Helper function to safely exponentiate
-  safe_exp <- function(x) {
-    if (is.numeric(x)) {
-      return(exp(x))
-    } else {
-      return(NA)
-    }
-  }
-  
-  # Helper function to safely extract values
-  safe_extract <- function(model, field) {
-    if (!is.null(model[[field]])) {
-      return(model[[field]])
-    } else {
-      return(NA)
-    }
-  }
-  
-  # Generate a summary comparing the three models
-  summary <- data.frame(
-    Model = c("Random Effects", "Fixed Effects", "Bivariate"),
-    Effect_Size = c(
-      safe_exp(safe_extract(results$random, "b")),
-      safe_exp(safe_extract(results$fixed, "b")),
-      safe_exp(safe_extract(results$bivariate, "b"))
-    ),
-    CI_Lower = c(
-      safe_exp(safe_extract(results$random, "ci.lb")),
-      safe_exp(safe_extract(results$fixed, "ci.lb")),
-      safe_exp(safe_extract(results$bivariate, "ci.lb"))
-    ),
-    CI_Upper = c(
-      safe_exp(safe_extract(results$random, "ci.ub")),
-      safe_exp(safe_extract(results$fixed, "ci.ub")),
-      safe_exp(safe_extract(results$bivariate, "ci.ub"))
-    ),
-    Tau2 = c(
-      safe_extract(results$random, "tau2"),
-      NA,
-      safe_extract(results$bivariate, "tau2")
-    ),
-    I2 = c(
-      safe_extract(results$random, "I2"),
-      NA,
-      NA
-    ),
-    Q = c(
-      safe_extract(results$random, "Q"),
-      safe_extract(results$fixed, "Q"),
-      NA
-    ),
-    p_value = c(
-      safe_extract(results$random, "pval.Q"),
-      safe_extract(results$fixed, "pval.Q"),
-      NA
-    )
-  )
-  
-  # Round numeric columns to 4 decimal places
-  numeric_columns <- sapply(summary, is.numeric)
-  summary[numeric_columns] <- lapply(summary[numeric_columns], round, 4)
-  
-  return(summary)
-}
 
 
 
@@ -384,10 +326,6 @@ qq_plot_residuals <- function(residuals, title) {
 
 
 
-library(meta)
-library(ggplot2)
-library(metafor)
-library(gridExtra)
 
 # Existing functions (keep these if they're still needed)
 
@@ -395,13 +333,13 @@ library(gridExtra)
 
 interpret_results <- function(results) {
   # Helper function to safely extract and exponentiate values
-  safe_exp <- function(x) {
-    if (is.numeric(x)) {
-      return(exp(x))
-    } else {
-      return(NA)
-    }
-  }
+  #safe_exp <- function(x) {
+  #  if (is.numeric(x)) {
+  #    return(exp(x))
+  #  } else {
+  #    return(NA)
+  #  }
+  #}
   
   # Helper function to safely extract values
   safe_extract <- function(model, field) {
@@ -530,21 +468,48 @@ model_fit_statistics <- function(model) {
 }
 
 influence_plot <- function(model) {
-  plot=baujat(model)
-  class(plot) <- "ggplot"     # Assign an S3 class
-  return(plot)
+  # Check if the necessary components are available
+  if (!all(c("x", "y", "studlab") %in% names(model))) {
+    # If not, calculate the Baujat plot data
+    bj <- baujat(model, plot = FALSE)
+    x <- bj$x
+    y <- bj$y
+    studlab <- model$studlab
+  } else {
+    x <- model$x
+    y <- model$y
+    studlab <- model$studlab
+  }
+  
+  # Ensure all vectors have the same length
+  n <- min(length(x), length(y), length(studlab))
+  x <- x[1:n]
+  y <- y[1:n]
+  studlab <- studlab[1:n]
+  
+  # Create a data frame for ggplot
+  plot_data <- data.frame(x = x, y = y, studlab = studlab)
+  
+  # Create the ggplot
+  ggplot(plot_data, aes(x = x, y = y, label = studlab)) +
+    geom_point() +
+    geom_text(hjust = -0.1, vjust = 0) +
+    theme_minimal() +
+    labs(title = "Baujat Plot",
+         x = "Contribution to overall heterogeneity",
+         y = "Influence on overall result")
 }
 
 
 combined_forest_plot <- function(results, options) {
-  # Helper function to safely extract and compute values
-  safe_extract <- function(model, field) {
-    if (!is.null(model[[field]]) && !all(is.na(model[[field]]))) {
-      return(model[[field]])
-    } else {
-      return(rep(NA, length(model$studlab)))
-    }
-  }
+  # Helper function to safely extract and compute valuesz
+  #safe_extract <- function(model, field) {
+  #  if (!is.null(model[[field]]) && !all(is.na(model[[field]]))) {
+  #    return(model[[field]])
+  #  } else {
+  #    return(rep(NA, length(model$studlab)))
+  #  }
+  #}
   
   safe_ci <- function(yi, vi) {
     if (is.numeric(yi) && is.numeric(vi) && !is.na(yi) && !is.na(vi)) {
@@ -616,13 +581,13 @@ combined_forest_plot <- function(results, options) {
 
 compare_models <- function(results) {
   # Helper function to safely extract and exponentiate values
-  safe_exp <- function(x) {
-    if (is.numeric(x)) {
-      return(exp(x))
-    } else {
-      return(NA)
-    }
-  }
+  #safe_exp <- function(x) {
+  #  if (is.numeric(x)) {
+  #    return(exp(x))
+  #  } else {
+  #    return(NA)
+  #  }
+  #}
   
   # Helper function to safely extract values
   safe_extract <- function(model, field) {
@@ -633,27 +598,34 @@ compare_models <- function(results) {
     }
   }
   
+  # Extract bivariate confidence interval
+  bivariate_ci <- if (!is.null(results$bivariate$conf_region)) {
+    c(exp(min(results$bivariate$conf_region$mu)), exp(max(results$bivariate$conf_region$mu)))
+  } else {
+    c(NA, NA)
+  }
+  
   summary <- data.frame(
     Model = c("Random Effects", "Fixed Effects", "Bivariate"),
     Effect_Size = c(
       safe_exp(safe_extract(results$random, "TE.random")),
       safe_exp(safe_extract(results$fixed, "TE.fixed")),
-      safe_exp(safe_extract(results$bivariate, "b"))
+      safe_exp(safe_extract(results$bivariate, "mu"))
     ),
     CI_Lower = c(
       safe_exp(safe_extract(results$random, "lower.random")),
       safe_exp(safe_extract(results$fixed, "lower.fixed")),
-      safe_exp(safe_extract(results$bivariate, "ci.lb"))
+      bivariate_ci[1]
     ),
     CI_Upper = c(
       safe_exp(safe_extract(results$random, "upper.random")),
       safe_exp(safe_extract(results$fixed, "upper.fixed")),
-      safe_exp(safe_extract(results$bivariate, "ci.ub"))
+      bivariate_ci[2]
     ),
     Tau2 = c(
       safe_extract(results$random, "tau2"),
       NA,
-      safe_extract(results$bivariate, "tau2")
+      safe_extract(results$bivariate, "tau")^2
     ),
     I2 = c(
       safe_extract(results$random, "I2"),
@@ -678,6 +650,7 @@ compare_models <- function(results) {
   
   return(summary)
 }
+
 # Updated QQ plot function to handle potential errors
 qq_plot_residuals <- function(model) {
   residuals <- (model$TE - model$TE.random) / sqrt(model$seTE^2 + model$tau2)
@@ -782,13 +755,31 @@ library(meta)
 library(plotly)
 ```
 
+# Introduction
+
+This report presents the results of a comprehensive meta-analysis using various methodological approaches. The goal is to compare and contrast findings from random effects, fixed effects, and bivariate meta-analysis models.
+
+## Data Input
+
+Below is a preview of the uploaded dataset:
+
+```{r data-preview}
+head(params$data)
+```
+
+## Variables Used
+
+- **study:** Study identifier
+- **ie:** Intervention events
+- **it:** Intervention total
+- **pe:** Placebo/control events
+- **pt:** Placebo/control total
+
 # Overall Results
 
 This section provides a high-level overview of results from all methods, allowing for easy comparison across different meta-analytic approaches.
 
 ## Method Comparison
-
-The following plot compares the effect size estimates and their confidence intervals across the three meta-analytic methods: random effects, fixed effects, and bivariate approach.
 
 ```{r method-comparison-plot, fig.width=10, fig.height=6}
 methodComparisonPlot <- method_comparison_plot(params$random_results, params$fixed_results, params$bivariate_results)
@@ -797,16 +788,12 @@ ggplotly(methodComparisonPlot)
 
 ## Summary Table
 
-This table presents key statistics from each meta-analytic method, including effect sizes, confidence intervals, and heterogeneity measures where applicable.
-
 ```{r summary-table}
 summaryTable <- compare_models(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
 kable(summaryTable)
 ```
 
 ## Overall Interpretation
-
-Below is an overall interpretation of the meta-analysis results, considering all three methods.
 
 ```{r overall-interpretation}
 interpretation <- interpret_results(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
@@ -815,141 +802,190 @@ cat(interpretation)
 
 # Random Effects Analysis
 
-This section provides a comprehensive analysis using the random effects model, which assumes that the true effect size may vary between studies.
-
 ## Effect Size and Heterogeneity
-
-### Forest Plot
-
-The forest plot below shows individual study effects and the overall effect size with confidence intervals.
 
 ```{r random-forest-plot, fig.width=12, fig.height=8}
 randomForestPlot <- random_forest_plot(params$random_results)
 print(randomForestPlot)
 ```
 
-### Heterogeneity Plot
-
-This plot visualizes the extent of heterogeneity among studies.
+This forest plot shows the individual study effects and the overall effect size using the random effects model. The larger the study, the bigger the box. Horizontal lines represent 95% confidence intervals for each study.
 
 ```{r random-heterogeneity-plot, fig.width=10, fig.height=6}
 heterogeneityPlot <- heterogeneity_plot(params$random_results)
 ggplotly(heterogeneityPlot)
 ```
 
+```{r random-overall-summary}
+cat(capture.output(summary(params$random_results)), sep = "\n")
+```
+
 ## Model Diagnostics
 
-### Leave-One-Out Analysis
+```{r random-qq-plot, fig.width=10, fig.height=6}
+qq_plot_residuals(params$random_results)
+```
 
-This analysis shows how the overall effect changes when each study is removed, helping to identify influential studies.
+```{r random-outlier-plot, fig.width=10, fig.height=6}
+print(outlier_detection_plot(params$random_results))
+```
 
-```{r leave-one-out-plot, fig.width=10, fig.height=6}
-leaveOneOutPlot <- random_leave_one_out(params$random_results)
-print(leaveOneOutPlot)
+```{r random-effect-distribution, fig.width=10, fig.height=6}
+print(effect_distribution_plot(params$random_results))
 ```
 
 ## Publication Bias
-
-### Funnel Plot
-
-The funnel plot helps visualize potential publication bias.
 
 ```{r random-funnel-plot, fig.width=10, fig.height=6}
 randomFunnelPlot <- random_funnel_plot(params$random_results)
 print(randomFunnelPlot)
 ```
 
+```{r random-egger-test}
+cat(capture.output(metabias(params$random_results, method = "Egger")), sep = "\n")
+```
+
+## Sensitivity Analysis
+
+```{r random-leave-one-out, fig.width=10, fig.height=6}
+leaveOneOutPlot <- random_leave_one_out(params$random_results)
+print(leaveOneOutPlot)
+```
+
+```{r random-baujat-plot, fig.width=10, fig.height=6}
+print(baujat(params$random_results))
+```
+
+```{r random-influence-summary}
+cat(capture.output(influence_analysis(params$random_results)), sep = "\n")
+```
+
 ## Quality Assessment
 
-### GRADE Assessment
-
-Below is a GRADE assessment for the random effects model, evaluating the quality of evidence.
-
-```{r grade-assessment}
+```{r random-grade-assessment}
 gradeAssessment <- grade_assessment(params$random_results, "Random Effects")
 cat(gradeAssessment)
 ```
 
 # Fixed Effects Analysis
 
-This section provides a comprehensive analysis using the fixed effects model, which assumes that all studies share a common true effect size.
-
 ## Effect Size and Heterogeneity
-
-### Forest Plot
-
-The forest plot below shows individual study effects and the overall fixed effect size with confidence intervals.
 
 ```{r fixed-forest-plot, fig.width=12, fig.height=8}
 fixedForestPlot <- fixed_forest_plot(params$fixed_results)
 print(fixedForestPlot)
 ```
 
+```{r fixed-overall-summary}
+cat(capture.output(summary(params$fixed_results)), sep = "\n")
+```
+
 ## Model Diagnostics
 
-### Model Fit Plot
+```{r fixed-qq-plot, fig.width=10, fig.height=6}
+qq_plot_residuals(params$fixed_results)
+```
 
-This plot visualizes the goodness of fit for the fixed effects model.
-
-```{r fixed-model-fit-plot, fig.width=10, fig.height=6}
-modelFitPlot <- model_fit_plot(params$fixed_results)
-ggplotly(modelFitPlot)
+```{r fixed-outlier-plot, fig.width=10, fig.height=6}
+print(outlier_detection_plot(params$fixed_results))
 ```
 
 ## Publication Bias
-
-### Funnel Plot
-
-The funnel plot helps visualize potential publication bias in the fixed effects model.
 
 ```{r fixed-funnel-plot, fig.width=10, fig.height=6}
 fixedFunnelPlot <- fixed_funnel_plot(params$fixed_results)
 print(fixedFunnelPlot)
 ```
 
+```{r fixed-egger-test}
+cat(capture.output(metabias(params$fixed_results, method = "Egger")), sep = "\n")
+```
+
+## Sensitivity Analysis
+
+```{r fixed-leave-one-out, fig.width=10, fig.height=6}
+fixed_metainf <- metainf(params$fixed_results)
+fixed_loo_data <- data.frame(
+  study = fixed_metainf$studlab,
+  estimate = fixed_metainf$TE,
+  lower = fixed_metainf$lower,
+  upper = fixed_metainf$upper
+)
+
+ggplot(fixed_loo_data, aes(x = estimate, y = study)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
+  geom_vline(xintercept = params$fixed_results$TE.fixed, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(title = "Leave-One-Out Analysis (Fixed Effects)", x = "Effect Size", y = "Study Omitted")
+```
+
+```{r fixed-influence-plot, fig.width=10, fig.height=6}
+baujat(params$fixed_results, 
+       main = "Baujat Plot for Fixed Effects Model",
+       xlab = "Contribution to overall heterogeneity",
+       ylab = "Influence on overall result")
+```
+
+## Quality Assessment
+
+```{r fixed-grade-assessment}
+fixedGradeAssessment <- grade_assessment(params$fixed_results, "Fixed Effects")
+cat(fixedGradeAssessment)
+```
+
 # Bivariate Approach
 
-This section presents results from the bivariate approach, which models two outcomes simultaneously.
-
 ## Effect Size and Heterogeneity
-
-### Bivariate Forest Plot
-
-This forest plot displays effect sizes for two outcomes simultaneously.
 
 ```{r bivariate-forest-plot, fig.width=12, fig.height=8}
 bivariateForestPlot <- forest.metabiv(params$bivariate_results)
 print(bivariateForestPlot)
 ```
 
+```{r bivariate-confidence-region, fig.width=10, fig.height=6}
+plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]], 
+               params$bivariate_results$dev_pvals[[2]], 
+               mlb = "Confidence Region for (μ, τ)")
+```
+
 ## Model Diagnostics
 
-### Confidence Region Plot
+```{r bivariate-qq-plot-mu, fig.width=10, fig.height=6}
+qq_plot_residuals_with_envelope(params$bivariate_results$y.k, "Q-Q Plot for μ")
+```
 
-This plot shows the joint confidence region for the two outcomes (μ and τ).
-
-```{r confidence-region-plot, fig.width=10, fig.height=6}
-#confidenceRegionPlot <- plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]], 
-#                                       params$bivariate_results$dev_pvals[[2]], 
-#                                       mlb = "Confidence Region for (μ, τ)",
-#                                       mu_mle = params$bivariate_results$mu,
-#                                       tau_mle = params$bivariate_results$tau)
-#print(confidenceRegionPlot)
+```{r bivariate-qq-plot-tau, fig.width=10, fig.height=6}
+qq_plot_residuals_with_envelope(sqrt(params$bivariate_results$sigma.2.k), "Q-Q Plot for τ")
 ```
 
 ## Publication Bias
 
-### Efficacy-Harm Plot
+```{r bivariate-adapted-funnel-plot, fig.width=10, fig.height=6}
+y.k <- exp(params$bivariate_results$y.k)
+se.k <- sqrt(params$bivariate_results$sigma.2.k)
+meta_analysis <- metagen(TE = y.k, seTE = se.k)
+funnel(meta_analysis, sm = params$bivariate_results$sm)
+```
 
-This plot visualizes the relationship between efficacy and harm outcomes, helping to balance benefits and risks.
+## Sensitivity Analysis
 
-```{r efficacy-harm-plot, fig.width=10, fig.height=6}
-efficacyHarmPlot <- comp.eff.harm.plot(comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals),
-                                       efficacy.is.OR.le1 = (params$bivariate_results$sm == "OR"),
-                                       mlb = paste("Efficacy/Harm plot for", params$bivariate_results$sm))
-print(efficacyHarmPlot)
+```{r bivariate-confidence-region-shift, fig.width=10, fig.height=6}
+print(confidence_region_shift_plot(params$bivariate_results))
+```
+
+```{r bivariate-gosh-plot, fig.width=10, fig.height=6}
+print(bivariate_gosh_plot(params$bivariate_results, n_subsets = 1000))
+```
+
+## Quality Assessment
+
+```{r bivariate-grade-assessment}
+bivariateGradeAssessment <- bivariate_grade_assessment(params$bivariate_results, "Low", "Low")
+cat(bivariateGradeAssessment)
 ```
 
 This comprehensive report provides a detailed overview of the meta-analysis results using multiple methodological approaches. By comparing results across different models and examining various diagnostic plots, we can gain a more nuanced understanding of the effect size, heterogeneity, and potential biases in the meta-analysis. This multi-faceted approach supports more informed decision-making in interpreting and applying the results of the meta-analysis.
 ')
 }
+
