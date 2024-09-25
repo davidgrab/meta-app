@@ -127,7 +127,6 @@ server <- function(input, output, session) {
   })
   
   # New download
-  handler
   output$downloadSampleStructure <- downloadHandler(
     filename = function() {
       "sample_data_structure.csv"
@@ -1359,7 +1358,6 @@ server <- function(input, output, session) {
     }
   )
   
-  sampleDataStructure
 }
 
 
