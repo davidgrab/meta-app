@@ -465,14 +465,14 @@ server <- function(input, output, session) {
   # Confidence Region Plot
   output$confidenceRegionPlot <- renderPlot({
     req(bivariate_result())
-    mle_values <- plot.mu.tau.CI(bivariate_result()$dev_pvals[[1]], 
-                                 bivariate_result()$dev_pvals[[2]], 
-                                 mlb = "Confidence Region for (μ, τ)",
-                                 mu_mle = bivariate_result()$mu,
-                                 tau_mle = bivariate_result()$tau)
     
-    # You can use mle_values$mu_mle and mle_values$tau_mle here if needed
+    plot.mu.tau.CI(bivariate_result()$dev_pvals[[1]], 
+                   bivariate_result()$dev_pvals[[2]], 
+                   mlb = "Confidence Region for (Effect Size, τ)",
+                   mu_mle = bivariate_result()$mu,
+                   tau_mle = bivariate_result()$tau)
   })
+  
   
   # Bivariate Overall Summary
   output$bivariateOverallSummary <- renderPrint({
@@ -529,8 +529,13 @@ server <- function(input, output, session) {
   # Q-Q Plot for μ
   output$qqPlotMu <- renderPlot({
     req(bivariate_result())
-    qqnorm(bivariate_result()$y.k, main = "Q-Q Plot for μ")
-    qqline(bivariate_result()$y.k, col = "red")
+    #qqnorm(bivariate_result()$y.k, main = "Q-Q Plot for μ")
+    #qqline(bivariate_result()$y.k, col = "red")
+    qq_plot_with_ci(y_k = bivariate_result()$y.k, 
+                    mu = bivariate_result()$mu,
+                    sigma_2_k = bivariate_result()$sigma.2.k,
+                    tau_2 = bivariate_result()$tau^2,
+                    title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)")
   })
   
   # Q-Q Plot for τ
@@ -654,6 +659,7 @@ server <- function(input, output, session) {
                                fixed = TRUE,
                                random = FALSE)
     
+    browser()
     # Combine results
     results <- data.frame(
       Method = c("Fixed Effects", "Random Effects", "Bivariate"),

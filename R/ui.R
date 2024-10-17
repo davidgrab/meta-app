@@ -279,6 +279,10 @@ ui <- page_fillable(
                                     )
                              )
                            ),
+                           div(class = "plot-container",
+                               plotOutput("efficacyHarmPlot"),
+                               p("Efficacy-harm plot: Visualizes the relationship between efficacy and harm outcomes.", class = "plot-explanation")
+                           ),
                            verbatimTextOutput("bivariateOverallSummary")
                   ),
                   tabPanel("Model Diagnostics",
@@ -287,19 +291,9 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("qqPlotMu"),
-                                        p("Q-Q plot (μ): Assesses normality of residuals for the first outcome.", class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("qqPlotTau"),
-                                        p("Q-Q plot (τ): Assesses normality of residuals for the second outcome.", class = "plot-explanation")
+                                        p("Q-Q plot (μ) for normal eandom effects : Assesses normality of residuals for the first outcome.", class = "plot-explanation")
                                     )
                              )
-                           ),
-                           div(class = "plot-container",
-                               plotOutput("efficacyHarmPlot"),
-                               p("Efficacy-harm plot: Visualizes the relationship between efficacy and harm outcomes.", class = "plot-explanation")
                            )
                   ),
                   tabPanel("Publication Bias",

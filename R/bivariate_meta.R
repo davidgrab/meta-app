@@ -238,54 +238,70 @@ plot.metabiv <- function(x, type = "region", ...) {
   }
 }
 
-plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "", new.plot = TRUE, ccol = 3, mu_mle = NULL, tau_mle = NULL) {
+
+plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "", mu_mle = NULL, tau_mle = NULL) {
   n.mu <- dim(pval.mat)[1]
   n.tau <- dim(pval.mat)[2]
-  seq.mu <- sapply((strsplit(dimnames(pval.mat)[[1]], "mu =")), as.numeric)[2,]
-  seq.tau <- sapply((strsplit(dimnames(pval.mat)[[2]], "tau =")), as.numeric)[2,]
-  x.mu <- rep(seq.mu, n.tau)
-  x.tau <- rep(seq.tau, each = n.mu)
+  seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
+  seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
   
-  mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length = 100)
-  tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length = 100)
+  mu.pred.vec <- exp(seq(min(seq.mu), max(seq.mu), length.out = 100))
+  tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
   
   logit.p <- log.odds(c(pval.mat))
   logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
   logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
   
-  logit.p.loess <- loess(logit.p ~ x.mu + x.tau, span = .1)
-  smth.pval.mat <- array(inv.log.odds(predict(logit.p.loess, data.frame(x.mu = rep(mu.pred.vec, 100), x.tau = rep(tau.pred.vec, each = 100)))), dim=c(100, 100))
-  dimnames(smth.pval.mat) <- list(paste("mu = ", round(mu.pred.vec, 2)), paste("tau = ", round(tau.pred.vec, 3)))
+  logit.p.loess <- loess(logit.p ~ rep(seq.mu, n.tau) + rep(seq.tau, each = n.mu), span = 0.1)
   
-  if(new.plot) {
-    # Create a new plot
-    contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, col = ccol, lwd = 2, 
-            drawlabels = FALSE, xlab = "mu", ylab = "tau", main = mlb)
-  } else {
-    # Add to existing plot
-    contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, col = ccol, lwd = 2, 
-            drawlabels = FALSE, add = TRUE)
-  }
+  smth.pval.mat <- matrix(inv.log.odds(predict(logit.p.loess, data.frame(
+    x = rep(log(mu.pred.vec), each = 100),
+    y = rep(tau.pred.vec, 100)
+  ))), nrow = 100, ncol = 100)
   
-  # Plot the dev.mat contour with dashed lines
-  contour(seq.mu, seq.tau, dev.mat, col = ccol, lty = 2, 
-          levels = round(qchisq(1 - p.cntr.vec, 2), 1), add = TRUE)
+  # Determine x-axis limits
+  max_ci <- max(mu.pred.vec[which(smth.pval.mat <= min(p.cntr.vec), arr.ind = TRUE)[,1]])
+  xlim <- c(0.5, min(max_ci, 2.5))  # Adjust upper limit to 2.5
   
-  # Add MLE point
+  # Determine appropriate x-axis breaks
+  breaks <- c(0.5, 1, 1.5, 2, 2.5)
+  breaks <- breaks[breaks <= xlim[2]]
+  
+  par(mar = c(5, 5, 4, 2) + 0.1)
+  plot(1, type = "n", log = "x", 
+       xlim = xlim, ylim = range(tau.pred.vec),
+       xlab = "Effect Size (OR/RR)", ylab = "tau",
+       main = mlb,
+       cex.lab = 1.2, cex.axis = 0.8, cex.main = 1.2)
+  
+  contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, 
+          col = c("red", "blue"), add = TRUE, drawlabels = FALSE)
+  
+  abline(v = 1, lty = 2, col = "gray")
+  
   if(is.null(mu_mle) || is.null(tau_mle)) {
-    # If MLE not provided, estimate from dev.mat
     mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
     mu_mle <- seq.mu[mle_index[1]]
     tau_mle <- seq.tau[mle_index[2]]
   }
+  points(exp(mu_mle), tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
   
-  # Add MLE point as a smaller green cross
-  points(mu_mle, tau_mle, pch = 3, col = "green", cex = 1.2, lwd = 2)
+  # Add reference lines
+  abline(0, 1/qnorm(0.75), col = "blue", lty = 3)
+  abline(0.5/qnorm(0.75), -1/qnorm(0.75), col = "blue", lty = 3)
+  abline(v = exp(0), col = "blue", lty = 3)
+  abline(v = exp(0.5), col = "blue", lty = 3)
   
-  # Return MLE values
-  return(list(mu_mle = mu_mle, tau_mle = tau_mle))
+  # Customize x-axis with proper decimal formatting
+  axis(1, at = breaks, labels = sprintf("%.1f", breaks), cex.axis = 0.8)
+  
+  # Add legend to upper right corner
+  legend("topright", legend = c("95% CI", "50% CI", "MLE"), 
+         col = c("red", "blue", "green"), lty = c(1, 1, NA), pch = c(NA, NA, 3),
+         cex = 0.8, bg = "white", box.lwd = 0)
+  
+  invisible(list(mu_mle = mu_mle, tau_mle = tau_mle))
 }
-
 
 plot_confidence_region <- function(x) {
   plot.mu.tau.CI(x$dev_pvals[[1]], x$dev_pvals[[2]], 

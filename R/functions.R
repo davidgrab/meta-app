@@ -732,6 +732,44 @@ ggplot_metainf <- function(metainf_result) {
 }
 
 
+qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)") {
+  # Calculate standardized residuals
+  standardized_residuals <- (y_k - mu) / sqrt(sigma_2_k + tau_2)
+  
+  # Calculate Q-Q plot points
+  qq_data <- qqnorm(standardized_residuals, plot.it = FALSE)
+  
+  # Calculate confidence intervals
+  ci_lower <- qq_data$y - 1.96
+  ci_upper <- qq_data$y + 1.96
+  
+  # Plot
+  plot(qq_data$x, qq_data$y, 
+       main = title, 
+       xlab = "Theoretical Quantiles", 
+       ylab = "Standardized Residuals",
+       pch = 19, col = "blue",
+       ylim = range(c(ci_lower, ci_upper), na.rm = TRUE))  # Adjust y-axis to include all CI
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2)
+  
+  # Add error bars
+  segments(qq_data$x, ci_lower, qq_data$x, ci_upper, col = "darkgray")
+  
+  # Add small horizontal lines at the ends of the error bars
+  segments(qq_data$x - 0.1, ci_lower, qq_data$x + 0.1, ci_lower, col = "darkgray")
+  segments(qq_data$x - 0.1, ci_upper, qq_data$x + 0.1, ci_upper, col = "darkgray")
+  
+  # Add legend
+  legend("topleft", 
+         legend = c("Standardized Residuals", "Reference Line", "95% Confidence Interval"),
+         pch = c(19, NA, NA),
+         lty = c(NA, 2, 1),
+         col = c("blue", "red", "darkgray"),
+         bg = "white")
+}
+
 generate_report_content <- function() {
   return('
 ---
