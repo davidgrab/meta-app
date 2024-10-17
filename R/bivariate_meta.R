@@ -238,7 +238,7 @@ plot.metabiv <- function(x, type = "region", ...) {
   }
 }
 
-plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "", new.plot = TRUE, ccol = 3) {
+plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "", new.plot = TRUE, ccol = 3, mu_mle = NULL, tau_mle = NULL) {
   n.mu <- dim(pval.mat)[1]
   n.tau <- dim(pval.mat)[2]
   seq.mu <- sapply((strsplit(dimnames(pval.mat)[[1]], "mu =")), as.numeric)[2,]
@@ -257,14 +257,35 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig 
   smth.pval.mat <- array(inv.log.odds(predict(logit.p.loess, data.frame(x.mu = rep(mu.pred.vec, 100), x.tau = rep(tau.pred.vec, each = 100)))), dim=c(100, 100))
   dimnames(smth.pval.mat) <- list(paste("mu = ", round(mu.pred.vec, 2)), paste("tau = ", round(tau.pred.vec, 3)))
   
-  # Plot the dev.mat contour with dashed lines
-  contour(seq.mu, seq.tau, dev.mat, col = ccol, lty = 2, levels = round(qchisq(1 - p.cntr.vec, 2), 1), xlab = "mu", ylab = "tau", main = mlb)
+  if(new.plot) {
+    # Create a new plot
+    contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, col = ccol, lwd = 2, 
+            drawlabels = FALSE, xlab = "mu", ylab = "tau", main = mlb)
+  } else {
+    # Add to existing plot
+    contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, col = ccol, lwd = 2, 
+            drawlabels = FALSE, add = TRUE)
+  }
   
-  # Add MLE point as a green cross
-  points(seq.mu[which(dev.mat == min(dev.mat), arr.ind = TRUE)[1]], 
-         seq.tau[which(dev.mat == min(dev.mat), arr.ind = TRUE)[2]], 
-         pch = 3, col = "green", cex = 1.5, lwd = 2)
+  # Plot the dev.mat contour with dashed lines
+  contour(seq.mu, seq.tau, dev.mat, col = ccol, lty = 2, 
+          levels = round(qchisq(1 - p.cntr.vec, 2), 1), add = TRUE)
+  
+  # Add MLE point
+  if(is.null(mu_mle) || is.null(tau_mle)) {
+    # If MLE not provided, estimate from dev.mat
+    mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
+    mu_mle <- seq.mu[mle_index[1]]
+    tau_mle <- seq.tau[mle_index[2]]
+  }
+  
+  # Add MLE point as a smaller green cross
+  points(mu_mle, tau_mle, pch = 3, col = "green", cex = 1.2, lwd = 2)
+  
+  # Return MLE values
+  return(list(mu_mle = mu_mle, tau_mle = tau_mle))
 }
+
 
 plot_confidence_region <- function(x) {
   plot.mu.tau.CI(x$dev_pvals[[1]], x$dev_pvals[[2]], 
@@ -1115,29 +1136,6 @@ comp.tau.mu.log.RR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
   return(list(dev.mat, pval.mat))
 }
 
-# Confidence Region Plot
-plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "") {
-  n.mu <- dim(pval.mat)[1]
-  n.tau <- dim(pval.mat)[2]
-  seq.mu <- sapply((strsplit(dimnames(pval.mat)[[1]], "mu =")), as.numeric)[2,]
-  seq.tau <- sapply((strsplit(dimnames(pval.mat)[[2]], "tau =")), as.numeric)[2,]
-  x.mu <- rep(seq.mu, n.tau)
-  x.tau <- rep(seq.tau, each = n.mu)
-  
-  mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length = 100)
-  tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length = 100)
-  
-  logit.p <- log.odds(c(pval.mat))
-  logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
-  logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
-  
-  logit.p.loess <- loess(logit.p ~ x.mu + x.tau, span = .1)
-  smth.pval.mat <- array(inv.log.odds(predict(logit.p.loess, data.frame(x.mu = rep(mu.pred.vec,100), x.tau = rep(tau.pred.vec,each = 100)))), dim=c(100,100))
-  dimnames(smth.pval.mat) <- list(paste("mu = ", round(mu.pred.vec,2)), paste("tau = ", round(tau.pred.vec,3)))
-  
-  contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, col=3, lwd = 2, xlab = "mu", ylab = "tau", main = mlb)
-  contour(seq.mu, seq.tau, dev.mat, col=3, lty=2, levels = round(qchisq(1 - p.cntr.vec,2),1), add=T)
-}
 
 
 

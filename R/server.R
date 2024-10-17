@@ -465,9 +465,13 @@ server <- function(input, output, session) {
   # Confidence Region Plot
   output$confidenceRegionPlot <- renderPlot({
     req(bivariate_result())
-    plot.mu.tau.CI(bivariate_result()$dev_pvals[[1]], 
-                   bivariate_result()$dev_pvals[[2]], 
-                   mlb = "Confidence Region for (μ, τ)")
+    mle_values <- plot.mu.tau.CI(bivariate_result()$dev_pvals[[1]], 
+                                 bivariate_result()$dev_pvals[[2]], 
+                                 mlb = "Confidence Region for (μ, τ)",
+                                 mu_mle = bivariate_result()$mu,
+                                 tau_mle = bivariate_result()$tau)
+    
+    # You can use mle_values$mu_mle and mle_values$tau_mle here if needed
   })
   
   # Bivariate Overall Summary
