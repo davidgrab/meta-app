@@ -580,15 +580,6 @@ combined_forest_plot <- function(results, options) {
 
 
 compare_models <- function(results) {
-  # Helper function to safely extract and exponentiate values
-  #safe_exp <- function(x) {
-  #  if (is.numeric(x)) {
-  #    return(exp(x))
-  #  } else {
-  #    return(NA)
-  #  }
-  #}
-  
   # Helper function to safely extract values
   safe_extract <- function(model, field) {
     if (!is.null(model[[field]])) {
@@ -598,11 +589,13 @@ compare_models <- function(results) {
     }
   }
   
-  # Extract bivariate confidence interval
-  bivariate_ci <- if (!is.null(results$bivariate$conf_region)) {
-    c(exp(min(results$bivariate$conf_region$mu)), exp(max(results$bivariate$conf_region$mu)))
-  } else {
-    c(NA, NA)
+  # Helper function to safely exponentiate values
+  safe_exp <- function(x) {
+    if (is.numeric(x) && !is.na(x)) {
+      return(exp(x))
+    } else {
+      return(NA)
+    }
   }
   
   summary <- data.frame(
@@ -615,12 +608,12 @@ compare_models <- function(results) {
     CI_Lower = c(
       safe_exp(safe_extract(results$random, "lower.random")),
       safe_exp(safe_extract(results$fixed, "lower.fixed")),
-      bivariate_ci[1]
+      safe_exp(safe_extract(results$bivariate, "lower"))
     ),
     CI_Upper = c(
       safe_exp(safe_extract(results$random, "upper.random")),
       safe_exp(safe_extract(results$fixed, "upper.fixed")),
-      bivariate_ci[2]
+      safe_exp(safe_extract(results$bivariate, "upper"))
     ),
     Tau2 = c(
       safe_extract(results$random, "tau2"),
@@ -650,7 +643,6 @@ compare_models <- function(results) {
   
   return(summary)
 }
-
 # Updated QQ plot function to handle potential errors
 qq_plot_residuals <- function(model) {
   residuals <- (model$TE - model$TE.random) / sqrt(model$seTE^2 + model$tau2)

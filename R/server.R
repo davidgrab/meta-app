@@ -188,7 +188,6 @@ server <- function(input, output, session) {
   # Combined analysis
   combinedResults <- eventReactive(input$analyze, {
     req(data())
-    
     random_model <- metabin(event.e = data()$ie, 
                             n.e = data()$it,
                             event.c = data()$pe,
@@ -637,6 +636,7 @@ server <- function(input, output, session) {
   # Method Comparison Plot
   output$methodComparisonPlot <- renderPlot({
     req(bivariate_result())
+  
     # Traditional meta-analysis (random effects)
     trad_meta_random <- metabin(event.e = data()$ie, 
                                 n.e = data()$it, 
@@ -659,13 +659,13 @@ server <- function(input, output, session) {
                                fixed = TRUE,
                                random = FALSE)
     
-    browser()
+
     # Combine results
     results <- data.frame(
       Method = c("Fixed Effects", "Random Effects", "Bivariate"),
       Estimate = c(trad_meta_fixed$TE.fixed, trad_meta_random$TE.random, bivariate_result()$mu),
-      Lower = c(trad_meta_fixed$lower.fixed, trad_meta_random$lower.random, bivariate_result()$mu - qnorm(0.975)*bivariate_result()$tau),
-      Upper = c(trad_meta_fixed$upper.fixed, trad_meta_random$upper.random, bivariate_result()$mu + qnorm(0.975)*bivariate_result()$tau)
+      Lower = c(trad_meta_fixed$lower.fixed, trad_meta_random$lower.random, bivariate_result()$lower),
+      Upper = c(trad_meta_fixed$upper.fixed, trad_meta_random$upper.random, bivariate_result()$upper)
     )
     
     

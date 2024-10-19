@@ -22,7 +22,6 @@ library(plotly)
 metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
                     data = NULL, sm = "RR",
                     level = 0.95, level.ma = 0.95) {
-  
   # Data preparation
   if (!is.null(data)) {
     event.e <- data[[deparse(substitute(event.e))]]
@@ -48,9 +47,51 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
   y.k <- res[[1]]
   sigma.2.k <- res[[2]]
   
+  k <- length(event.e)
+  
   # Estimate tau and mu using MLE
   initial.value <- c(0.4, 0.4)
   mle_result <- comp.tau.mu.MLE(data.tbl, initial.value, sm)
+  mu <- mle_result$mu
+  tau <- mle_result$tau
+  tau2 <- tau^2
+  
+  # Calculate confidence intervals
+  ci_level <- level
+  z_score <- qnorm((1 + ci_level) / 2)
+  
+  # Individual study CIs (on log scale)
+  lower.k <- y.k - z_score * sqrt(pmax(sigma.2.k, 0))
+  upper.k <- y.k + z_score * sqrt(pmax(sigma.2.k, 0))
+  
+  # Overall effect CI (on log scale)
+  se.mu <- sqrt(1 / sum(1 / (sigma.2.k + tau2)))  # More accurate SE calculation
+  lower <- mu - z_score * se.mu
+  upper <- mu + z_score * se.mu
+  
+  # Convert CIs to original scale
+  lower.k.orig <- exp(lower.k)
+  upper.k.orig <- exp(upper.k)
+  lower.orig <- exp(lower)
+  upper.orig <- exp(upper)
+  
+  # Calculate Q statistic
+  w <- 1 / pmax(sigma.2.k, 1e-10)  # Avoid division by zero
+  Q <- sum(w * (y.k - mu)^2)
+  df <- k - 1
+  
+  # Calculate p-value for Q
+  p_value <- 1 - pchisq(Q, df)
+  
+  # Calculate I2
+  if (Q > df) {
+    I2 <- 100 * (Q - df) / Q
+  } else {
+    I2 <- 0
+  }
+  
+  # Calculate H2
+  H2 <- Q / df
   
   # Calculate deviance and p-values
   mu.vec <- seq(-1, 1, length.out = 100)
@@ -63,7 +104,7 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
   # Diagnostic Plot
   draw.diagnostic.plot(data.tbl, mlb = "Diagnostic plot")
   
-  # Exact tests or normal approximation for rr
+  # Exact tests or normal approximation for RR
   exact_test_results <- if (any(n.e + n.c < 50)) {
     if (sm == "OR") {
       exact_tests(data.tbl, sm)
@@ -77,15 +118,32 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
   # Prepare results
   res <- list(
     studlab = studlab,
-    event.e = event.e, n.e = n.e,
-    event.c = event.c, n.c = n.c,
+    event.e = event.e, 
+    n.e = n.e,
+    event.c = event.c, 
+    n.c = n.c,
     y.k = y.k,
     sigma.2.k = sigma.2.k,
     sm = sm,
     level = level,
     level.ma = level.ma,
-    mu = mle_result$mu,
-    tau = mle_result$tau,
+    mu = mu,
+    tau = tau,
+    tau2 = tau2,
+    lower = lower,
+    upper = upper,
+    lower.orig = lower.orig,
+    upper.orig = upper.orig,
+    lower.k = lower.k,
+    upper.k = upper.k,
+    lower.k.orig = lower.k.orig,
+    upper.k.orig = upper.k.orig,
+    Q = Q,
+    df = df,
+    pval.Q = p_value,
+    I2 = I2,
+    H2 = H2,
+    w = w,
     dev_pvals = dev_pvals,
     conf_region = conf_region,
     exact_tests = exact_test_results,
@@ -379,6 +437,7 @@ summary.metabiv <- function(object, ...) {
   cat("Random effects model:\n")
   cat("  μ estimate:", round(object$mu, 4), "\n")
   cat("  τ estimate:", round(object$tau, 4), "\n")
+  cat("  95% Confidence Interval for μ: [", round(object$lower, 4), ", ", round(object$upper, 4), "]\n")
   cat("  95% Confidence Region:\n")
   cat("    μ range: [", round(min(object$conf_region$mu), 4), ", ", round(max(object$conf_region$mu), 4), "]\n")
   cat("    τ range: [", round(min(object$conf_region$tau), 4), ", ", round(max(object$conf_region$tau), 4), "]\n")
