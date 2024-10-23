@@ -349,21 +349,21 @@ interpret_results <- function(results) {
       return(NA)
     }
   }
-  
+
   output <- paste("Overall Interpretation:\n\n",
                   "Random Effects Model:\n",
                   "Effect Size: ", round(safe_exp(safe_extract(results$random, "TE.random")), 2),
                   " (95% CI: ", round(safe_exp(safe_extract(results$random, "lower.random")), 2),
                   " - ", round(safe_exp(safe_extract(results$random, "upper.random")), 2), ")\n",
-                  "Heterogeneity (I^2): ", round(safe_extract(results$random, "I2"), 1), "%\n\n",
+                  "Heterogeneity (I^2): ", safe_extract(results$random, "I2"), "%\n\n",
                   "Fixed Effects Model:\n",
                   "Effect Size: ", round(safe_exp(safe_extract(results$fixed, "TE.fixed")), 2),
                   " (95% CI: ", round(safe_exp(safe_extract(results$fixed, "lower.fixed")), 2),
                   " - ", round(safe_exp(safe_extract(results$fixed, "upper.fixed")), 2), ")\n\n",
                   "Bivariate Model:\n",
                   "Effect Size: ", round(safe_exp(results$bivariate$mu), 2),
-                  " (95% CI: ", round(safe_exp(results$bivariate$conf_region$mu[1]), 2),
-                  " - ", round(safe_exp(results$bivariate$conf_region$mu[2]), 2), ")\n",
+                  " (95% CI: ", round(safe_exp(safe_extract(results$bivariate, "lower")), 2),
+                  " - ", round(safe_exp(safe_extract(results$bivariate, "upper")), 2), ")\n",
                   "Between-study variance (tau^2): ", round(results$bivariate$tau^2, 4), "\n\n")
   
   # Add interpretations only if we have valid data
@@ -597,7 +597,7 @@ compare_models <- function(results) {
       return(NA)
     }
   }
-  
+
   summary <- data.frame(
     Model = c("Random Effects", "Fixed Effects", "Bivariate"),
     Effect_Size = c(
@@ -623,17 +623,17 @@ compare_models <- function(results) {
     I2 = c(
       safe_extract(results$random, "I2"),
       NA,
-      NA
+      safe_extract(results$bivariate, "I2")/100
     ),
     Q = c(
       safe_extract(results$random, "Q"),
       safe_extract(results$fixed, "Q"),
-      NA
+      safe_extract(results$bivariate, "Q")
     ),
     p_value = c(
       safe_extract(results$random, "pval.Q"),
       safe_extract(results$fixed, "pval.Q"),
-      NA
+      safe_extract(results$bivariate, "pval.Q")
     )
   )
   
