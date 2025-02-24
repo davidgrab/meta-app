@@ -95,29 +95,38 @@ ui <- page_fillable(
                   tabPanel("Summary Table", 
                            actionButton("summary_table_info", "", icon = icon("info-circle"), class = "help-text"),
                            tableOutput("overallSummaryTable")),
-                  tabPanel("Overall Interpretation", 
-                           actionButton("overall_interpretation_info", "", icon = icon("info-circle"), class = "help-text"),
-                           verbatimTextOutput("overallInterpretation"))
+                  # tabPanel("Overall Interpretation", 
+                  #          actionButton("overall_interpretation_info", "", icon = icon("info-circle"), class = "help-text"),
+                  #          verbatimTextOutput("overallInterpretation"))
                 )
       ),
       nav_panel("Random Effects Analysis",
                 tabsetPanel(
+                  # tabPanel("Effect Size and Heterogeneity",
+                  #          actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
+                  #          fluidRow(
+                  #            column(6,
+                  #                   div(class = "plot-container",
+                  #                       plotOutput("randomForestPlot"),
+                  #                       p("Forest plot: Shows individual study effects and overall effect size with confidence intervals.", class = "plot-explanation")
+                  #                   )
+                  #            ),
+                  #            column(6,
+                  #                   div(class = "plot-container",
+                  #                       plotOutput("randomHeterogeneityPlot"),
+                  #                       p("Heterogeneity plot: Visualizes the extent of heterogeneity among studies.", class = "plot-explanation")
+                  #                   )
+                  #            )
+                  #          ),
+                  #          verbatimTextOutput("randomOverallSummary"),
+                  #          verbatimTextOutput("randomHeterogeneitySummary")
+                  # ),
                   tabPanel("Effect Size and Heterogeneity", 
-                           actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("randomForestPlot"),
-                                        p("Forest plot: Shows individual study effects and overall effect size with confidence intervals.", class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("randomHeterogeneityPlot"),
-                                        p("Heterogeneity plot: Visualizes the extent of heterogeneity among studies.", class = "plot-explanation")
-                                    )
-                             )
+                           div(class = "plot-container",
+                               plotOutput("randomForestPlot"),
+                               p("Forest plot: Shows individual study effects and overall effect size with confidence intervals.", class = "plot-explanation")
                            ),
+                           actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("randomOverallSummary"),
                            verbatimTextOutput("randomHeterogeneitySummary")
                   ),
@@ -182,10 +191,10 @@ ui <- page_fillable(
                            ),
                            verbatimTextOutput("influenceSummary")
                   ),
-                  tabPanel("Quality Assessment",
-                           actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
-                           verbatimTextOutput("randomGradeAssessment")
-                  )
+                  # tabPanel("Quality Assessment",
+                  #          actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
+                  #          verbatimTextOutput("randomGradeAssessment")
+                  # )
                 )
       ),
       nav_panel("Fixed Effects Analysis",
@@ -255,10 +264,10 @@ ui <- page_fillable(
                            ),
                            verbatimTextOutput("fixedInfluenceSummary")
                   ),
-                  tabPanel("Quality Assessment",
-                           actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
-                           verbatimTextOutput("fixedGradeAssessment")
-                  )
+                  # tabPanel("Quality Assessment",
+                  #          actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
+                  #          verbatimTextOutput("fixedGradeAssessment")
+                  # )
                 )
       ),
       nav_panel("Bivariate Approach",
@@ -293,6 +302,12 @@ ui <- page_fillable(
                                         plotOutput("qqPlotMu"),
                                         p("Q-Q plot (μ) for normal eandom effects : Assesses normality of residuals for the first outcome.", class = "plot-explanation")
                                     )
+                             ),
+                             column(6, 
+                                    div(class = "plot-container",
+                                        plotOutput("qqPlotMuRaw"),
+                                        p("Q-Q plot (μ) for normal eandom effects : Assesses normality of residuals for the first outcome.", class = "plot-explanation")
+                                    )
                              )
                            )
                   ),
@@ -302,7 +317,7 @@ ui <- page_fillable(
                                plotOutput("bivariateAdaptedFunnelPlot"),
                                p("Adapted funnel plot: Visualizes potential publication bias in the bivariate context.", class = "plot-explanation")
                            ),
-                           verbatimTextOutput("bivariateBiasTestResults")
+                           # verbatimTextOutput("bivariateBiasTestResults")
                   ),
                   tabPanel("Sensitivity Analysis",
                            actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
@@ -320,28 +335,28 @@ ui <- page_fillable(
                                     )
                              )
                            ),
-                           div(class = "plot-container",
-                               plotlyOutput("bivariateGOSHPlot"),
-                               p("Bivariate GOSH plot: Assesses stability of results in the bivariate model.", class = "plot-explanation")
-                           ),
-                           verbatimTextOutput("bivariateInfluenceSummary")
+                           # div(class = "plot-container",
+                           #     plotlyOutput("bivariateGOSHPlot"),
+                           #     p("Bivariate GOSH plot: Assesses stability of results in the bivariate model.", class = "plot-explanation")
+                           # ),
+                           # verbatimTextOutput("bivariateInfluenceSummary")
                   ),
-                  tabPanel("Quality Assessment",
-                           actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
-                           fluidRow(
-                             column(6,
-                                    selectInput("risk_of_bias", "Risk of Bias:",
-                                                choices = c("Low", "Unclear", "High"),
-                                                selected = "Unclear")
-                             ),
-                             column(6,
-                                    selectInput("indirectness", "Indirectness:",
-                                                choices = c("Low", "Unclear", "High"),
-                                                selected = "Low")
-                             )
-                           ),
-                           verbatimTextOutput("bivariateGRADESummary")
-                  )
+                  # tabPanel("Quality Assessment",
+                  #          actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
+                  #          fluidRow(
+                  #            column(6,
+                  #                   selectInput("risk_of_bias", "Risk of Bias:",
+                  #                               choices = c("Low", "Unclear", "High"),
+                  #                               selected = "Unclear")
+                  #            ),
+                  #            column(6,
+                  #                   selectInput("indirectness", "Indirectness:",
+                  #                               choices = c("Low", "Unclear", "High"),
+                  #                               selected = "Low")
+                  #            )
+                  #          ),
+                  #          verbatimTextOutput("bivariateGRADESummary")
+                  # )
                 )
       )
     )

@@ -135,7 +135,9 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
     dev_pvals = dev_pvals,
     conf_region = conf_region,
     call = match.call(),
-    tbl = data.tbl
+    tbl = data.tbl,
+    n_k = n.c+n.e
+    
   )
   
   class(res) <- "metabiv"
@@ -247,41 +249,111 @@ compute_confidence_region <- function(pval.mat, level.ma) {
 }
 
 #' @title Compute CDF and Confidence Intervals
-#' @description Calculates the CDF and its confidence intervals
+#' @description Calculates the CDF and its confidence intervals with clamped ranges
 #' @param dev.lst A list containing the deviance and p-value matrices
 #' @param N.sig Number of simulations for smoothing
 #' @param alpha Significance level
+#' @param min_ci Minimum value for confidence intervals (default: log(0.2))
+#' @param max_ci Maximum value for confidence intervals (default: log(10))
 #' @return A list containing the CDF vector, MLE CDF, and lower and upper CIs
 #' @export
-comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05) {
+comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05, 
+                                  min_ci = log(0.2), max_ci = log(10)) {
+  # Extract matrices and dimensions
   dev.mat <- dev.lst[[1]]
   pval.mat <- dev.lst[[2]]
   n.mu <- dim(pval.mat)[1]
   n.tau <- dim(pval.mat)[2]
-  seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2, ]
-  seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2, ]
+  
+  # Extract sequences with error handling
+  seq.mu <- tryCatch({
+    sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2, ]
+  }, error = function(e) {
+    seq(min_ci, max_ci, length.out = n.mu)
+  })
+  
+  seq.tau <- tryCatch({
+    sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2, ]
+  }, error = function(e) {
+    seq(0.01, 1, length.out = n.tau)
+  })
+  
+  # Clamp sequences to reasonable ranges
+  seq.mu <- pmax(pmin(seq.mu, max_ci), min_ci)
+  seq.tau <- pmax(pmin(seq.tau, 1), 0.01)
+  
   x.mu <- rep(seq.mu, n.tau)
   x.tau <- rep(seq.tau, each = n.mu)
-  MLE.mu <- x.mu[which(dev.mat == 0)]
-  MLE.tau <- x.tau[which(dev.mat == 0)]
   
-  logit.p <- log.odds(c(pval.mat))
-  logit.p[c(pval.mat) < 1 / N.sig] <- log.odds(1 / N.sig) - (log.odds(2 / N.sig) - log.odds(1 / N.sig))
-  logit.p[c(pval.mat) > 1 - 1 / N.sig] <- log.odds((N.sig - 1) / N.sig) + (log.odds((N.sig - 1) / N.sig) - log.odds((N.sig - 2) / N.sig))
-  logit.p.loess <- loess(logit.p ~ x.mu + x.tau, span = .1)
+  # Find MLE with safety checks
+  zero_indices <- which(dev.mat == min(dev.mat, na.rm = TRUE))
+  if (length(zero_indices) > 0) {
+    MLE.mu <- mean(x.mu[zero_indices], na.rm = TRUE)
+    MLE.tau <- mean(x.tau[zero_indices], na.rm = TRUE)
+  } else {
+    MLE.mu <- mean(seq.mu, na.rm = TRUE)
+    MLE.tau <- mean(seq.tau, na.rm = TRUE)
+  }
   
+  # Clamp MLE values
+  MLE.mu <- pmax(pmin(MLE.mu, max_ci), min_ci)
+  MLE.tau <- pmax(pmin(MLE.tau, 1), 0.01)
+  
+  # Calculate logit probabilities with bounds
+  logit.p <- log.odds(pmax(pmin(c(pval.mat), 1 - 1/N.sig), 1/N.sig))
+  
+  # Fit loess model with error handling
+  logit.p.loess <- tryCatch({
+    loess(logit.p ~ x.mu + x.tau, span = 0.1)
+  }, error = function(e) {
+    # Fallback to simpler model if loess fails
+    lm(logit.p ~ x.mu + x.tau)
+  })
+  
+  # Create prediction grid with clamped ranges
   tau.pred.vec <- rep(seq(min(seq.tau), max(seq.tau), length = 200), 200)
   mu.pred.vec <- rep(seq(min(seq.mu), max(seq.mu), length = 200), each = 200)
-  smth.pval.mat <- inv.log.odds(predict(logit.p.loess, data.frame(x.mu = mu.pred.vec, x.tau = tau.pred.vec)))
+  
+  # Get smoothed probabilities
+  smth.pval.mat <- tryCatch({
+    inv.log.odds(predict(logit.p.loess, data.frame(x.mu = mu.pred.vec, x.tau = tau.pred.vec)))
+  }, error = function(e) {
+    # Fallback to simple interpolation if prediction fails
+    rep(mean(inv.log.odds(logit.p), na.rm = TRUE), length(mu.pred.vec))
+  })
+  
+  # Calculate confidence intervals
   mu.ci.vec <- mu.pred.vec[alpha < smth.pval.mat]
   tau.ci.vec <- tau.pred.vec[alpha < smth.pval.mat]
-  n.ci <- sum(alpha < smth.pval.mat)
   
+  # Ensure we have some values for CI
+  if (length(mu.ci.vec) == 0) {
+    mu.ci.vec <- c(MLE.mu - MLE.tau, MLE.mu + MLE.tau)
+    tau.ci.vec <- c(MLE.tau, MLE.tau)
+  }
+  
+  n.ci <- length(mu.ci.vec)
+  
+  # Calculate CDF with clamped ranges
   CDF.vec <- seq(0.01, 0.99, length = 99)
-  MLE.CDF <- qnorm(CDF.vec, mean = MLE.mu, sd = MLE.tau)
-  ci.CDF.mat <- array(qnorm(rep(CDF.vec, each = n.ci), mean = rep(mu.ci.vec, 99), sd = rep(tau.ci.vec, 99)), dim = c(n.ci, 99))
+  MLE.CDF <- pmax(pmin(qnorm(CDF.vec, mean = MLE.mu, sd = MLE.tau), max_ci), min_ci)
+  
+  # Calculate CI bounds with clamping
+  ci.CDF.mat <- array(
+    pmax(pmin(
+      qnorm(rep(CDF.vec, each = n.ci), 
+            mean = rep(mu.ci.vec, 99), 
+            sd = rep(tau.ci.vec, 99)),
+      max_ci), min_ci),
+    dim = c(n.ci, 99)
+  )
+  
   ci.CDF.ll <- apply(ci.CDF.mat, 2, min)
   ci.CDF.ul <- apply(ci.CDF.mat, 2, max)
+  
+  # Final safety check on bounds
+  ci.CDF.ll <- pmax(ci.CDF.ll, min_ci)
+  ci.CDF.ul <- pmin(ci.CDF.ul, max_ci)
   
   return(list(CDF.vec, MLE.CDF, ci.CDF.ll, ci.CDF.ul))
 }
@@ -298,46 +370,88 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05) {
 #' @export
 comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Efficacy/Harm Plot", 
                                xlb = "Efficacy/Harm", min.OR = 0.3, max.OR = 3) {
+  # Create sequence for x-axis with safeguards
   x.seq <- exp(seq(-5, log(10), length = 1000))
-  x.est.taper <- c(seq(exp(-5), min(exp(CDF.ci.obj[[2]])), length = 50), exp(CDF.ci.obj[[2]]),
-                   seq(max(exp(CDF.ci.obj[[2]])), 10, length = 50))
-  x.ll.taper <- c(seq(exp(-5), min(exp(CDF.ci.obj[[3]])), length = 50), exp(CDF.ci.obj[[3]]),
-                  seq(max(exp(CDF.ci.obj[[3]])), 10, length = 50))
-  x.ul.taper <- c(seq(exp(-5), min(exp(CDF.ci.obj[[4]])), length = 50), exp(CDF.ci.obj[[4]]),
-                  seq(max(exp(CDF.ci.obj[[4]])), 10, length = 50))
   
-  cdf.est <- approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
-  cdf.ll <- approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
-  cdf.ul <- approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
-  
-  if(efficacy.is.OR.le1) {
-    le1.col <-  3 
-    mt1.col <-  2 
-  } else {
-    le1.col <-  2 
-    mt1.col <-  3 
+  # Safely get CDF values with finite bounds
+  safe_exp <- function(x) {
+    ex <- exp(x)
+    ex[!is.finite(ex)] <- ifelse(x[!is.finite(ex)] < 0, min.OR, max.OR)
+    return(ex)
   }
   
+  # Apply safe exponential transformation
+  x.est.taper <- c(
+    seq(min.OR, min(safe_exp(CDF.ci.obj[[2]])), length = 50),
+    safe_exp(CDF.ci.obj[[2]]),
+    seq(max(safe_exp(CDF.ci.obj[[2]])), max.OR, length = 50)
+  )
+  
+  x.ll.taper <- c(
+    seq(min.OR, min(safe_exp(CDF.ci.obj[[3]])), length = 50),
+    safe_exp(CDF.ci.obj[[3]]),
+    seq(max(safe_exp(CDF.ci.obj[[3]])), max.OR, length = 50)
+  )
+  
+  x.ul.taper <- c(
+    seq(min.OR, min(safe_exp(CDF.ci.obj[[4]])), length = 50),
+    safe_exp(CDF.ci.obj[[4]]),
+    seq(max(safe_exp(CDF.ci.obj[[4]])), max.OR, length = 50)
+  )
+  
+  # Safe approximation with error handling
+  safe_approx <- function(x, y, xout) {
+    tryCatch({
+      approx(x, y, xout = xout)$y
+    }, error = function(e) {
+      rep(mean(y, na.rm = TRUE), length(xout))
+    })
+  }
+  
+  # Calculate CDFs with error handling
+  cdf.est <- safe_approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+  cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+  cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+  
+  # Set colors based on efficacy definition
+  if(efficacy.is.OR.le1) {
+    le1.col <- 3 
+    mt1.col <- 2 
+  } else {
+    le1.col <- 2 
+    mt1.col <- 3 
+  }
+  
+  # Calculate values for plotting with fixed ranges
   le1.vec <- exp(seq(log(min.OR), 0, length = 200))
-  le1.est <- approx(x.seq, cdf.est, xout = le1.vec)$y
-  le1.ll <- approx(x.seq, cdf.ll, xout = le1.vec)$y
-  le1.ul <- approx(x.seq, cdf.ul, xout = le1.vec)$y
+  le1.est <- safe_approx(x.seq, cdf.est, xout = le1.vec)
+  le1.ll <- safe_approx(x.seq, cdf.ll, xout = le1.vec)
+  le1.ul <- safe_approx(x.seq, cdf.ul, xout = le1.vec)
   
   mt1.vec <- exp(seq(0, log(max.OR), length = 200))
-  mt1.est <- approx(x.seq, 1-cdf.est, xout = mt1.vec)$y
-  mt1.ll <- approx(x.seq, 1-cdf.ll, xout = mt1.vec)$y
-  mt1.ul <- approx(x.seq, 1-cdf.ul, xout = mt1.vec)$y
+  mt1.est <- safe_approx(x.seq, 1-cdf.est, xout = mt1.vec)
+  mt1.ll <- safe_approx(x.seq, 1-cdf.ll, xout = mt1.vec)
+  mt1.ul <- safe_approx(x.seq, 1-cdf.ul, xout = mt1.vec)
   
+  # Create data frame for plotting
   plot_data <- rbind(
     data.frame(x = le1.vec, y = le1.est, lower = le1.ll, upper = le1.ul, group = "le1"),
     data.frame(x = mt1.vec, y = mt1.est, lower = mt1.ll, upper = mt1.ul, group = "mt1")
   )
   
+  # Remove any non-finite values
+  plot_data <- plot_data[is.finite(plot_data$x) & 
+                        is.finite(plot_data$y) & 
+                        is.finite(plot_data$lower) & 
+                        is.finite(plot_data$upper), ]
+  
+  # Create plot with ggplot2
   p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
     geom_line(aes(y = y), size = 1) +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
     scale_x_log10(breaks = c(0.1, 0.2, 0.5, 1, 2, 5, 10),
-                  labels = c("0.1", "0.2", "0.5", "1", "2", "5", "10")) +
+                  labels = c("0.1", "0.2", "0.5", "1", "2", "5", "10"),
+                  limits = c(min.OR, max.OR)) +
     scale_color_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
     scale_fill_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
     labs(title = mlb, x = xlb, y = "Probability") +
@@ -348,6 +462,27 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
 }
 
 
+#' @title Get Contours for Confidence Regions
+#' @description Helper function to compute contour lines from p-value matrix
+#' @param pval_mat Matrix of p-values
+#' @param level Confidence level
+#' @return List of contour lines
+get_contours <- function(pval_mat, level) {
+  # Get dimensions
+  n <- dim(pval_mat)[1]
+  
+  # Get sequences from matrix dimnames
+  seq.mu <- sapply(strsplit(dimnames(pval_mat)[[1]], "mu ="), as.numeric)[2,]
+  seq.tau <- sapply(strsplit(dimnames(pval_mat)[[2]], "tau ="), as.numeric)[2,]
+  
+  # Compute contour lines
+  contourLines(
+    x = seq.mu,
+    y = seq.tau,
+    z = matrix(pval_mat, nrow = n),
+    levels = level
+  )
+}
 
 #' @title Confidence Region Shift Plot
 #' @description Creates a plot showing how the confidence region shifts when individual studies are removed
@@ -356,73 +491,43 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
 #' @return A plotly object representing the confidence region shift plot
 #' @export
 confidence_region_shift_plot <- function(x, alpha = 0.05) {
+  # Get data dimensions and setup
   k <- nrow(x$tbl)
-  sm <- x$sm  # Get the summary measure (OR or RR)
+  sm <- x$sm
   
-  if (sm == "OR") {
-    # OR calculations (as before)
-    comp_func <- comp.log.OR.y.sigma.stats
-    dev_func <- comp.tau.mu.log.OR.dev.pvals
-    mle_func <- comp.tau.mu.log.OR.MLE
-    
-    # Compute full model CI
-    aa1 <- dev_func(x$tbl, 
-                    mu.vec.tst = seq(0, 1, length = 100), 
-                    tau.vec.tst = seq(0.01, 1, length = 100))
-    aa2 <- mle_func(x$tbl, initial.value = c(0.4, 0.4))
-    
-    # Function to compute CI contours
-    get_contours <- function(pval_mat, level) {
-      contourLines(seq(0, 1, length = 100), seq(0.01, 1, length = 100), 
-                   pval_mat, levels = level)
-    }
-    
-    mu_range <- c(0, 1)
-    tau_range <- c(0.01, 1)
-    
-  } else if (sm == "RR") {
-    # RR calculations (new method)
-    comp_func <- comp.log.RR.y.sigma.stats
-    dev_func <- comp.tau.mu.log.RR.dev.pvals
-    mle_func <- comp.tau.mu.log.RR.MLE
-    
-    # Compute full model CI
-    mu_range <- range(x$y.k) + c(-1, 1) * 2 * sqrt(max(x$sigma.2.k))
-    tau_range <- c(0.01, max(2, 2 * sqrt(max(x$sigma.2.k))))
-    
-    # Compute full model CI
-    aa1 <- dev_func(x$tbl, 
-                    mu.vec.tst = seq(0, 1, length = 100), 
-                    tau.vec.tst = seq(0.01, 1, length = 100))
-    aa2 <- mle_func(x$tbl, initial.value = c(0.4, 0.4))
-    
-    # Function to compute CI contours
-    # Function to compute CI contours
-    get_contours <- function(pval_mat, level) {
-      contourLines(seq(0, 1, length = 100), seq(0.01, 1, length = 100), 
-                   pval_mat, levels = level)
-    }
-    
-  } else {
-    stop("Unsupported summary measure. Use 'OR' or 'RR'.")
-  }
+  # Get sequences from x$dev_pvals (matching plot.mu.tau.CI approach)
+  dev.mat <- x$dev_pvals[[1]]
+  pval.mat <- x$dev_pvals[[2]]
+  seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
+  seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
   
-  full_contour_50 <- get_contours(aa1[[2]], 0.50)
-  full_contour_95 <- get_contours(aa1[[2]], 0.05)
+  # Transform to exp scale for plotting
+  mu.pred.vec <- exp(seq(min(seq.mu), max(seq.mu), length.out = 100))
+  tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
   
-  # Compute leave-one-out estimates and CIs
+  # Get full model contours
+  full_contour_50 <- get_contours(pval.mat, 0.50)
+  full_contour_95 <- get_contours(pval.mat, 0.05)
+  
+  # Compute leave-one-out estimates and metrics
   loo_results <- lapply(1:k, function(i) {
     tbl_mod <- x$tbl[-i, ]
-    aa2_i <- mle_func(tbl_mod, initial.value = c(0.4, 0.4))
-    aa_i <- dev_func(tbl_mod, 
-                     mu.vec.tst = seq(0, 1, length = 100), 
-                     tau.vec.tst = seq(0.01, 1, length = 100))
-    contour_50 <- get_contours(aa_i[[2]], 0.50)
-    contour_95 <- get_contours(aa_i[[2]], 0.05)
+    
+    # Calculate leave-one-out confidence region
+    res_i <- metabiv(event.e = tbl_mod$event.e,
+                     n.e = tbl_mod$n.e,
+                     event.c = tbl_mod$event.c,
+                     n.c = tbl_mod$n.c,
+                     studlab = tbl_mod$studlab,
+                     sm = sm)
+    
+    # Get contours
+    contour_50 <- get_contours(res_i$dev_pvals[[2]], 0.50)
+    contour_95 <- get_contours(res_i$dev_pvals[[2]], 0.05)
     
     # Calculate metrics
     iou <- calculate_iou(contour_95[[1]], full_contour_95[[1]])
-    shift <- calculate_shift(aa2$mu, aa2_i$mu)
+    shift <- calculate_shift(x$mu, res_i$mu)
     width_diff <- calculate_width_diff(full_contour_95[[1]], contour_95[[1]])
     hellinger <- calculate_hellinger(full_contour_95[[1]]$x, contour_95[[1]]$x)
     kld <- calculate_kld(full_contour_95[[1]]$x, contour_95[[1]]$x)
@@ -430,142 +535,169 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     coverage_prob <- calculate_coverage_prob(full_contour_95[[1]], contour_95[[1]])
     combined_score <- calculate_combined_score(iou, hellinger, kld, rmse, coverage_prob)
     
-    list(mu = aa2_i$mu, tau = aa2_i$tau, 
-         contour_50 = contour_50, contour_95 = contour_95, 
-         iou = iou, shift = shift, width_diff = width_diff, 
-         hellinger = hellinger, kld = kld, rmse = rmse, 
+    list(mu = res_i$mu, tau = res_i$tau,
+         contour_50 = contour_50, contour_95 = contour_95,
+         iou = iou, shift = shift, width_diff = width_diff,
+         hellinger = hellinger, kld = kld, rmse = rmse,
          coverage_prob = coverage_prob, combined_score = combined_score)
   })
   
-  # Prepare data for plotting
-  plot_data <- data.frame(
-    study = 1:k,
-    mu = sapply(loo_results, function(x) x$mu),
-    tau = sapply(loo_results, function(x) x$tau),
-    iou = sapply(loo_results, function(x) x$iou),
-    shift = sapply(loo_results, function(x) x$shift),
-    width_diff = sapply(loo_results, function(x) x$width_diff),
-    hellinger = sapply(loo_results, function(x) x$hellinger),
-    kld = sapply(loo_results, function(x) x$kld),
-    rmse = sapply(loo_results, function(x) x$rmse),
-    coverage_prob = sapply(loo_results, function(x) x$coverage_prob),
-    combined_score = sapply(loo_results, function(x) x$combined_score)
-  )
-  
-  # Compute relative shifts
-  plot_data$rel_shift <- sqrt((plot_data$mu - aa2$mu)^2 + 
-                                (plot_data$tau - aa2$tau)^2)
-  
-  # Create the plotly object
+  # Create plot
   p <- plot_ly()
   
   # Add full model contours
-  p <- add_trace(p, x = full_contour_95[[1]]$x, y = full_contour_95[[1]]$y,
-                 type = "scatter", mode = "lines", line = list(color = "green", width = 1),
+  p <- add_trace(p, 
+                 x = exp(full_contour_95[[1]]$x), 
+                 y = full_contour_95[[1]]$y,
+                 type = "scatter", mode = "lines",
+                 line = list(color = "red", width = 1),
                  name = "Full Model 95% CI")
-  p <- add_trace(p, x = full_contour_50[[1]]$x, y = full_contour_50[[1]]$y,
-                 type = "scatter", mode = "lines", line = list(color = "green", width = 1),
+  
+  p <- add_trace(p, 
+                 x = exp(full_contour_50[[1]]$x), 
+                 y = full_contour_50[[1]]$y,
+                 type = "scatter", mode = "lines",
+                 line = list(color = "blue", width = 1),
                  name = "Full Model 50% CI")
   
-  # Add leave-one-out contours with high transparency
+  # Add leave-one-out contours with transparency
   for (i in 1:k) {
-    contour_50 <- loo_results[[i]]$contour_50
     contour_95 <- loo_results[[i]]$contour_95
+    contour_50 <- loo_results[[i]]$contour_50
     
-    p <- add_trace(p, x = contour_95[[1]]$x, y = contour_95[[1]]$y,
-                   type = "scatter", mode = "lines",
-                   line = list(color = "blue", width = 2),
-                   opacity = 0.05, showlegend = FALSE, hoverinfo = "none",
-                   name = paste0("LOO Contour 95 - Study ", i))
-    p <- add_trace(p, x = contour_50[[1]]$x, y = contour_50[[1]]$y,
-                   type = "scatter", mode = "lines",
-                   line = list(color = "blue", width = 2),
-                   opacity = 0.05, showlegend = FALSE, hoverinfo = "none",
-                   name = paste0("LOO Contour 50 - Study ", i))
-  }
-  
-  # Add non-transparent hover points with full hover information
-  for (i in 1:k) {
     hover_text <- sprintf(
-      "Study: %d (omitted)<br>μ: %.3f<br>τ: %.3f<br>Relative Shift: %.3f<br>IoU: %.3f<br>hellinger: %.3f<br>kld: %.3f<br>rmse: %.3f<br>coverage_prob: %.3f<br>combined_score: %.3f<br>50%% CI: (%.3f, %.3f) to (%.3f, %.3f)<br>95%% CI: (%.3f, %.3f) to (%.3f, %.3f)",
-      i, plot_data$mu[i], plot_data$tau[i], plot_data$rel_shift[i], plot_data$iou[i],
-      plot_data$hellinger[i], plot_data$kld[i], plot_data$rmse[i], plot_data$coverage_prob[i], plot_data$combined_score[i],
-      min(sapply(loo_results[[i]]$contour_50, function(x) min(x$x))), min(sapply(loo_results[[i]]$contour_50, function(x) min(x$y))),
-      max(sapply(loo_results[[i]]$contour_50, function(x) max(x$x))), max(sapply(loo_results[[i]]$contour_50, function(x) max(x$y))),
-      min(sapply(loo_results[[i]]$contour_95, function(x) min(x$x))), min(sapply(loo_results[[i]]$contour_95, function(x) min(x$y))),
-      max(sapply(loo_results[[i]]$contour_95, function(x) max(x$x))), max(sapply(loo_results[[i]]$contour_95, function(x) max(x$y)))
+      "Study: %d (omitted)<br>Effect Size: %.3f (log: %.3f)<br>τ: %.3f<br>
+       Relative Shift: %.3f<br>IoU: %.3f<br>Hellinger: %.3f<br>KLD: %.3f<br>
+       RMSE: %.3f<br>Coverage Prob: %.3f<br>Combined Score: %.3f<br>
+       50%% CI: (%.3f, %.3f) to (%.3f, %.3f)<br>95%% CI: (%.3f, %.3f) to (%.3f, %.3f)",
+      i, exp(loo_results[[i]]$mu), loo_results[[i]]$mu, loo_results[[i]]$tau,
+      loo_results[[i]]$shift, loo_results[[i]]$iou, loo_results[[i]]$hellinger,
+      loo_results[[i]]$kld, loo_results[[i]]$rmse, loo_results[[i]]$coverage_prob,
+      loo_results[[i]]$combined_score,
+      exp(min(sapply(contour_50, function(x) min(x$x)))), min(sapply(contour_50, function(x) min(x$y))),
+      exp(max(sapply(contour_50, function(x) max(x$x)))), max(sapply(contour_50, function(x) max(x$y))),
+      exp(min(sapply(contour_95, function(x) min(x$x)))), min(sapply(contour_95, function(x) min(x$y))),
+      exp(max(sapply(contour_95, function(x) max(x$x)))), max(sapply(contour_95, function(x) max(x$y)))
     )
-    
-    p <- add_trace(p, x = plot_data$mu[i], y = plot_data$tau[i],
-                   type = "scatter", mode = "markers+text",
-                   marker = list(size = 8, 
-                                 color = plot_data$rel_shift[i], 
+    # Add points for studies
+    p <- add_trace(p, 
+                   x = exp(loo_results[[i]]$mu), 
+                   y = loo_results[[i]]$tau,
+                   type = "scatter", mode = "markers",
+                   marker = list(size = 8,
+                                 color = loo_results[[i]]$shift,
                                  colorscale = "Viridis",
-                                 showscale = TRUE),
-                   text = i,
-                   textposition = "middle center",
-                   textfont = list(color = "white", size = 5),
-                   hoverinfo = "text", 
-                   hovertext = hover_text,
+                                 showscale = FALSE),
+                   text = hover_text,
+                   hoverinfo = "text",
                    showlegend = FALSE,
+                   customdata = i)
+    # Add contours
+    p <- add_trace(p, 
+                   x = exp(contour_95[[1]]$x), 
+                   y = contour_95[[1]]$y,
+                   type = "scatter", mode = "lines",
+                   line = list(color = "blue", width = 2),
+                   opacity = 0.05, showlegend = FALSE,
+                   hoverinfo = "none",
                    customdata = i,
-                   name = paste0("Point - Study ", i))
+                   name = paste0("LOO Contour 95 - Study ", i))
   }
   
-  # Add hover information for full model CI
-  hover_text_full <- sprintf("Full Model<br>μ: %.3f<br>τ: %.3f<br>50%% CI: (%.3f, %.3f) to (%.3f, %.3f)<br>95%% CI: (%.3f, %.3f) to (%.3f, %.3f)",
-                             aa2$mu, aa2$tau,
-                             min(sapply(full_contour_50, function(x) min(x$x))), min(sapply(full_contour_50, function(x) min(x$y))),
-                             max(sapply(full_contour_50, function(x) max(x$x))), max(sapply(full_contour_50, function(x) max(x$y))),
-                             min(sapply(full_contour_95, function(x) min(x$x))), min(sapply(full_contour_95, function(x) min(x$y))),
-                             max(sapply(full_contour_95, function(x) max(x$x))), max(sapply(full_contour_95, function(x) max(x$y))))
-  
-  p <- add_trace(p, x = aa2$mu, y = aa2$tau,
+
+  # Add full model point
+  p <- add_trace(p, 
+                 x = exp(x$mu), 
+                 y = x$tau,
                  type = "scatter", mode = "markers",
-                 marker = list(size = 10, color = "red"),
-                 hoverinfo = "text", text = hover_text_full,
-                 showlegend = FALSE,
+                 marker = list(size = 12,
+                             symbol = "cross",
+                             color = "green"),
                  name = "Full Model MLE")
   
   # Set layout
-  p <- p %>% layout(title = paste("Confidence Region Shift Plot for", sm),
-                    xaxis = list(title = "μ", range = mu_range),
-                    yaxis = list(title = "τ", range = tau_range),
-                    hovermode = "closest")
+  p <- p %>% layout(
+    title = paste("Confidence Region Shift Plot for", sm),
+    xaxis = list(
+      title = "Effect Size (OR/RR)",
+      type = "log",
+      range = log10(c(0.5, 2.5)),
+      ticktext = c("0.5", "1.0", "1.5", "2.0", "2.5"),
+      tickvals = c(0.5, 1.0, 1.5, 2.0, 2.5)
+    ),
+    yaxis = list(
+      title = "tau",
+      range = c(0, 1)
+    ),
+    showlegend = TRUE,
+    hovermode = "closest"
+  )
   
-  # Add JavaScript for interactive hover
+  # Add reference line
+  p <- add_trace(p,
+                 x = c(1, 1),
+                 y = c(0, 1),
+                 type = "scatter", mode = "lines",
+                 line = list(color = "gray", dash = "dash"),
+                 showlegend = FALSE)
+  
+  # Add interactive highlighting
   p <- p %>% htmlwidgets::onRender("
-    function(el, x) {
-      el.on('plotly_hover', function(d) {
-        var pointNumber = d.points[0].pointNumber;
-        var studyNumber = d.points[0].customdata;
-        var data = el.data;
+  function(el, x) {
+    el.on('plotly_hover', function(d) {
+      if (!d.points || d.points.length === 0) return;
 
-        for (var i = 0; i < data.length; i++) {
-          if (data[i].name && data[i].name.includes('LOO Contour') && data[i].name.includes('Study ' + studyNumber)) {
-            data[i].opacity = 1.0;
-          } else if (data[i].name && data[i].name.includes('LOO Contour')) {
-            data[i].opacity = 0.01;
+      var point = d.points[0]; 
+      var studyNumber = point.customdata; // Get study number from customdata
+      var data = el.data;
+      
+      console.log('Hovered study number:', studyNumber);
+
+      if (point.curveNumber !== undefined) {
+        var traceName = data[point.curveNumber].name;
+
+        // If hovering over a study point
+        if (data[point.curveNumber].mode === 'markers') {
+          for (var i = 0; i < data.length; i++) {
+            if (data[i].name && data[i].name.startsWith('LOO Contour 95 - Study ')) {
+              if (data[i].name === 'LOO Contour 95 - Study ' + studyNumber) {
+                data[i].opacity = 1.0; // Highlight only the correct contour
+              } else {
+                data[i].opacity = 0.02; // Keep others dimmed
+              }
+            }
+          }
+        }
+
+        // If hovering over a contour
+        else if (traceName && traceName.startsWith('LOO Contour 95 - Study ')) {
+          for (var i = 0; i < data.length; i++) {
+            if (data[i].name && data[i].name.startsWith('LOO Contour 95 - Study ')) {
+              if (data[i].name === traceName) {
+                data[i].opacity = 1.0; // Highlight only the specific contour hovered
+              } else {
+                data[i].opacity = 0.02; // Keep others dimmed
+              }
+            }
           }
         }
         Plotly.redraw(el);
-      });
+      }
+    });
 
-      el.on('plotly_unhover', function(d) {
-        var data = el.data;
-        for (var i = 0; i < data.length; i++) {
-          if (data[i].name && data[i].name.includes('LOO Contour')) {
-            data[i].opacity = 0.01;
-          }
+    el.on('plotly_unhover', function(d) {
+      var data = el.data;
+      for (var i = 0; i < data.length; i++) {
+        if (data[i].name && data[i].name.startsWith('LOO Contour 95 - Study ')) {
+          data[i].opacity = 0.02; // Reset all contours to default dimmed opacity
         }
-        Plotly.redraw(el);
-      });
-    }
-  ")
-  
+      }
+      Plotly.redraw(el);
+    });
+  }
+")
   return(p)
 }
-
 
 #' @title Bivariate GOSH Plot
 #' @description Creates a Graphical Display of Study Heterogeneity (GOSH) plot for bivariate meta-analysis
@@ -657,43 +789,127 @@ bivariate_grade_assessment <- function(bivariate_result, risk_of_bias, indirectn
 #' @param leftcols Vector of column names to include on the left side of the plot
 #' @param rightcols Vector of column names to include on the right side of the plot
 #' @param digits Number of digits for rounding
+#' @param study_weights Whether to show study weights
+#' @param text_size Base text size for the plot
+#' @param title Optional title for the plot
+#' @param weight_column Name of weight column to display
 #' @param ... Additional arguments passed to the forest function
 #' @return A forest plot
 #' @export
 forest.metabiv <- function(x, xlab = "Effect Size", refline = 1, 
                            leftcols = c("studlab"), 
-                           rightcols = c("effect", "ci"), 
-                           digits = 2, ...) {
+                           rightcols = c("effect", "ci", "w.random"), 
+                           digits = 2,
+                           study_weights = TRUE,
+                           text_size = 10,
+                           title = NULL,
+                           weight_column = "w.random",
+                           ...) {
   
-  # Create a data frame for the forest plot
-  forest_data <- data.frame(
+  # Input validation
+  if (!inherits(x, "metabiv")) {
+    stop("Input must be a metabiv object")
+  }
+  
+  # Calculate standard errors with safeguards
+  seTE <- try({
+    sqrt(pmax(x$sigma.2.k, .Machine$double.eps))
+  }, silent = TRUE)
+  
+  if (inherits(seTE, "try-error")) {
+    stop("Error calculating standard errors")
+  }
+  
+  # Calculate weights
+  w.random <- 1/(seTE^2 + pmax(x$tau^2, .Machine$double.eps))
+  w.random.pct <- 100 * w.random/sum(w.random)
+  
+  # Create study-level effect sizes and CIs
+  study_effects <- data.frame(
     studlab = x$studlab,
     TE = x$y.k,
-    seTE = sqrt(pmax(x$sigma.2.k, 0)),
+    seTE = seTE,
     lower = x$lower.k,
     upper = x$upper.k,
     effect = sprintf("%.*f", digits, exp(x$y.k)),
-    ci = sprintf("[%.*f, %.*f]", digits, exp(x$lower.k), digits, exp(x$upper.k))
+    ci = sprintf("[%.*f, %.*f]", 
+                 digits, exp(x$lower.k), 
+                 digits, exp(x$upper.k)),
+    w.random = w.random.pct,
+    stringsAsFactors = FALSE
   )
   
-  # Add the overall effect
-  forest_data <- rbind(forest_data,
-                       data.frame(
-                         studlab = "Overall",
-                         TE = x$mu,
-                         seTE = x$tau,
-                         lower = x$lower,
-                         upper = x$upper,
-                         effect = sprintf("%.*f", digits, exp(x$mu)),
-                         ci = sprintf("[%.*f, %.*f]", digits, exp(x$lower), digits, exp(x$upper))
-                       ))
+  # Add overall effect if available
+  if (!is.null(x$mu) && !is.null(x$tau)) {
+    overall_effect <- data.frame(
+      studlab = "Overall",
+      TE = x$mu,
+      seTE = max(x$tau, sqrt(.Machine$double.eps)),
+      lower = x$lower,
+      upper = x$upper,
+      effect = sprintf("%.*f", digits, exp(x$mu)),
+      ci = sprintf("[%.*f, %.*f]", 
+                   digits, exp(x$lower), 
+                   digits, exp(x$upper)),
+      w.random = NA,
+      stringsAsFactors = FALSE
+    )
+    
+    forest_data <- rbind(study_effects, overall_effect)
+  } else {
+    forest_data <- study_effects
+  }
   
-  # Create the forest plot
-  forest(metagen(TE = TE, seTE = seTE, studlab = studlab, data = forest_data,
-                 sm = x$sm, fixed = FALSE, random = TRUE),
+  # Create meta object with proper settings
+  meta_obj <- try({
+    metagen(TE = TE,
+            seTE = seTE,
+            studlab = studlab,
+            data = forest_data,
+            sm = x$sm,
+            fixed = FALSE,
+            random = TRUE,
+            method.tau = "DL",
+            hakn = FALSE)
+  }, silent = TRUE)
+  
+  if (inherits(meta_obj, "try-error")) {
+    stop("Error creating meta object: ", meta_obj)
+  }
+  
+  # Override meta object with bivariate results
+  meta_obj$TE.random <- x$mu
+  meta_obj$seTE.random <- x$tau
+  meta_obj$lower.random <- x$lower
+  meta_obj$upper.random <- x$upper
+  meta_obj$tau <- x$tau
+  meta_obj$tau2 <- x$tau^2
+  meta_obj$sm <- x$sm
+  meta_obj$level <- x$level
+  meta_obj$level.ma <- x$level.ma
+  
+  # Prepare heterogeneity measures
+  het_measures <- sprintf(
+    "Heterogeneity: τ² = %.*f; I² = %.*f%%",
+    digits, x$tau2,
+    1, x$I2
+  )
+  
+  # Set up column specifications
+  if (study_weights) {
+    if (!weight_column %in% names(forest_data)) {
+      warning("Specified weight column not found, using w.random")
+      weight_column <- "w.random"
+    }
+    rightcols <- unique(c(rightcols, weight_column))
+  }
+  
+  # Create the forest plot with enhanced settings
+  forest(meta_obj,
          leftcols = leftcols,
          rightcols = rightcols,
          leftlabs = c("Study", "Effect Size", "95% CI"),
+         rightlabs = c("Effect", "95% CI", "Weight"),
          xlab = xlab,
          refline = refline,
          print.tau2 = TRUE,
@@ -701,10 +917,46 @@ forest.metabiv <- function(x, xlab = "Effect Size", refline = 1,
          col.diamond.lines = "blue",
          col.predict = "red",
          addpred = TRUE,
-         smlab = paste("Random Effects Model for", x$sm),
+         digits = digits,
+         fontsize = text_size,
+         spacing = 1,
+         squaresize = 0.8,
+         hetstat = TRUE,
+         print.I2 = TRUE,
+         print.Q = TRUE,
+         overall = TRUE,
+         overall.hetstat = TRUE,
+         test.overall = TRUE,
+         label.left = "Favors Control",
+         label.right = "Favors Treatment",
+         lty.ref = 2,
+         col.ref = "gray",
+         smlab = if (is.null(title)) paste("Random Effects Model for", x$sm) else title,
          ...)
+  
+  # Return invisibly
+  invisible(meta_obj)
 }
 
+# Helper function to validate metabiv object
+validate_metabiv <- function(x) {
+  required_elements <- c("y.k", "sigma.2.k", "sm", "mu", "tau", 
+                         "lower", "upper", "lower.k", "upper.k")
+  
+  missing_elements <- required_elements[!required_elements %in% names(x)]
+  
+  if (length(missing_elements) > 0) {
+    stop("Invalid metabiv object: missing elements: ", 
+         paste(missing_elements, collapse = ", "))
+  }
+  
+  if (!all(sapply(x$sigma.2.k, is.numeric)) || 
+      !all(sapply(x$y.k, is.numeric))) {
+    stop("Invalid metabiv object: non-numeric effect sizes or variances")
+  }
+  
+  invisible(TRUE)
+}
 #' @title Print Method for Metabiv Objects
 #' @description Prints a summary of the bivariate meta-analysis results
 #' @param x A metabiv object
@@ -900,47 +1152,128 @@ comp.tau.mu.log.RR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
 }
 
 
-plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "", mu_mle = NULL, tau_mle = NULL) {
-  n.mu <- dim(pval.mat)[1]
-  n.tau <- dim(pval.mat)[2]
+# plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "", mu_mle = NULL, tau_mle = NULL) {
+#   # Extract dimensions and sequences
+#   n.mu <- dim(pval.mat)[1]
+#   n.tau <- dim(pval.mat)[2]
+#   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
+#   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
+# 
+#     # Create prediction grid in log scale
+#   mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length.out = 100)
+#   tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
+#   
+#   # Calculate p-values
+#   logit.p <- log.odds(c(pval.mat))
+#   logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
+#   logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
+#   
+#   # Fit loess model
+#   logit.p.loess <- loess(logit.p ~ rep(seq.mu, n.tau) + rep(seq.tau, each = n.mu), span = 0.1)
+#   
+#   # Create prediction grid
+#   pred.grid <- expand.grid(
+#     x = mu.pred.vec,
+#     y = tau.pred.vec
+#   )
+#   
+#   # Get smoothed p-values
+#   smth.pval.mat <- matrix(
+#     inv.log.odds(predict(logit.p.loess, pred.grid)),
+#     nrow = 100, ncol = 100
+#   )
+#   
+#   # Convert mu values to exp scale for plotting
+#   plot_mu <- exp(mu.pred.vec)
+#   
+#   #browser()
+#   
+#   # Set up plot
+#   par(mar = c(5, 5, 4, 2) + 0.1)
+#   plot(1, type = "n", log = "x",
+#        xlim = c(0.3, 3.2),  # Fixed range that works well for both OR and RR
+#        ylim = range(tau.pred.vec),
+#        xlab = "Effect Size (OR/RR)", 
+#        ylab = "tau",
+#        main = mlb,
+#        cex.lab = 1.2, 
+#        cex.axis = 0.8, 
+#        cex.main = 1.2,
+#        xaxt = "n")
+#   
+#   # Add contours
+#   contour(plot_mu, tau.pred.vec, smth.pval.mat, 
+#           levels = p.cntr.vec,
+#           col = c("red", "blue"), 
+#           add = TRUE, 
+#           drawlabels = FALSE)
+#   
+#   # Add reference line at 1
+#   abline(v = 1, lty = 2, col = "gray")
+#   
+#   # Add MLE point
+#   if(is.null(mu_mle) || is.null(tau_mle)) {
+#     mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
+#     mu_mle <- seq.mu[mle_index[1]]
+#     tau_mle <- seq.tau[mle_index[2]]
+#   }
+#   points(exp(mu_mle), tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
+#   
+#   # Add reference lines with proper transformation
+#   #abline(0, 1/qnorm(0.75), col = "blue", lty = 3)
+#   #abline(0.5/qnorm(0.75), -1/qnorm(0.75), col = "blue", lty = 3)
+#   
+#   # Add vertical reference lines
+#   abline(v = exp(0), col = "blue", lty = 3)
+#   # abline(v = exp(0.5), col = "blue", lty = 3)
+#   
+#   # Add custom x-axis
+#   axis(1, at = c(0.3, 0.5, 1.0, 2.0, 3.2))
+#   
+#   # Add legend
+#   legend("topright", 
+#          legend = c("95% CI", "50% CI", "MLE"),
+#          col = c("red", "blue", "green"), 
+#          lty = c(1, 1, NA), 
+#          pch = c(NA, NA, 3),
+#          cex = 0.8, 
+#          bg = "white", 
+#          box.lwd = 0)
+#   
+#   invisible(list(mu_mle = mu_mle, tau_mle = tau_mle))
+# }
+
+plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = "", mu_mle = NULL, tau_mle = NULL) {
+  # Extract sequences for µ and τ
   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
   
+  # Convert to exponentiated scale for effect sizes
   mu.pred.vec <- exp(seq(min(seq.mu), max(seq.mu), length.out = 100))
   tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
   
-  logit.p <- log.odds(c(pval.mat))
-  logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
-  logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
+  # Extract 95% and 50% confidence contours using the correct method
+  contour_50 <- get_contours(pval.mat, 0.50)
+  contour_95 <- get_contours(pval.mat, 0.05)
   
-  logit.p.loess <- loess(logit.p ~ rep(seq.mu, n.tau) + rep(seq.tau, each = n.mu), span = 0.1)
-  
-  smth.pval.mat <- matrix(inv.log.odds(predict(logit.p.loess, data.frame(
-    x = rep(log(mu.pred.vec), each = 100),
-    y = rep(tau.pred.vec, 100)
-  ))), nrow = 100, ncol = 100)
-  
-  # Determine x-axis limits
-  max_ci <- max(mu.pred.vec[which(smth.pval.mat <= min(p.cntr.vec), arr.ind = TRUE)[,1]])
-  xlim <- c(0.5, min(max_ci, 2.5))  # Adjust upper limit to 2.5
-  
-  # Determine appropriate x-axis breaks
-  breaks <- c(0.5, 1, 1.5, 2, 2.5)
-  breaks <- breaks[breaks <= xlim[2]]
-  
-  par(mar = c(5, 5, 4, 2) + 0.1)
-  plot(1, type = "n", log = "x", 
-       xlim = xlim, ylim = range(tau.pred.vec),
-       xlab = "Effect Size (OR/RR)", ylab = "tau",
+  # Set up plot
+  plot(1, type = "n", log = "x",
+       xlim = c(min(mu.pred.vec), max(mu.pred.vec)),
+       ylim = range(tau.pred.vec),
+       xlab = "Effect Size (OR/RR)", 
+       ylab = "τ",
        main = mlb,
-       cex.lab = 1.2, cex.axis = 0.8, cex.main = 1.2)
+       cex.lab = 1.2, 
+       cex.axis = 0.8, 
+       cex.main = 1.2,
+       xaxt = "n")
   
-  contour(mu.pred.vec, tau.pred.vec, smth.pval.mat, levels = p.cntr.vec, 
-          col = c("red", "blue"), add = TRUE, drawlabels = FALSE)
+  # Draw confidence contours
+  lines(exp(contour_95[[1]]$x), contour_95[[1]]$y, col = "red", lwd = 2, lty = 1)  # 95% CI
+  lines(exp(contour_50[[1]]$x), contour_50[[1]]$y, col = "blue", lwd = 2, lty = 1) # 50% CI
   
-  abline(v = 1, lty = 2, col = "gray")
-  
-  if(is.null(mu_mle) || is.null(tau_mle)) {
+  # Add MLE point
+  if (is.null(mu_mle) || is.null(tau_mle)) {
     mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
     mu_mle <- seq.mu[mle_index[1]]
     tau_mle <- seq.tau[mle_index[2]]
@@ -948,24 +1281,24 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig 
   points(exp(mu_mle), tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
   
   # Add reference lines
-  abline(0, 1/qnorm(0.75), col = "blue", lty = 3)
-  abline(0.5/qnorm(0.75), -1/qnorm(0.75), col = "blue", lty = 3)
+  abline(v = 1, lty = 2, col = "gray")
   abline(v = exp(0), col = "blue", lty = 3)
-  abline(v = exp(0.5), col = "blue", lty = 3)
   
-  # Customize x-axis with proper decimal formatting
-  axis(1, at = breaks, labels = sprintf("%.1f", breaks), cex.axis = 0.8)
+  # Custom x-axis
+  axis(1, at = c(0.5, 1.0, 2.0, 3.2))
   
-  # Add legend to upper right corner
-  legend("topright", legend = c("95% CI", "50% CI", "MLE"), 
-         col = c("red", "blue", "green"), lty = c(1, 1, NA), pch = c(NA, NA, 3),
-         cex = 0.8, bg = "white", box.lwd = 0)
+  # Add legend
+  legend("topright", 
+         legend = c("95% CI", "50% CI", "MLE"),
+         col = c("red", "blue", "green"), 
+         lty = c(1, 1, NA), 
+         pch = c(NA, NA, 3),
+         cex = 0.8, 
+         bg = "white", 
+         box.lwd = 0)
   
-  invisible(list(mu_mle = mu_mle, tau_mle = tau_mle))
+  return(invisible(list(mu_mle = mu_mle, tau_mle = tau_mle)))
 }
-
-
-
 calculate_iou <- function(contour1, contour2) {
   tryCatch({
     poly1 <- create_valid_polygon(contour1)

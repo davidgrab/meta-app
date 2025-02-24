@@ -458,6 +458,7 @@ server <- function(input, output, session) {
   # Bivariate Forest Plot
   output$bivariateForestPlot <- renderPlot({
     req(bivariate_result())
+    #browser()
     forest.metabiv(bivariate_result())
   })
   
@@ -528,11 +529,21 @@ server <- function(input, output, session) {
   # Q-Q Plot for μ
   output$qqPlotMu <- renderPlot({
     req(bivariate_result())
+    # browser()
     #qqnorm(bivariate_result()$y.k, main = "Q-Q Plot for μ")
     #qqline(bivariate_result()$y.k, col = "red")
     qq_plot_with_ci(y_k = bivariate_result()$y.k, 
                     mu = bivariate_result()$mu,
                     sigma_2_k = bivariate_result()$sigma.2.k,
+                    tau_2 = bivariate_result()$tau^2,
+                    title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)")
+  })
+  
+  output$qqPlotMuRaw <- renderPlot({
+    req(bivariate_result())
+    qq_plot_with_ci_raw(y_k = bivariate_result()$y.k, 
+                    mu = bivariate_result()$mu,
+                    sigma_2_k = bivariate_result()$sigma.2.k,n_k=bivariate_result()$n_k,
                     tau_2 = bivariate_result()$tau^2,
                     title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)")
   })

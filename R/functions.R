@@ -134,14 +134,14 @@ grade_assessment <- function(result, model_type) {
 
 
 # Helper function to safely extract and exponentiate values
-  safe_exp <- function(x) {
-    if (is.numeric(x)) {
-      return(exp(x))
-    } else {
-      return(NA)
-    }
+safe_exp <- function(x) {
+  if (is.numeric(x)) {
+    return(exp(x))
+  } else {
+    return(NA)
   }
-  
+}
+
 
 combined_forest_plot <- function(results, options) {
   # Helper function to safely extract and compute values
@@ -723,43 +723,318 @@ ggplot_metainf <- function(metainf_result) {
   return(p)
 }
 
+# qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE, 
+#                             title = "Q-Q Plot for Residuals") {
+#   # Transform data if log odds required
+#   if (log_odds) {
+#     y_k <- log(y_k / (1 - y_k))
+#     mu <- log(mu / (1 - mu))
+#   }
+#   
+#   # Calculate **regular residuals** instead of standardized residuals
+#   residuals <- y_k - mu  # Use raw residuals
+#   
+#   # Remove any infinite or NA values
+#   valid_indices <- is.finite(residuals)
+#   residuals <- residuals[valid_indices]
+#   
+#   # Sort residuals for proper quantile computation
+#   sorted_residuals <- sort(residuals)
+#   n_points <- length(sorted_residuals)
+#   
+#   # Calculate theoretical quantiles using (i - 0.5)/n formula
+#   p <- (1:n_points - 0.5) / n_points
+#   theoretical_quantiles <- qnorm(p, mean = mean(mu), sd = sqrt(tau_2))  # Adjusted for empirical distribution
+#   
+#   # Calculate empirical standard error for CI
+#   se_residuals <- sd(residuals)
+#   
+#   # Calculate pointwise confidence intervals
+#   z_alpha <- qnorm(0.975)  # 95% CI
+#   ci_width <- z_alpha * se_residuals * sqrt(p * (1 - p) / (n_points * dnorm(theoretical_quantiles)^2))
+#   
+#   ci_lower <- sorted_residuals - ci_width
+#   ci_upper <- sorted_residuals + ci_width
+#   
+#   # Set up plot margins to accommodate title and subtitle
+#   par(mar = c(5, 5, 4, 2) + 0.1)
+#   
+#   # Create the plot
+#   plot(theoretical_quantiles, sorted_residuals,
+#        main = title,
+#        xlab = "Theoretical Quantiles",
+#        ylab = if(log_odds) "Log-Odds Residuals" else "Residuals",
+#        pch = 19,
+#        col = "blue",
+#        ylim = range(c(ci_lower, ci_upper, sorted_residuals), na.rm = TRUE))
+#   
+#   # **Modify reference line to use estimated μ and τ² (Upline)**
+#   abline(a = mean(mu), b = sqrt(tau_2), col = "blue", lty = 2)  # Custom upline
+#   
+#   # **Add Q-Q Line (Least Squares Fit)**
+#   qqline(residuals, distribution = function(p) qnorm(p, mean = mean(mu), sd = sqrt(tau_2)), col = "darkgreen", lwd = 2)
+#   
+#   # Add confidence intervals
+#   polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+#           c(ci_lower, rev(ci_upper)),
+#           col = rgb(0.8, 0.8, 0.8, 0.3),
+#           border = NA)
+#   
+#   # Add points again to ensure they're visible above the CI region
+#   points(theoretical_quantiles, sorted_residuals, pch = 19, col = "blue")
+#   
+#   # Add model information as subtitle
+#   if (!is.null(tau_2) && !is.null(mu)) {
+#     mtext(sprintf("τ² = %.3f, μ = %.3f", tau_2, mean(mu)), 
+#           side = 3, line = 0.5, cex = 0.8)
+#   }
+#   
+#   # Add legend
+#   legend("topleft",
+#          legend = c("Observed Quantiles", 
+#                     "Reference Line (Estimated μ, τ²)", 
+#                     "Q-Q Line (Regression Fit)",
+#                     "95% Confidence Band"),
+#          pch = c(19, NA, NA, 15),
+#          lty = c(NA, 2, 1, NA),
+#          col = c("blue", "blue", "darkgreen", rgb(0.8, 0.8, 0.8, 0.3)),
+#          bg = "white")
+#   
+#   # Return invisibly the plot data for potential further use
+#   invisible(list(
+#     theoretical_quantiles = theoretical_quantiles,
+#     empirical_quantiles = sorted_residuals,
+#     ci_lower = ci_lower,
+#     ci_upper = ci_upper,
+#     se_residuals = se_residuals
+#   ))
+# }
 
-qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)") {
+qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE, 
+                                title = "Q-Q Plot for Residuals") {
+  # Transform data if log odds required
+  if (log_odds) {
+    y_k <- log(y_k / (1 - y_k))
+    mu <- log(mu / (1 - mu))
+  }
+  
+  # Calculate regular residuals
+  residuals <- y_k - mu  # Use raw residuals
+  
+  # Remove any infinite or NA values
+  valid_indices <- is.finite(residuals)
+  residuals <- residuals[valid_indices]
+  sigma_2_k <- sigma_2_k[valid_indices]  # Ensure consistency
+  n_k <- n_k[valid_indices]  # Ensure study sizes are consistent
+  
+  # Scale point size based on study size (inverse variance)
+  point_sizes <- sqrt(1 / sigma_2_k)
+  point_sizes <- point_sizes / max(point_sizes) * 3  # Normalize and scale
+  
+  # Sort residuals for proper quantile computation
+  sorted_residuals <- sort(residuals, index.return = TRUE)
+  residuals_sorted <- sorted_residuals$x
+  sorted_indices <- sorted_residuals$ix  # Keep track of original order
+  n_k_sorted <- n_k[sorted_indices]  # Sort patient numbers accordingly
+  
+  n_points <- length(residuals_sorted)
+  
+  # Calculate theoretical quantiles using (i - 0.5)/n formula
+  p <- (1:n_points - 0.5) / n_points
+  theoretical_quantiles <- qnorm(p, mean = mean(mu), sd = sqrt(tau_2))  # Adjusted for empirical distribution
+  
+  # Calculate empirical standard error for CI
+  se_residuals <- sd(residuals_sorted)
+  
+  # Calculate pointwise confidence intervals
+  z_alpha <- qnorm(0.975)  # 95% CI
+  ci_width <- z_alpha * se_residuals * sqrt(p * (1 - p) / (n_points * dnorm(theoretical_quantiles)^2))
+  
+  ci_lower <- residuals_sorted - ci_width
+  ci_upper <- residuals_sorted + ci_width
+  
+  # Set up plot margins to accommodate title and subtitle
+  par(mar = c(5, 5, 4, 2) + 0.1)
+  
+  # Create the plot
+  plot(theoretical_quantiles, residuals_sorted,
+       main = title,
+       xlab = "Theoretical Quantiles",
+       ylab = if(log_odds) "Log-Odds Residuals" else "Residuals",
+       pch = 19,
+       col = "blue",
+       cex = point_sizes,  # Scale point size by study size
+       ylim = range(c(ci_lower, ci_upper, residuals_sorted), na.rm = TRUE))
+  
+  # **Modify reference line to use estimated μ and τ² (Upline)**
+  abline(a = mean(mu), b = sqrt(tau_2), col = "blue", lty = 2)  # Custom upline
+  
+  # **Add Q-Q Line (Least Squares Fit)**
+  qqline(residuals_sorted, distribution = function(p) qnorm(p, mean = mean(mu), sd = sqrt(tau_2)), col = "darkgreen", lwd = 2)
+  
+  # Add confidence intervals
+  polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+          c(ci_lower, rev(ci_upper)),
+          col = rgb(0.8, 0.8, 0.8, 0.3),
+          border = NA)
+  
+  # Add points again to ensure they're visible above the CI region
+  points(theoretical_quantiles, residuals_sorted, pch = 19, col = "blue", cex = point_sizes)
+  
+
+  # Add model information as subtitle
+  if (!is.null(tau_2) && !is.null(mu)) {
+    mtext(sprintf("τ² = %.3f, μ = %.3f", tau_2, mean(mu)), 
+          side = 3, line = 0.5, cex = 0.8)
+  }
+  
+  # Add legend
+  legend("topleft",
+         legend = c("Observed Quantiles (Scaled by Study Size)", 
+                    "Reference Line (Estimated μ, τ²)", 
+                    "Q-Q Line (Regression Fit)",
+                    "95% Confidence Band"),
+         pch = c(19, NA, NA, 15),
+         lty = c(NA, 2, 1, NA),
+         col = c("blue", "blue", "darkgreen", rgb(0.8, 0.8, 0.8, 0.3)),
+         bg = "white")
+  
+  # Return invisibly the plot data for potential further use
+  invisible(list(
+    theoretical_quantiles = theoretical_quantiles,
+    empirical_quantiles = residuals_sorted,
+    ci_lower = ci_lower,
+    ci_upper = ci_upper,
+    se_residuals = se_residuals,
+    n_k_sorted = n_k_sorted  # Return patient numbers for reference
+  ))
+}
+
+qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE, 
+                           title = "Q-Q Plot for Standardized Residuals") {
+  # Transform data if log odds required
+  if (log_odds) {
+    y_k <- log(y_k / (1 - y_k))
+    mu <- log(mu / (1 - mu))
+  }
+  
   # Calculate standardized residuals
   standardized_residuals <- (y_k - mu) / sqrt(sigma_2_k + tau_2)
   
-  # Calculate Q-Q plot points
-  qq_data <- qqnorm(standardized_residuals, plot.it = FALSE)
+  # Remove any infinite or NA values
+  valid_indices <- is.finite(standardized_residuals)
+  standardized_residuals <- standardized_residuals[valid_indices]
   
-  # Calculate confidence intervals
-  ci_lower <- qq_data$y - 1.96
-  ci_upper <- qq_data$y + 1.96
+  # Sort residuals for proper quantile computation
+  sorted_residuals <- sort(standardized_residuals)
+  n_points <- length(sorted_residuals)
   
-  # Plot
-  plot(qq_data$x, qq_data$y, 
-       main = title, 
-       xlab = "Theoretical Quantiles", 
-       ylab = "Standardized Residuals",
-       pch = 19, col = "blue",
-       ylim = range(c(ci_lower, ci_upper), na.rm = TRUE))  # Adjust y-axis to include all CI
+  # Calculate theoretical quantiles using (i - 0.5)/n formula
+  p <- (1:n_points - 0.5) / n_points
+  theoretical_quantiles <- qnorm(p)
+  
+  # Calculate empirical standard error for CI
+  se_residuals <- sd(standardized_residuals)
+  
+  # Calculate pointwise confidence intervals
+  # Using standard error of order statistics
+  z_alpha <- qnorm(0.975)  # 95% CI
+  ci_width <- z_alpha * se_residuals * sqrt(p * (1 - p) / (n_points * dnorm(theoretical_quantiles)^2))
+  
+  ci_lower <- sorted_residuals - ci_width
+  ci_upper <- sorted_residuals + ci_width
+  
+  # Set up plot margins to accommodate title and subtitle
+  par(mar = c(5, 5, 4, 2) + 0.1)
+  
+  # Create the plot
+  plot(theoretical_quantiles, sorted_residuals,
+       main = title,
+       xlab = "Theoretical Quantiles",
+       ylab = if(log_odds) "Log-Odds Standardized Residuals" else "Standardized Residuals",
+       pch = 19,
+       col = "blue",
+       ylim = range(c(ci_lower, ci_upper, sorted_residuals), na.rm = TRUE))
   
   # Add reference line
   abline(0, 1, col = "red", lty = 2)
+ 
+  # Add confidence intervals
+  polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+         c(ci_lower, rev(ci_upper)),
+         col = rgb(0.8, 0.8, 0.8, 0.3),
+         border = NA)
   
-  # Add error bars
-  segments(qq_data$x, ci_lower, qq_data$x, ci_upper, col = "darkgray")
+  # Add points again to ensure they're visible above the CI region
+  points(theoretical_quantiles, sorted_residuals, pch = 19, col = "blue")
   
-  # Add small horizontal lines at the ends of the error bars
-  segments(qq_data$x - 0.1, ci_lower, qq_data$x + 0.1, ci_lower, col = "darkgray")
-  segments(qq_data$x - 0.1, ci_upper, qq_data$x + 0.1, ci_upper, col = "darkgray")
+  # Add model information as subtitle
+  if (!is.null(tau_2) && !is.null(mu)) {
+    mtext(sprintf("τ² = %.3f, μ = %.3f", tau_2, mu), 
+          side = 3, line = 0.5, cex = 0.8)
+  }
   
   # Add legend
-  legend("topleft", 
-         legend = c("Standardized Residuals", "Reference Line", "95% Confidence Interval"),
-         pch = c(19, NA, NA),
-         lty = c(NA, 2, 1),
-         col = c("blue", "red", "darkgray"),
+  legend("topleft",
+         legend = c("Observed Quantiles", 
+                   "Reference Line", 
+                   "95% Confidence Band"),
+         pch = c(19, NA, 15),
+         lty = c(NA, 2, NA),
+         col = c("blue", "red", rgb(0.8, 0.8, 0.8, 0.3)),
          bg = "white")
+  
+  # Return invisibly the plot data for potential further use
+  invisible(list(
+    theoretical_quantiles = theoretical_quantiles,
+    empirical_quantiles = sorted_residuals,
+    ci_lower = ci_lower,
+    ci_upper = ci_upper,
+    se_residuals = se_residuals
+  ))
+}
+
+# Add a new function for QQ plots specifically for bivariate meta-analysis
+qq_plot_bivariate <- function(model, log_odds = FALSE) {
+  # Extract necessary components from the bivariate model
+  y_k <- model$y.k
+  mu <- model$mu
+  sigma_2_k <- model$sigma.2.k
+  tau_2 <- model$tau^2
+  
+  # Create QQ plot with confidence intervals
+  qq_result <- qq_plot_with_ci(
+    y_k = y_k,
+    mu = mu,
+    sigma_2_k = sigma_2_k,
+    tau_2 = tau_2,
+    log_odds = log_odds,
+    title = "Q-Q Plot for Bivariate Meta-Analysis Residuals"
+  )
+  
+  # Add model diagnostics as subtitle
+  mtext(sprintf("τ² = %.3f, μ = %.3f", tau_2, mu), 
+        side = 3, 
+        line = 0.5, 
+        cex = 0.8)
+  
+  # Return invisibly the plot data
+  invisible(qq_result)
+}
+
+# Add a helper function to check if log-odds transformation is appropriate
+should_use_log_odds <- function(y_k) {
+  # Check if data appears to be proportions
+  is_proportion <- all(y_k >= 0 & y_k <= 1, na.rm = TRUE)
+  
+  # Check if data is severely skewed
+  if (is_proportion) {
+    skewness <- mean((y_k - mean(y_k, na.rm = TRUE))^3, na.rm = TRUE) / 
+      sd(y_k, na.rm = TRUE)^3
+    return(abs(skewness) > 1)
+  }
+  
+  return(FALSE)
 }
 
 generate_report_content <- function() {
@@ -982,11 +1257,11 @@ plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]],
 ## Model Diagnostics
 
 ```{r bivariate-qq-plot-mu, fig.width=10, fig.height=6}
-qq_plot_residuals_with_envelope(params$bivariate_results$y.k, "Q-Q Plot for μ")
+qq_plot_bivariate(params$bivariate_results)
 ```
 
 ```{r bivariate-qq-plot-tau, fig.width=10, fig.height=6}
-qq_plot_residuals_with_envelope(sqrt(params$bivariate_results$sigma.2.k), "Q-Q Plot for τ")
+qq_plot_bivariate(params$bivariate_results, log_odds = TRUE)
 ```
 
 ## Publication Bias
