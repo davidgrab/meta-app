@@ -108,7 +108,7 @@ grade_assessment <- function(result, model_type) {
   if (model_type == "Random Effects") {
     ci_width <- result$upper.random - result$lower.random
   } else if (model_type == "Fixed Effects") {
-    ci_width <- result$upper.fixed - result$lower.fixed
+    ci_width <- result$upper.common - result$lower.common
   } else {
     ci_width <- result$ci.ub - result$ci.lb
   }
@@ -222,9 +222,9 @@ method_comparison_plot <- function(random_result, fixed_result, bivariate_result
   
   data <- data.frame(
     Method = c("Common effect model", "Random effects model", "Bivariate random effects"),
-    Effect = c(exp(fixed_result$TE.fixed), exp(random_result$TE.random), exp(bivariate_result$mu)),
-    Lower = c(exp(fixed_result$lower.fixed), exp(random_result$lower.random), exp(bivariate_result$conf_region$mu[1])),
-    Upper = c(exp(fixed_result$upper.fixed), exp(random_result$upper.random), exp(bivariate_result$conf_region$mu[2]))
+    Effect = c(exp(fixed_result$TE.common), exp(random_result$TE.random), exp(bivariate_result$mu)),
+    Lower = c(exp(fixed_result$lower.common), exp(random_result$lower.random), exp(bivariate_result$conf_region$mu[1])),
+    Upper = c(exp(fixed_result$upper.common), exp(random_result$upper.random), exp(bivariate_result$conf_region$mu[2]))
   )
   
   data$Method <- factor(data$Method, levels = c("Bivariate random effects", "Random effects model", "Common effect model"))
@@ -357,9 +357,10 @@ interpret_results <- function(results) {
                   " - ", round(safe_exp(safe_extract(results$random, "upper.random")), 2), ")\n",
                   "Heterogeneity (I^2): ", safe_extract(results$random, "I2"), "%\n\n",
                   "Fixed Effects Model:\n",
-                  "Effect Size: ", round(safe_exp(safe_extract(results$fixed, "TE.fixed")), 2),
-                  " (95% CI: ", round(safe_exp(safe_extract(results$fixed, "lower.fixed")), 2),
-                  " - ", round(safe_exp(safe_extract(results$fixed, "upper.fixed")), 2), ")\n\n",
+                  "Effect Size: ", round(safe_exp(safe_extract(results$fixed, "TE.common")), 2),
+                  " (95% CI: ", round(safe_exp(safe_extract(results$fixed, "lower.common")), 2),
+                  " - ", round(safe_exp(safe_extract(results$fixed, "upper.common")), 2), ")\n",
+                  "P-value: ", format.pval(safe_extract(results$fixed, "pval.common")), "\n\n",
                   "Bivariate Model:\n",
                   "Effect Size: ", round(safe_exp(results$bivariate$mu), 2),
                   " (95% CI: ", round(safe_exp(safe_extract(results$bivariate, "lower")), 2),
@@ -376,7 +377,7 @@ interpret_results <- function(results) {
                            ifelse(safe_extract(results$random, "I2") < 60, "moderate", "high")),
                     ". ",
                     "The fixed and random effects models ",
-                    ifelse(abs(safe_extract(results$fixed, "TE.fixed") - safe_extract(results$random, "TE.random")) < 0.1, "show similar results", "show some differences"),
+                    ifelse(abs(safe_extract(results$fixed, "TE.common") - safe_extract(results$random, "TE.random")) < 0.1, "show similar results", "show some differences"),
                     ". ",
                     "The bivariate model provides additional insights into the between-study variance.")
   } else {
@@ -600,22 +601,27 @@ compare_models <- function(results) {
 
   summary <- data.frame(
     Model = c("Random Effects", "Fixed Effects", "Bivariate"),
-    Effect_Size = c(
+    Effect = c(
       safe_exp(safe_extract(results$random, "TE.random")),
-      safe_exp(safe_extract(results$fixed, "TE.fixed")),
+      safe_exp(safe_extract(results$fixed, "TE.common")),
       safe_exp(safe_extract(results$bivariate, "mu"))
     ),
-    CI_Lower = c(
+    Lower = c(
       safe_exp(safe_extract(results$random, "lower.random")),
-      safe_exp(safe_extract(results$fixed, "lower.fixed")),
+      safe_exp(safe_extract(results$fixed, "lower.common")),
       safe_exp(safe_extract(results$bivariate, "lower"))
     ),
-    CI_Upper = c(
+    Upper = c(
       safe_exp(safe_extract(results$random, "upper.random")),
-      safe_exp(safe_extract(results$fixed, "upper.fixed")),
+      safe_exp(safe_extract(results$fixed, "upper.common")),
       safe_exp(safe_extract(results$bivariate, "upper"))
     ),
-    Tau2 = c(
+    P_value = c(
+      safe_extract(results$random, "pval.random"),
+      safe_extract(results$fixed, "pval.common"),
+      safe_extract(results$bivariate, "pval.Q")
+    ),
+    Heterogeneity = c(
       safe_extract(results$random, "tau2"),
       NA,
       safe_extract(results$bivariate, "tau")^2
@@ -624,16 +630,6 @@ compare_models <- function(results) {
       safe_extract(results$random, "I2"),
       NA,
       safe_extract(results$bivariate, "I2")/100
-    ),
-    Q = c(
-      safe_extract(results$random, "Q"),
-      safe_extract(results$fixed, "Q"),
-      safe_extract(results$bivariate, "Q")
-    ),
-    p_value = c(
-      safe_extract(results$random, "pval.Q"),
-      safe_extract(results$fixed, "pval.Q"),
-      safe_extract(results$bivariate, "pval.Q")
     )
   )
   
@@ -660,9 +656,24 @@ qq_plot_residuals <- function(model) {
 
 # Helper function to calculate residuals
 calculate_residuals <- function(model) {
-  observed <- model$event.e / model$n.e
-  expected <- model$TE.fixed
+  if (!inherits(model, "meta")) {
+    return(NULL)
+  }
+  
+  # Get observed effect sizes
+  observed <- model$TE
+  
+  # Get expected effect sizes (fixed effect estimate)
+  expected <- model$TE.common
+  
+  # Calculate residuals
   residuals <- observed - expected
+  
+  # Standardize residuals if variance information is available
+  if (!is.null(model$seTE)) {
+    residuals <- residuals / model$seTE
+  }
+  
   return(residuals)
 }
 
@@ -679,7 +690,7 @@ calculate_random_residuals <- function(model) {
 # Add these new functions at the end of your existing functions.R file
 
 
-render_report <- function(random_results, fixed_results, bivariate_results) {
+render_report <- function(random_results, fixed_results, bivariate_results, data = NULL) {
   report_content <- generate_report_content()
   
   # Create a temporary Rmd file
@@ -695,7 +706,8 @@ render_report <- function(random_results, fixed_results, bivariate_results) {
     params = list(
       random_results = random_results,
       fixed_results = fixed_results,
-      bivariate_results = bivariate_results
+      bivariate_results = bivariate_results,
+      data = data
     ),
     quiet = TRUE
   )
@@ -1050,6 +1062,7 @@ params:
   random_results: NA
   fixed_results: NA
   bivariate_results: NA
+  data: NA
 ---
 
 ```{r setup, include=FALSE}
@@ -1220,7 +1233,7 @@ fixed_loo_data <- data.frame(
 ggplot(fixed_loo_data, aes(x = estimate, y = study)) +
   geom_point() +
   geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
-  geom_vline(xintercept = params$fixed_results$TE.fixed, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = params$fixed_results$TE.common, linetype = "dashed", color = "red") +
   theme_minimal() +
   labs(title = "Leave-One-Out Analysis (Fixed Effects)", x = "Effect Size", y = "Study Omitted")
 ```
@@ -1293,4 +1306,9 @@ cat(bivariateGradeAssessment)
 This comprehensive report provides a detailed overview of the meta-analysis results using multiple methodological approaches. By comparing results across different models and examining various diagnostic plots, we can gain a more nuanced understanding of the effect size, heterogeneity, and potential biases in the meta-analysis. This multi-faceted approach supports more informed decision-making in interpreting and applying the results of the meta-analysis.
 ')
 }
+
+
+
+
+
 

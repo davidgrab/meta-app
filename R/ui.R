@@ -88,7 +88,7 @@ ui <- page_fillable(
                   tabPanel("Method Comparison", 
                            actionButton("method_comparison_info", "", icon = icon("info-circle"), class = "help-text"),
                            plotOutput("methodComparisonPlot"),
-                           p("Method comparison plot: Compares results from different meta-analysis methods.", class = "plot-explanation"),
+                           p("Method comparison plot: Compares effect size estimates and confidence intervals from fixed effects, random effects, and bivariate meta-analysis models. Shows relative precision of each method.", class = "plot-explanation"),
                            hr(),
                            h4("Summary"),
                            verbatimTextOutput("methodComparisonSummary")),
@@ -124,7 +124,7 @@ ui <- page_fillable(
                   tabPanel("Effect Size and Heterogeneity", 
                            div(class = "plot-container",
                                plotOutput("randomForestPlot"),
-                               p("Forest plot: Shows individual study effects and overall effect size with confidence intervals.", class = "plot-explanation")
+                               p("Forest plot: Shows individual study effect sizes with weights (box size) and confidence intervals (horizontal lines), plus the pooled random effects estimate (diamond).", class = "plot-explanation")
                            ),
                            actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("randomOverallSummary"),
@@ -136,19 +136,19 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("randomQQPlot"),
-                                        p("Q-Q plot: Assesses if effect sizes are normally distributed.", class = "plot-explanation")
+                                        p("Q-Q plot: Assesses if standardized residuals follow a normal distribution, which is an assumption of random effects models.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("outlierDetectionPlot"),
-                                        p("Outlier detection plot: Identifies potential outliers in the meta-analysis.", class = "plot-explanation")
+                                        p("Outlier detection plot: Displays standardized residuals for each study with reference lines at ±1.96, helping identify potential outliers.", class = "plot-explanation")
                                     )
                              )
                            ),
                            div(class = "plot-container",
                                plotOutput("effectDistributionPlot"),
-                               p("Effect distribution plot: Shows the distribution of effect sizes across studies.", class = "plot-explanation")
+                               p("Effect distribution plot: Histogram showing the distribution of effect sizes across studies with the pooled effect size (red dashed line).", class = "plot-explanation")
                            )
                   ),
                   tabPanel("Publication Bias",
@@ -157,13 +157,13 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("randomFunnelPlot"),
-                                        p("Funnel plot: Helps visualize potential publication bias.", class = "plot-explanation")
+                                        p("Funnel plot: Plots effect sizes against standard errors to help detect publication bias. Asymmetry suggests potential publication bias.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("randomTrimFillPlot"),
-                                        p("Trim and fill plot: Adjusts for potential publication bias.", class = "plot-explanation")
+                                        p("Trim and fill plot: Estimates and adds potentially missing studies (in white) to adjust for publication bias.", class = "plot-explanation")
                                     )
                              )
                            ),
@@ -187,7 +187,7 @@ ui <- page_fillable(
                            ),
                            div(class = "plot-container",
                                plotOutput("randomGOSHPlot"),
-                               p("GOSH plot: Visualizes the stability of meta-analysis results.", class = "plot-explanation")
+                               p("Effect size vs. standard error plot: Shows relationship between effect size and precision for each study.", class = "plot-explanation")
                            ),
                            verbatimTextOutput("influenceSummary")
                   ),
@@ -202,7 +202,7 @@ ui <- page_fillable(
                   tabPanel("Effect Size and Heterogeneity", 
                            div(class = "plot-container",
                                plotOutput("fixedForestPlot"),
-                               p("Fixed effects forest plot: Shows individual and overall fixed effect sizes.", class = "plot-explanation")
+                               p("Fixed effects forest plot: Shows individual study effect sizes and the pooled fixed effect estimate, assuming a common true effect size.", class = "plot-explanation")
                            ),
                            actionButton("fe_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("fixedOverallSummary"),
@@ -214,19 +214,19 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("fixedModelFitPlot"),
-                                        p("Model fit plot: Visualizes the goodness of fit for the fixed effects model.", class = "plot-explanation")
+                                        p("Radial plot: Visualizes the fit of the fixed effects model, with points closer to the line indicating better fit.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("fixedQQPlot"),
-                                        p("Q-Q plot: Assesses normality of residuals in fixed effects model.", class = "plot-explanation")
+                                        p("Q-Q plot: Assesses normality of residuals in fixed effects model, testing whether sampling error alone explains study differences.", class = "plot-explanation")
                                     )
                              )
                            ),
                            div(class = "plot-container",
                                plotOutput("fixedOutlierDetectionPlot"),
-                               p("Outlier detection: Identifies potential outliers in fixed effects model.", class = "plot-explanation")
+                               p("Outlier detection: Identifies potential outliers in fixed effects model based on standardized residuals.", class = "plot-explanation")
                            )
                   ),
                   tabPanel("Publication Bias",
@@ -235,13 +235,13 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("fixedFunnelPlot"),
-                                        p("Funnel plot: Assesses publication bias in fixed effects model.", class = "plot-explanation")
+                                        p("Funnel plot: Plots effect sizes against standard errors to help detect publication bias in the fixed effects model.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("fixedTrimFillPlot"),
-                                        p("Trim and fill plot: Adjusts for potential publication bias in fixed effects model.", class = "plot-explanation")
+                                        p("Trim and fill plot: Adjusts for potential publication bias by estimating and adding missing studies to the fixed effects model.", class = "plot-explanation")
                                     )
                              )
                            ),
@@ -253,7 +253,7 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("fixedLeaveOneOutPlot"),
-                                        p("Leave-one-out plot: Shows sensitivity of fixed effects model to individual studies.", class = "plot-explanation")
+                                        p("Leave-one-out plot: Shows sensitivity of fixed effects model to individual studies by sequentially removing each study.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
@@ -278,19 +278,19 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("bivariateForestPlot"),
-                                        p("Bivariate forest plot: Displays effect sizes for two outcomes simultaneously.", class = "plot-explanation")
+                                        p("Bivariate forest plot: Shows study effects and overall effect estimated using a bivariate random effects model.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("confidenceRegionPlot"),
-                                        p("Confidence region plot: Shows the joint confidence region for the two outcomes.", class = "plot-explanation")
+                                        p("Confidence region plot: Shows the joint confidence region for the effect size (μ) and between-study variability (τ).", class = "plot-explanation")
                                     )
                              )
                            ),
                            div(class = "plot-container",
                                plotOutput("efficacyHarmPlot"),
-                               p("Efficacy-harm plot: Visualizes the relationship between efficacy and harm outcomes.", class = "plot-explanation")
+                               p("Efficacy-harm plot: Visualizes probabilistic relationship between efficacy and harm for different thresholds.", class = "plot-explanation")
                            ),
                            verbatimTextOutput("bivariateOverallSummary")
                   ),
@@ -300,13 +300,13 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("qqPlotMu"),
-                                        p("Q-Q plot (μ) for normal eandom effects : Assesses normality of residuals for the first outcome.", class = "plot-explanation")
+                                        p("Q-Q plot (standardized residuals): Assesses normality assumption for the random effects distribution.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         plotOutput("qqPlotMuRaw"),
-                                        p("Q-Q plot (μ) for normal eandom effects : Assesses normality of residuals for the first outcome.", class = "plot-explanation")
+                                        p("Q-Q plot (raw residuals): Assesses normality of raw residuals, with point size proportional to study size.", class = "plot-explanation")
                                     )
                              )
                            )
@@ -315,7 +315,7 @@ ui <- page_fillable(
                            actionButton("publication_bias_info", "", icon = icon("info-circle"), class = "help-text"),
                            div(class = "plot-container",
                                plotOutput("bivariateAdaptedFunnelPlot"),
-                               p("Adapted funnel plot: Visualizes potential publication bias in the bivariate context.", class = "plot-explanation")
+                               p("Adapted funnel plot: Visualizes potential publication bias for the bivariate model using transformed effect sizes.", class = "plot-explanation")
                            ),
                            # verbatimTextOutput("bivariateBiasTestResults")
                   ),

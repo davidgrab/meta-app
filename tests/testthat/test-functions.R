@@ -116,7 +116,7 @@ test_that("method_comparison_plot works", {
   fixed_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
                           event.c = test_data$event.c, n.c = test_data$n.c,
                           studlab = test_data$studlab,
-                          sm = "RR", method = "Inverse", fixed = TRUE)
+                          sm = "RR", method = "Inverse", common = TRUE)
   
   bivariate_result <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e,
                               event.c = test_data$event.c, n.c = test_data$n.c,
@@ -135,7 +135,7 @@ test_that("compare_models works", {
   fixed_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
                           event.c = test_data$event.c, n.c = test_data$n.c,
                           studlab = test_data$studlab,
-                          sm = "RR", method = "Inverse", fixed = TRUE)
+                          sm = "RR", method = "Inverse", common = TRUE)
   
   bivariate_result <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e,
                               event.c = test_data$event.c, n.c = test_data$n.c,
@@ -159,7 +159,7 @@ test_that("interpret_results works", {
   fixed_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
                           event.c = test_data$event.c, n.c = test_data$n.c,
                           studlab = test_data$studlab,
-                          sm = "RR", method = "Inverse", fixed = TRUE)
+                          sm = "RR", method = "Inverse", common = TRUE)
   
   bivariate_result <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e,
                               event.c = test_data$event.c, n.c = test_data$n.c,
@@ -231,7 +231,7 @@ test_that("render_report works", {
   fixed_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
                           event.c = test_data$event.c, n.c = test_data$n.c,
                           studlab = test_data$studlab,
-                          sm = "RR", method = "Inverse", fixed = TRUE)
+                          sm = "RR", method = "Inverse", common = TRUE)
   
   bivariate_result <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e,
                               event.c = test_data$event.c, n.c = test_data$n.c,

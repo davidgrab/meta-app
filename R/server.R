@@ -204,7 +204,7 @@ server <- function(input, output, session) {
                            n.c = data()$pt,
                            studlab = data()$study,
                            sm = input$effect_measure, 
-                           fixed = TRUE,
+                           common = TRUE,
                            random = FALSE)
     
     bivariate_model <- metabiv(event.e = data()$ie, 
@@ -261,7 +261,7 @@ server <- function(input, output, session) {
     req(combinedResults()$random)
     inf <- metainf(combinedResults()$random)
     forest(inf, 
-           leftlabs = c("Omitted Study", "Effect Size", "95% CI"),
+           leftlabs = c("Omitted Study"),
            xlab = "Effect Size",
            title = "Leave-One-Out Analysis")
   })
@@ -365,7 +365,7 @@ server <- function(input, output, session) {
     req(combinedResults()$fixed)
     inf <- metainf(combinedResults()$fixed)
     forest(inf, 
-           leftlabs = c("Omitted Study", "Effect Size", "95% CI"),
+           leftlabs = c("Omitted Study"),
            xlab = "Effect Size",
            title = "Leave-One-Out Analysis")
   })
@@ -428,18 +428,17 @@ server <- function(input, output, session) {
   })
   
   
-  output$fixedSummaryText <- renderPrint({
-    print("Rendering fixed summary text")
-    req(fixedEffectsResult())
-    result <- fixedEffectsResult()
-    cat("Fixed Effects Model Summary:\n\n")
-    cat("Overall effect size (OR):", exp(result$TE.fixed), "\n")
-    cat("95% CI:", exp(result$lower.fixed), "to", exp(result$upper.fixed), "\n")
-    cat("p-value:", result$pval.fixed, "\n\n")
-    cat("Heterogeneity:\n")
-    cat("I^2 =", result$I2, "%\n")
-    cat("Q =", result$Q, "(p =", result$pval.Q, ")\n\n")
-    cat("Interpretation: [Add your interpretation here based on the results]\n")
+  output$fixedSummary <- renderPrint({
+    req(combinedResults()$fixed)
+    result <- combinedResults()$fixed
+    cat("Fixed Effects Model Summary\n")
+    cat("-------------------------\n")
+    cat("Overall effect size (OR):", exp(result$TE.common), "\n")
+    cat("95% CI:", exp(result$lower.common), "to", exp(result$upper.common), "\n")
+    cat("P-value:", result$pval.common, "\n")
+    cat("Heterogeneity test (Q):", result$Q, "\n")
+    cat("Heterogeneity p-value:", result$pval.Q, "\n")
+    cat("I² (inconsistency):", result$I2, "%\n")
   })
   
   
@@ -667,16 +666,16 @@ server <- function(input, output, session) {
                                studlab = data()$study,
                                sm = input$effect_measure,
                                method = "Inverse",
-                               fixed = TRUE,
+                               common = TRUE,
                                random = FALSE)
     
 
     # Combine results
     results <- data.frame(
       Method = c("Fixed Effects", "Random Effects", "Bivariate"),
-      Estimate = c(trad_meta_fixed$TE.fixed, trad_meta_random$TE.random, bivariate_result()$mu),
-      Lower = c(trad_meta_fixed$lower.fixed, trad_meta_random$lower.random, bivariate_result()$lower),
-      Upper = c(trad_meta_fixed$upper.fixed, trad_meta_random$upper.random, bivariate_result()$upper)
+      Estimate = c(trad_meta_fixed$TE.common, trad_meta_random$TE.random, bivariate_result()$mu),
+      Lower = c(trad_meta_fixed$lower.common, trad_meta_random$lower.random, bivariate_result()$lower),
+      Upper = c(trad_meta_fixed$upper.common, trad_meta_random$upper.random, bivariate_result()$upper)
     )
     
     
@@ -1364,7 +1363,8 @@ server <- function(input, output, session) {
         output_file <- render_report(
           random_results(), 
           fixed_results(), 
-          bivariate_results()
+          bivariate_results(),
+          data()  # Add the data parameter
         )
         
         # Increment the progress bar

@@ -25,7 +25,7 @@ random_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
 fixed_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
                         event.c = test_data$event.c, n.c = test_data$n.c,
                         studlab = test_data$studlab,
-                        sm = "RR", method = "Inverse", fixed = TRUE)
+                        sm = "RR", method = "Inverse", common = TRUE)
 
 bivariate_result <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e,
                             event.c = test_data$event.c, n.c = test_data$n.c,
