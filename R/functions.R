@@ -841,8 +841,8 @@ qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE
   
   # Calculate theoretical quantiles using (i - 0.5)/n formula
   p <- (1:n_points - 0.5) / n_points
-  theoretical_quantiles <- qnorm(p, mean = mean(mu), sd = sqrt(tau_2))  # Adjusted for empirical distribution
-  
+  #theoretical_quantiles <- qnorm(p, mean = mean(mu), sd = sqrt(tau_2))  # Adjusted for empirical distribution
+  theoretical_quantiles <- qnorm(p) 
   # Calculate empirical standard error for CI
   se_residuals <- sd(residuals_sorted)
   
