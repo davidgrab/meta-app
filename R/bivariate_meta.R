@@ -867,7 +867,7 @@ forest.metabiv <- function(x, xlab = "Effect Size", refline = 1,
             studlab = studlab,
             data = forest_data,
             sm = x$sm,
-            fixed = FALSE,
+            common = FALSE,
             random = TRUE,
             method.tau = "DL",
             hakn = FALSE)

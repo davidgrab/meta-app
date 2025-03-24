@@ -593,7 +593,7 @@ server <- function(input, output, session) {
     se.k <- sqrt(bivariate_result()$sigma.2.k) # Standard errors
     sm<-bivariate_result()$sm
     # Create a meta-analysis object
-    meta_analysis <- metagen(TE = y.k, seTE = se.k)
+    meta_analysis <- metagen(TE = y.k, seTE = se.k, common = TRUE, random = FALSE)
     funnel(meta_analysis, sm = sm, xlab = "Effect Size",
            ylab = "Standard Error")
     
