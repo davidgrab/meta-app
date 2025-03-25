@@ -1138,21 +1138,6 @@ safe_run(head(params$data))
 
 This section provides a high-level overview of results from all methods, allowing for easy comparison across different meta-analytic approaches.
 
-## Method Comparison
-
-```{r method-comparison-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  methodComparisonPlot <- method_comparison_plot(params$random_results, params$fixed_results, params$bivariate_results)
-  print(methodComparisonPlot)
-  # Only try to use ggplotly if the plot is a ggplot object
-  if(inherits(methodComparisonPlot, "ggplot")) {
-    ggplotly(methodComparisonPlot)
-  } else {
-    methodComparisonPlot
-  }
-}, plot(1, type = "n", main = "Method comparison plot unavailable", xlab = "", ylab = ""))
-```
-
 ## Summary Table
 
 ```{r summary-table, error=TRUE}
@@ -1627,67 +1612,80 @@ safe_run({
      !is.null(params$bivariate_results$y.k) && 
      !is.null(params$bivariate_results$sigma.2.k)) {
     
-    y.k <- exp(params$bivariate_results$y.k)
+    # Create a more robust funnel plot for bivariate model
+    y.k <- params$bivariate_results$y.k
     se.k <- sqrt(params$bivariate_results$sigma.2.k)
-    meta_analysis <- metagen(TE = y.k, seTE = se.k, common = TRUE, random = FALSE)
-    funnel(meta_analysis, sm = params$bivariate_results$sm, 
-           main = "Adapted Funnel Plot for Bivariate Model",
-           xlab = "Effect Size", 
-           ylab = "Standard Error")
+    
+    # Try different approaches to ensure plot is visible
+    tryCatch({
+      # First attempt - create metagen object
+      meta_analysis <- metagen(TE = y.k, seTE = se.k, 
+                              common = TRUE, random = TRUE,
+                              sm = params$bivariate_results$sm)
+      funnel(meta_analysis, 
+             main = "Funnel Plot for Bivariate Model",
+             xlab = "Effect Size", 
+             ylab = "Standard Error")
+    }, error = function(e) {
+      tryCatch({
+        # Second attempt - simple scatter plot
+        plot(y.k, se.k, 
+             main = "Funnel Plot for Bivariate Model (Simple)",
+             xlab = "Effect Size (log scale)", 
+             ylab = "Standard Error",
+             pch = 19)
+        abline(v = params$bivariate_results$mu, col = "red", lty = 2)
+        # Funnel lines
+        tau <- params$bivariate_results$tau
+        mu <- params$bivariate_results$mu
+        se_range <- seq(0, max(se.k, na.rm = TRUE), length.out = 100)
+        lines(mu + 1.96 * sqrt(se_range^2 + tau^2), se_range, col = "blue", lty = 2)
+        lines(mu - 1.96 * sqrt(se_range^2 + tau^2), se_range, col = "blue", lty = 2)
+      }, error = function(e) {
+        plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
+      })
+    })
   } else {
-    plot(1, type = "n", main = "Adapted funnel plot unavailable", xlab = "", ylab = "")
+    plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
   }
-}, plot(1, type = "n", main = "Adapted funnel plot unavailable", xlab = "", ylab = ""))
+}, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
+```
+
+```{r bivariate-egger-test, error=TRUE}
+safe_run({
+  if(!is.null(params$bivariate_results$y.k) && !is.null(params$bivariate_results$sigma.2.k)) {
+    meta_analysis <- metagen(TE = params$bivariate_results$y.k, 
+                            seTE = sqrt(params$bivariate_results$sigma.2.k))
+    cat(capture.output(metabias(meta_analysis, method = "Egger")), sep = "\n")
+  } else {
+    cat("Egger test unavailable for bivariate model")
+  }
+}, cat("Egger test unavailable for bivariate model"))
 ```
 
 ## Sensitivity Analysis
 
 ```{r bivariate-sensitivity-analysis, fig.width=10, fig.height=6, error=TRUE}
-# Create a 2-column layout similar to the UI
-par(mfrow = c(1, 2))
-
-# Column 1: Confidence Region Shift Plot
+# Use the same interactive plot from the UI
 safe_run({
   if(exists("confidence_region_shift_plot", mode = "function")) {
-    # For PDF/report output, use a static version of the confidence region shift plot
-    if(!is.null(params$bivariate_results$y.k) && !is.null(params$bivariate_results$mu) &&
-       !is.null(params$bivariate_results$tau) && !is.null(params$bivariate_results$dev_pvals)) {
-      
-      # Create a simple static version of the confidence region shift plot
-      # Extract studies
-      k <- length(params$bivariate_results$y.k)
-      loo_results <- list()
-      
-      # Plot the main confidence region
-      plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]],
-                     params$bivariate_results$dev_pvals[[2]],
-                     mlb = "Confidence Region Shift (Static)",
-                     mu_mle = params$bivariate_results$mu,
-                     tau_mle = params$bivariate_results$tau)
-      
-      # Mark the main effect with a larger point
-      points(exp(params$bivariate_results$mu), params$bivariate_results$tau, 
-             pch = 19, col = "green", cex = 2)
-      
-      # Add a legend
-      legend("topright", 
-             legend = c("95% CI", "50% CI", "Overall Effect"),
-             col = c("red", "blue", "green"), 
-             pch = c(NA, NA, 19),
-             lty = c(1, 1, NA),
-             cex = 0.8)
-    } else {
-      plot(1, type = "n", main = "Confidence region shift plot unavailable", xlab = "", ylab = "")
-    }
-  } else {
-    plot(1, type = "n", main = "Confidence region shift plot unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Confidence region shift plot unavailable", xlab = "", ylab = ""))
-
-# Column 2: Enhanced Baujat Plot
-safe_run({
-  if(exists("enhanced_baujat_plot", mode = "function")) {
-    # Create a static version for the PDF report
+    # Try to use the interactive function first
+    confidence_region_shift_plot(params$bivariate_results)
+  } else if(!is.null(params$bivariate_results$dev_pvals) && 
+           length(params$bivariate_results$dev_pvals) >= 2) {
+    
+    # Fallback: Create a static version of the confidence region shift plot
+    # Create a 2-column layout
+    par(mfrow = c(1, 2))
+    
+    # Left: Confidence Region Plot
+    plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]],
+                  params$bivariate_results$dev_pvals[[2]],
+                  mlb = "Confidence Region",
+                  mu_mle = params$bivariate_results$mu,
+                  tau_mle = params$bivariate_results$tau)
+    
+    # Right: Enhanced Baujat Plot (static version)
     if(!is.null(params$bivariate_results$studlab) && 
        !is.null(params$bivariate_results$y.k) && 
        !is.null(params$bivariate_results$sigma.2.k) && 
@@ -1707,7 +1705,7 @@ safe_run({
       weights <- 1/(params$bivariate_results$sigma.2.k + params$bivariate_results$tau^2)
       
       plot(influence[1,], influence[2,], 
-           main = "Enhanced Baujat Plot (Static Version)",
+           main = "Enhanced Baujat Plot",
            xlab = "Contribution to heterogeneity", 
            ylab = "Influence on overall result",
            cex = sqrt(weights/mean(weights))*1.5,
@@ -1724,28 +1722,48 @@ safe_run({
     } else {
       plot(1, type = "n", main = "Enhanced Baujat plot unavailable", xlab = "", ylab = "")
     }
+    
+    # Reset layout
+    par(mfrow = c(1, 1))
   } else {
-    # Try to create a similar plot if possible
-    if(!is.null(params$bivariate_results$studlab) && 
-       !is.null(params$bivariate_results$y.k) && 
-       !is.null(params$bivariate_results$mu)) {
-      
-      residuals <- (params$bivariate_results$y.k - params$bivariate_results$mu)^2
-      influence <- abs(params$bivariate_results$y.k - params$bivariate_results$mu)
-      
-      plot(residuals, influence, 
-           main = "Enhanced Baujat Plot (Simple Version)",
-           xlab = "Contribution to heterogeneity", 
-           ylab = "Influence on overall result")
-      text(residuals, influence, labels = params$bivariate_results$studlab, pos = 4)
-    } else {
-      plot(1, type = "n", main = "Enhanced Baujat plot unavailable", xlab = "", ylab = "")
-    }
+    plot(1, type = "n", main = "Sensitivity analysis plots unavailable", xlab = "", ylab = "")
   }
-}, plot(1, type = "n", main = "Enhanced Baujat plot unavailable", xlab = "", ylab = ""))
+}, plot(1, type = "n", main = "Sensitivity analysis plots unavailable", xlab = "", ylab = ""))
+```
 
-# Reset layout
-par(mfrow = c(1, 1))
+```{r bivariate-leave-one-out, fig.width=10, fig.height=6, error=TRUE}
+safe_run({
+  if(exists("metainf", mode = "function") && 
+     !is.null(params$bivariate_results$y.k) && 
+     !is.null(params$bivariate_results$sigma.2.k)) {
+    
+    # Create a leave-one-out analysis for bivariate model by approximating with metagen
+    meta_analysis <- metagen(TE = params$bivariate_results$y.k, 
+                            seTE = sqrt(params$bivariate_results$sigma.2.k),
+                            studlab = params$bivariate_results$studlab)
+    
+    inf_result <- metainf(meta_analysis)
+    
+    # Create a plot similar to the one in the UI
+    inf_data <- data.frame(
+      study = inf_result$studlab,
+      estimate = inf_result$TE,
+      lower = inf_result$lower,
+      upper = inf_result$upper
+    )
+    
+    ggplot(inf_data, aes(x = estimate, y = study)) +
+      geom_point() +
+      geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
+      geom_vline(xintercept = params$bivariate_results$mu, linetype = "dashed", color = "red") +
+      theme_minimal() +
+      labs(title = "Leave-One-Out Analysis (Bivariate)", 
+           x = "Effect Size", 
+           y = "Study Omitted")
+  } else {
+    plot(1, type = "n", main = "Leave-one-out analysis unavailable", xlab = "", ylab = "")
+  }
+}, plot(1, type = "n", main = "Leave-one-out analysis unavailable", xlab = "", ylab = ""))
 ```
 
 This comprehensive report provides a detailed overview of the meta-analysis results using multiple methodological approaches. By comparing results across different models and examining various diagnostic plots, we can gain a more nuanced understanding of the effect size, heterogeneity, and potential biases in the meta-analysis. This multi-faceted approach supports more informed decision-making in interpreting and applying the results of the meta-analysis.
