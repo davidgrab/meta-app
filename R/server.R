@@ -114,6 +114,30 @@ server <- function(input, output, session) {
     ))
   })
   
+  # Dataset info popup
+  observeEvent(input$dataset_info, {
+    showModal(modalDialog(
+      title = "Example Datasets Information",
+      HTML(
+        paste0(
+          "<h4>Colditz et al. (1994) - BCG Vaccine Dataset</h4>",
+          "<p>This dataset contains results from 13 studies examining the effectiveness of the Bacillus Calmette-Guerin (BCG) vaccine against tuberculosis. It shows substantial heterogeneity between studies, potentially related to the geographic latitude where the studies were conducted.</p>",
+          "<p>Source: Available in the metadat R package as dat.colditz1994</p>",
+          "<hr>",
+          "<h4>Yusuf et al. (1985) - Beta-Blockers Dataset</h4>",
+          "<p>This dataset contains results from 22 studies on the effectiveness of beta blockers for reducing mortality after myocardial infarction. It is from Table 6 of the original publication and demonstrates clear treatment effects with studies of varying sizes.</p>",
+          "<p>Source: Available in the metafor R package as dat.yusuf1985</p>",
+          "<hr>",
+          "<h4>Hypericum (St. John's Wort) - Depression Dataset</h4>",
+          "<p>This dataset comes from a Cochrane systematic review of randomized controlled trials comparing Hypericum extracts (St. John's Wort) to placebo in patients with major depressive disorder. It includes 18 RCTs with binary outcomes measuring response to treatment (responder vs. non-responder) reported as relative risk (RR).</p>",
+          "<p>Hypericum extracts are herbal remedies used for treating depression symptoms, and this dataset demonstrates the effectiveness comparison against placebo treatments.</p>"
+        )
+      ),
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+  
   # Data loading
   # Modified data reactive
   data <- reactive({
@@ -139,9 +163,33 @@ server <- function(input, output, session) {
   # New reactive value
   currentData <- reactiveVal(NULL)
   
+  # Dataset description
+  output$datasetDescription <- renderUI({
+    dataset_choice <- input$exampleDatasetChoice
+    
+    description <- switch(dataset_choice,
+      "colditz" = "13 studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude).",
+      "yusuf" = "22 studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes.",
+      "default" = "Cochrane review of 18 RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR)."
+    )
+    
+    HTML(paste("<div style='font-size: 0.85em; margin-bottom: 10px; color: #666;'>", description, "</div>"))
+  })
+  
   # New observe events
   observeEvent(input$loadExampleData, {
-    currentData(exampleData)
+    dataset_choice <- input$exampleDatasetChoice
+    
+    if (dataset_choice == "colditz") {
+      currentData(colditzData)
+      showNotification("Loaded Colditz et al. (1994) BCG Vaccine Dataset", type = "message")
+    } else if (dataset_choice == "yusuf") {
+      currentData(yusufData)
+      showNotification("Loaded Yusuf et al. (1985) Beta-Blockers Dataset", type = "message")
+    } else {
+      currentData(exampleData)
+      showNotification("Loaded Default Example Dataset", type = "message")
+    }
   })
   
   observeEvent(input$datafile, {
@@ -184,6 +232,46 @@ server <- function(input, output, session) {
 16,67,106,22,47
 17,46,70,34,70
 18,34,48,25,49")
+  
+  # Colditz et al. (1994) - BCG Vaccine Dataset
+  colditzData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
+1,4,123,11,139
+2,6,306,29,303
+3,3,231,11,220
+4,62,13598,248,12867
+5,33,5069,47,5808
+6,180,1361,372,1079
+7,8,2545,10,629
+8,505,87886,499,87892
+9,29,7470,45,7232
+10,17,1699,65,1600
+11,186,50634,141,27338
+12,5,2493,3,2338
+13,27,16886,29,17825")
+  
+  # Yusuf et al. (1985) - Beta-Blockers Dataset (from Table 6)
+  yusufData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
+1,14,56,15,58
+2,18,66,19,64
+3,15,100,12,95
+4,10,52,12,47
+5,21,226,24,228
+6,3,38,6,31
+7,2,20,3,20
+8,19,76,15,67
+9,15,106,9,114
+10,5,62,4,57
+11,0,9,0,8
+12,8,133,11,127
+13,3,48,3,49
+14,0,16,0,13
+15,1,42,1,46
+16,0,25,3,25
+17,14,221,15,228
+18,0,11,0,11
+19,8,259,7,129
+20,6,157,4,158
+21,3,177,2,136")
   
   # Combined analysis
   combinedResults <- eventReactive(input$analyze, {
@@ -240,7 +328,7 @@ server <- function(input, output, session) {
   
   output$randomForestPlot <- renderPlot({
     req(combinedResults()$random)
-    forest(combinedResults()$random, 
+    meta::forest(combinedResults()$random, 
            leftlabs = c("Study", "TE", "seTE"),
            rightlabs = c("TE", "95%-CI", "Weight"),
            fontsize = 10, 
@@ -260,7 +348,7 @@ server <- function(input, output, session) {
   output$leaveOneOutPlot <- renderPlot({
     req(combinedResults()$random)
     inf <- metainf(combinedResults()$random)
-    forest(inf, 
+    meta::forest(inf, 
            leftlabs = c("Omitted Study"),
            xlab = "Effect Size",
            title = "Leave-One-Out Analysis")
@@ -339,7 +427,7 @@ server <- function(input, output, session) {
   
   output$fixedForestPlot <- renderPlot({
     req(combinedResults()$fixed)
-    forest(combinedResults()$fixed, 
+    meta::forest(combinedResults()$fixed, 
            leftlabs = c("Study", "TE", "seTE"),
            rightlabs = c("TE", "95%-CI", "Weight"),
            fontsize = 10, 
@@ -364,7 +452,7 @@ server <- function(input, output, session) {
   output$fixedLeaveOneOutPlot <- renderPlot({
     req(combinedResults()$fixed)
     inf <- metainf(combinedResults()$fixed)
-    forest(inf, 
+    meta::forest(inf, 
            leftlabs = c("Omitted Study"),
            xlab = "Effect Size",
            title = "Leave-One-Out Analysis")
@@ -680,7 +768,7 @@ server <- function(input, output, session) {
     
     
     # Create forest plot
-    forest(metagen(TE = Estimate, 
+    meta::forest(metagen(TE = Estimate, 
                    lower = Lower, 
                    upper = Upper, 
                    studlab = Method, 

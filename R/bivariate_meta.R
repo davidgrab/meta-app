@@ -706,34 +706,34 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
 #' @param subset_size Size of each subset (if NULL, uses half of total studies)
 #' @return A plotly object representing the GOSH plot
 #' @export
-bivariate_gosh_plot <- function(bivariate_result, n_subsets = 1000, subset_size = NULL) {
-  data <- bivariate_result$tbl
-  k <- nrow(data)
-  
-  if (is.null(subset_size)) subset_size <- max(2, floor(k/2))
-  
-  subsets <- replicate(n_subsets, sample(1:k, size = subset_size, replace = FALSE))
-  
-  gosh_results <- apply(subsets, 2, function(subset) {
-    res <- metabiv(event.e = data$event.e[subset], 
-                   n.e = data$n.e[subset], 
-                   event.c = data$event.c[subset], 
-                   n.c = data$n.c[subset],
-                   studlab = data$studlab[subset],
-                   sm = bivariate_result$sm)
-    c(mu = res$mu, tau = res$tau)
-  })
-  
-  gosh_df <- as.data.frame(t(gosh_results))
-  
-  p <- plot_ly(data = gosh_df, x = ~mu, y = ~tau, type = "scatter", mode = "markers",
-               marker = list(size = 3, opacity = 0.5)) %>%
-    layout(title = paste("GOSH Plot for", bivariate_result$sm),
-           xaxis = list(title = "μ"),
-           yaxis = list(title = "τ"))
-  
-  return(p)
-}
+# bivariate_gosh_plot <- function(bivariate_result, n_subsets = 1000, subset_size = NULL) {
+#   data <- bivariate_result$tbl
+#   k <- nrow(data)
+#   
+#   if (is.null(subset_size)) subset_size <- max(2, floor(k/2))
+#   
+#   subsets <- replicate(n_subsets, sample(1:k, size = subset_size, replace = FALSE))
+#   
+#   gosh_results <- apply(subsets, 2, function(subset) {
+#     res <- metabiv(event.e = data$event.e[subset], 
+#                    n.e = data$n.e[subset], 
+#                    event.c = data$event.c[subset], 
+#                    n.c = data$n.c[subset],
+#                    studlab = data$studlab[subset],
+#                    sm = bivariate_result$sm)
+#     c(mu = res$mu, tau = res$tau)
+#   })
+#   
+#   gosh_df <- as.data.frame(t(gosh_results))
+#   
+#   p <- plot_ly(data = gosh_df, x = ~mu, y = ~tau, type = "scatter", mode = "markers",
+#                marker = list(size = 3, opacity = 0.5)) %>%
+#     layout(title = paste("GOSH Plot for", bivariate_result$sm),
+#            xaxis = list(title = "μ"),
+#            yaxis = list(title = "τ"))
+#   
+#   return(p)
+# }
 
 #' @title Bivariate GRADE Assessment
 #' @description Performs a GRADE assessment for bivariate meta-analysis results
@@ -742,44 +742,44 @@ bivariate_gosh_plot <- function(bivariate_result, n_subsets = 1000, subset_size 
 #' @param indirectness Indirectness assessment (Low, Unclear, or High)
 #' @return A character string containing the GRADE assessment
 #' @export
-bivariate_grade_assessment <- function(bivariate_result, risk_of_bias, indirectness) {
-  cat("Bivariate GRADE Assessment\n\n")
-  cat("Risk of Bias:", risk_of_bias, "\n")
-  cat("Indirectness:", indirectness, "\n")
-  
-  # Inconsistency (based on tau)
-  inconsistency <- if(bivariate_result$tau > 0.5) "High" else if(bivariate_result$tau > 0.3) "Moderate" else "Low"
-  cat("Inconsistency:", inconsistency, "\n")
-  
-  # Imprecision (based on the ratio of mu to tau)
-  imprecision <- if(abs(bivariate_result$mu) / bivariate_result$tau < 2) "High" else "Low"
-  cat("Imprecision:", imprecision, "\n")
-  
-  # Publication Bias (simplified test)
-  pub_bias_test <- lm(bivariate_result$y.k ~ sqrt(bivariate_result$sigma.2.k))
-  pub_bias <- if(abs(coef(pub_bias_test)[1]) > 0.1) "Suspected" else "Not suspected"
-  cat("Publication Bias:", pub_bias, "\n\n")
-  
-  # Overall GRADE score
-  grade_score <- 4  # Start with high quality
-  if (risk_of_bias == "High") grade_score <- grade_score - 1
-  if (indirectness == "High") grade_score <- grade_score - 1
-  if (inconsistency == "High") grade_score <- grade_score - 2
-  else if (inconsistency == "Moderate") grade_score <- grade_score - 1
-  if (imprecision == "High") grade_score <- grade_score - 1
-  if (pub_bias == "Suspected") grade_score <- grade_score - 1
-  
-  overall_grade <- switch(as.character(max(0, grade_score)),
-                          "4" = "High",
-                          "3" = "Moderate",
-                          "2" = "Low",
-                          "1" = "Very Low",
-                          "0" = "Very Low")
-  
-  cat("Overall GRADE:", overall_grade, "\n")
-  
-  return(overall_grade)
-}
+# bivariate_grade_assessment <- function(bivariate_result, risk_of_bias, indirectness) {
+#   cat("Bivariate GRADE Assessment\n\n")
+#   cat("Risk of Bias:", risk_of_bias, "\n")
+#   cat("Indirectness:", indirectness, "\n")
+#   
+#   # Inconsistency (based on tau)
+#   inconsistency <- if(bivariate_result$tau > 0.5) "High" else if(bivariate_result$tau > 0.3) "Moderate" else "Low"
+#   cat("Inconsistency:", inconsistency, "\n")
+#   
+#   # Imprecision (based on the ratio of mu to tau)
+#   imprecision <- if(abs(bivariate_result$mu) / bivariate_result$tau < 2) "High" else "Low"
+#   cat("Imprecision:", imprecision, "\n")
+#   
+#   # Publication Bias (simplified test)
+#   pub_bias_test <- lm(bivariate_result$y.k ~ sqrt(bivariate_result$sigma.2.k))
+#   pub_bias <- if(abs(coef(pub_bias_test)[1]) > 0.1) "Suspected" else "Not suspected"
+#   cat("Publication Bias:", pub_bias, "\n\n")
+#   
+#   # Overall GRADE score
+#   grade_score <- 4  # Start with high quality
+#   if (risk_of_bias == "High") grade_score <- grade_score - 1
+#   if (indirectness == "High") grade_score <- grade_score - 1
+#   if (inconsistency == "High") grade_score <- grade_score - 2
+#   else if (inconsistency == "Moderate") grade_score <- grade_score - 1
+#   if (imprecision == "High") grade_score <- grade_score - 1
+#   if (pub_bias == "Suspected") grade_score <- grade_score - 1
+#   
+#   overall_grade <- switch(as.character(max(0, grade_score)),
+#                           "4" = "High",
+#                           "3" = "Moderate",
+#                           "2" = "Low",
+#                           "1" = "Very Low",
+#                           "0" = "Very Low")
+#   
+#   cat("Overall GRADE:", overall_grade, "\n")
+#   
+#   return(overall_grade)
+# }
 
 #' @title Forest Plot for Bivariate Meta-Analysis
 #' @description Creates a forest plot for bivariate meta-analysis results
@@ -905,7 +905,7 @@ forest.metabiv <- function(x, xlab = "Effect Size", refline = 1,
   }
   
   # Create the forest plot with enhanced settings
-  forest(meta_obj,
+  meta::forest(meta_obj,
          leftcols = leftcols,
          rightcols = rightcols,
          leftlabs = c("Study"),
