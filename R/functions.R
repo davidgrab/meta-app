@@ -33,7 +33,7 @@ calculate_log_rr <- function(n11, n12, n21, n22) {
 ###################################
 
 random_forest_plot <- function(result) {
-  plot=forest(result)
+  plot=meta::forest(result)
   class(plot) <- "plot"
   return(plot)
 }
@@ -63,7 +63,7 @@ random_leave_one_out <- function(result) {
 ##################################
 
 fixed_forest_plot <- function(result) {
-  forest(result)
+  meta::forest(result)
 }
 
 fixed_effect_dist_plot <- function(data) {
@@ -1170,7 +1170,7 @@ safe_run({
     },
     error = function(e) {
       message("Using built-in forest function")
-      forest(params$random_results)
+      meta::forest(params$random_results)
     }
   )
 }, plot(1, type = "n", main = "Forest plot unavailable", xlab = "", ylab = ""))
@@ -1338,7 +1338,7 @@ safe_run({
       print(fixedForestPlot)
     },
     error = function(e) {
-      forest(params$fixed_results)
+      meta::forest(params$fixed_results)
     }
   )
 }, plot(1, type = "n", main = "Fixed effects forest plot unavailable", xlab = "", ylab = ""))

@@ -89,7 +89,8 @@ test_that("forest.metabiv function works", {
                         studlab = test_data$studlab,
                         sm = "RR")
   
-  expect_error(forest(biv_result), NA)
+  expect_error(forest.metabiv(biv_result), NA)
+  expect_error(meta::forest(biv_result), NA)
 })
 
 test_that("summary.metabiv function works", {

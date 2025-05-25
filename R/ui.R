@@ -77,7 +77,24 @@ ui <- page_fillable(
                 actionButton("data_info", "How to Upload Data", icon = icon("question-circle")),
                 fluidRow(
                   column(6, downloadButton("downloadSampleStructure", "Download Sample Structure")),
-                  column(6, actionButton("loadExampleData", "Load Example Dataset"))
+                  column(6, 
+                         div(
+                           div(style = "display: flex; align-items: center;",
+                             selectInput("exampleDatasetChoice", "Choose Example Dataset:", 
+                                        choices = list(
+                                          "Hypericum (St. John's Wort) - Depression (Default)" = "default",
+                                          "Colditz et al. (1994) - BCG Vaccine" = "colditz",
+                                          "Yusuf et al. (1985) - Beta-Blockers" = "yusuf"
+                                        ), 
+                                        selected = "default"),
+                             actionButton("dataset_info", "", icon = icon("info-circle"), 
+                                          style = "margin-left: 5px; height: 30px;")
+                           ),
+                           uiOutput("datasetDescription"),
+                           actionButton("loadExampleData", "Load Example Dataset"),
+                           style = "display: flex; flex-direction: column;"
+                         )
+                  )
                 ),
                 br(),
                 DTOutput("dataPreview"),

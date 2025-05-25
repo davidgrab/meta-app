@@ -1,0 +1,4 @@
+PWD /Users/davidgrabois/meta-app
+INPUT /Users/davidgrabois/Library/TinyTeX/texmf.cnf
+INPUT /Users/davidgrabois/Library/TinyTeX/texmf-dist/web2c/texmf.cnf
+INPUT /Users/davidgrabois/Library/TinyTeX/texmf-var/web2c/pdftex/pdflatex.fmt
