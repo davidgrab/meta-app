@@ -35,8 +35,11 @@ source("R/bivariate_meta.R")#
 server <- function(input, output, session) {
   print("Server function started")
   
+  # Load example datasets from CSV files
+  exampleData <- read.csv("data/hypericum_depression_default.csv", stringsAsFactors = FALSE)
+  colditzData <- read.csv("data/colditz_1994_bcg_vaccine.csv", stringsAsFactors = FALSE)
+  yusufData <- read.csv("data/yusuf_1985_beta_blockers.csv", stringsAsFactors = FALSE)
 
-  
   print("Functions sourced")
   
   # Initially hide all tabs except Data Preview
@@ -213,65 +216,65 @@ server <- function(input, output, session) {
   )
   
   # Example dataset
-  exampleData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
-1,22,54,21,55
-2,17,45,9,43
-3,35,53,12,55
-4,23,37,15,35
-5,24,49,16,49
-6,4,20,11,26
-7,45,80,12,79
-8,26,98,19,102
-9,41,70,4,70
-10,64,109,48,109
-11,71,131,51,130
-12,46,113,56,116
-13,159,243,26,81
-14,98,186,80,189
-15,55,123,57,124
-16,67,106,22,47
-17,46,70,34,70
-18,34,48,25,49")
+  # exampleData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
+#1,22,54,21,55
+#2,17,45,9,43
+#3,35,53,12,55
+#4,23,37,15,35
+#5,24,49,16,49
+#6,4,20,11,26
+#7,45,80,12,79
+#8,26,98,19,102
+#9,41,70,4,70
+#10,64,109,48,109
+#11,71,131,51,130
+#12,46,113,56,116
+#13,159,243,26,81
+#14,98,186,80,189
+#15,55,123,57,124
+#16,67,106,22,47
+#17,46,70,34,70
+#18,34,48,25,49")
   
   # Colditz et al. (1994) - BCG Vaccine Dataset
-  colditzData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
-1,4,123,11,139
-2,6,306,29,303
-3,3,231,11,220
-4,62,13598,248,12867
-5,33,5069,47,5808
-6,180,1361,372,1079
-7,8,2545,10,629
-8,505,87886,499,87892
-9,29,7470,45,7232
-10,17,1699,65,1600
-11,186,50634,141,27338
-12,5,2493,3,2338
-13,27,16886,29,17825")
+  # colditzData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
+#1,4,123,11,139
+#2,6,306,29,303
+#3,3,231,11,220
+#4,62,13598,248,12867
+#5,33,5069,47,5808
+#6,180,1361,372,1079
+#7,8,2545,10,629
+#8,505,87886,499,87892
+#9,29,7470,45,7232
+#10,17,1699,65,1600
+#11,186,50634,141,27338
+#12,5,2493,3,2338
+#13,27,16886,29,17825")
   
   # Yusuf et al. (1985) - Beta-Blockers Dataset (from Table 6)
-  yusufData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
-1,14,56,15,58
-2,18,66,19,64
-3,15,100,12,95
-4,10,52,12,47
-5,21,226,24,228
-6,3,38,6,31
-7,2,20,3,20
-8,19,76,15,67
-9,15,106,9,114
-10,5,62,4,57
-11,0,9,0,8
-12,8,133,11,127
-13,3,48,3,49
-14,0,16,0,13
-15,1,42,1,46
-16,0,25,3,25
-17,14,221,15,228
-18,0,11,0,11
-19,8,259,7,129
-20,6,157,4,158
-21,3,177,2,136")
+  # yusufData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
+#1,14,56,15,58
+#2,18,66,19,64
+#3,15,100,12,95
+#4,10,52,12,47
+#5,21,226,24,228
+#6,3,38,6,31
+#7,2,20,3,20
+#8,19,76,15,67
+#9,15,106,9,114
+#10,5,62,4,57
+#11,0,9,0,8
+#12,8,133,11,127
+#13,3,48,3,49
+#14,0,16,0,13
+#15,1,42,1,46
+#16,0,25,3,25
+#17,14,221,15,228
+#18,0,11,0,11
+#19,8,259,7,129
+#20,6,157,4,158
+#21,3,177,2,136")
   
   # Combined analysis
   combinedResults <- eventReactive(input$analyze, {
