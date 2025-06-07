@@ -81,7 +81,14 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   }
   
   # Estimate tau and mu using MLE
-  initial.value <- c(0.4, 0.4)
+  # Improved initial value calculation using DerSimonian-Laird
+  w.k <- 1 / sigma.2.k
+  mu.init <- sum(w.k * y.k) / sum(w.k)
+  Q.init <- sum(w.k * (y.k - mu.init)^2)
+  df.init <- k.All - 1
+  tau2.init <- max(0, (Q.init - df.init) / (sum(w.k) - sum(w.k^2)/sum(w.k)))
+  initial.value <- c(mu.init, sqrt(tau2.init))
+
   mle_result <- comp.tau.mu.MLE(data.tbl, initial.value, sm, y.k, sigma.2.k)
   mu <- mle_result$mu
   tau <- mle_result$tau
@@ -220,8 +227,14 @@ comp.tau.mu.MLE <- function(data.tbl, initial.value, sm, y.k.in = NULL, sigma.2.
     sigma.2.k <- sigma.2.k.in
   }
   
-  minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
-  a <- nlminb(initial.value, minus.loglik)
+  minus.loglik <- function(par.vec) {
+    # Add small epsilon for stability
+    sd_val <- sqrt(par.vec[2]^2 + sigma.2.k)
+    if (any(is.nan(sd_val)) || any(!is.finite(sd_val))) return(Inf)
+    -sum(dnorm(y.k, mean = par.vec[1], sd = sd_val, log = TRUE))
+  }
+  
+  a <- nlminb(initial.value, minus.loglik, lower = c(-Inf, 0))
   
   return(list(mu = a$par[1], tau = a$par[2]))
 }
@@ -984,75 +997,60 @@ comp.tau.mu.log.RR.MLE <- function(data.tbl, initial.value) {
   a <- comp.log.RR.y.sigma.stats(data.tbl)
   y.k <- a[[1]]
   sigma.2.k <- a[[2]]
-  minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
-  a <- nlminb(initial.value, minus.loglik)
+  
+  minus.loglik <- function(par.vec) {
+    sd_val <- sqrt(par.vec[2]^2 + sigma.2.k)
+    if (any(is.nan(sd_val)) || any(!is.finite(sd_val))) return(Inf)
+    -sum(dnorm(y.k, mean = par.vec[1], sd = sd_val, log = TRUE))
+  }
+  
+  # Calculate DerSimonian-Laird if no initial value is provided
+  if (is.null(initial.value)) {
+    w <- 1 / sigma.2.k
+    mu.init <- sum(w * y.k) / sum(w)
+    Q <- sum(w * (y.k - mu.init)^2)
+    df <- length(y.k) - 1
+    tau2.init <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
+    initial.value <- c(mu.init, sqrt(tau2.init))
+  }
+
+  a <- nlminb(initial.value, minus.loglik, lower = c(-Inf, 0))
   return(list(mu = a$par[1], tau = a$par[2]))
 }
 
 comp.tau.mu.log.OR.MLE <- function(data.tbl, initial.value) {
-  # Step 1: Calculate initial estimates using DerSimonian and Laird method
+  # Step 1: Calculate effect sizes
   a <- comp.log.OR.y.sigma.stats(data.tbl)
   y.k <- a[[1]]
   sigma.2.k <- a[[2]]
-  
-  # DerSimonian and Laird estimate for tau^2
-  w <- 1 / sigma.2.k
-  mu.init <- sum(w * y.k) / sum(w)
-  Q <- sum(w * (y.k - mu.init)^2)
-  df <- length(y.k) - 1
-  tau2.init <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
-  
-  # Initial parameter vector
-  par.init <- c(mu.init, sqrt(tau2.init))
   
   # Step 2: Define the negative log-likelihood function
   neg.loglik <- function(par) {
     mu <- par[1]
     tau <- par[2]
-    -sum(dnorm(y.k, mean = mu, sd = sqrt(tau^2 + sigma.2.k), log = TRUE))
+    sd_val <- sqrt(tau^2 + sigma.2.k)
+    # Return Inf for non-finite values to guide optimizer
+    if (any(!is.finite(sd_val))) return(Inf)
+    -sum(dnorm(y.k, mean = mu, sd = sd_val, log = TRUE))
   }
   
-  # Step 3: Define gradient and Hessian functions
-  gradient <- function(par) {
-    mu <- par[1]
-    tau <- par[2]
-    v <- tau^2 + sigma.2.k
-    d_mu <- sum((y.k - mu) / v)
-    d_tau <- sum(tau * ((y.k - mu)^2 / v^2 - 1 / v))
-    c(d_mu, d_tau)
+  # Use provided initial values, or calculate DerSimonian-Laird estimates
+  if (is.null(initial.value)) {
+      w <- 1 / sigma.2.k
+      mu.init <- sum(w * y.k) / sum(w)
+      Q <- sum(w * (y.k - mu.init)^2)
+      df <- length(y.k) - 1
+      tau2.init <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
+      par.init <- c(mu.init, sqrt(tau2.init))
+  } else {
+      par.init <- initial.value
   }
-  
-  hessian <- function(par) {
-    mu <- par[1]
-    tau <- par[2]
-    v <- tau^2 + sigma.2.k
-    h11 <- -sum(1 / v)
-    h12 <- h21 <- -2 * sum(tau * (y.k - mu) / v^2)
-    h22 <- sum((y.k - mu)^2 / v^2 - 1 / v - 2 * tau^2 * (y.k - mu)^2 / v^3)
-    matrix(c(h11, h12, h21, h22), nrow = 2)
-  }
-  
-  # Step 4: Implement Newton-Raphson method
-  newton_raphson <- function(par, max_iter = 100, tol = 1e-6) {
-    for (i in 1:max_iter) {
-      g <- gradient(par)
-      H <- hessian(par)
-      delta <- solve(H, g)
-      par_new <- par - delta
-      if (sqrt(sum(delta^2)) < tol) {
-        return(par_new)
-      }
-      par <- par_new
-    }
-    warning("Newton-Raphson did not converge")
-    par
-  }
-  
-  # Step 5: Run Newton-Raphson
-  result <- newton_raphson(par.init)
+
+  # Step 3: Run optimizer with lower bound for tau
+  opt_result <- nlminb(start = par.init, objective = neg.loglik, lower = c(-Inf, 0))
   
   # Return results
-  list(mu = result[1], tau = result[2])
+  list(mu = opt_result$par[1], tau = opt_result$par[2])
 }
 
 comp.tau.mu.log.OR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
