@@ -8,6 +8,7 @@ library(BiasedUrn)
 library(bslib)
 library(shinyjs)
 library(bsicons)
+library(shinycssloaders)
 
 
 # Source the functions file
@@ -112,7 +113,7 @@ ui <- page_fillable(
                 tabsetPanel(
                   tabPanel("Method Comparison", 
                            actionButton("method_comparison_info", "", icon = icon("info-circle"), class = "help-text"),
-                           plotOutput("methodComparisonPlot"),
+                           withSpinner(plotOutput("methodComparisonPlot")),
                            p("Method comparison plot: Compares effect size estimates and confidence intervals from fixed effects, random effects, and bivariate meta-analysis models. Shows relative precision of each method.", class = "plot-explanation"),
                            hr(),
                            h4("Summary"),
@@ -149,7 +150,7 @@ ui <- page_fillable(
                   tabPanel("Effect Size and Heterogeneity", 
                            div(class = "plot-container",
                                style = "max-height: 600px; overflow-y: auto;",
-                               plotOutput("randomForestPlot")
+                               withSpinner(plotOutput("randomForestPlot"))
                            ),
                            p("Forest plot: Shows individual study effect sizes with weights (box size) and confidence intervals (horizontal lines), plus the pooled random effects estimate (diamond).", class = "plot-explanation"),
                            actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
@@ -161,19 +162,19 @@ ui <- page_fillable(
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("randomQQPlot"),
+                                        withSpinner(plotOutput("randomQQPlot")),
                                         p("Q-Q plot: Assesses if standardized residuals follow a normal distribution, which is an assumption of random effects models.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("outlierDetectionPlot"),
+                                        withSpinner(plotOutput("outlierDetectionPlot")),
                                         p("Outlier detection plot: Displays standardized residuals for each study with reference lines at ±1.96, helping identify potential outliers.", class = "plot-explanation")
                                     )
                              )
                            ),
                            div(class = "plot-container",
-                               plotOutput("effectDistributionPlot"),
+                               withSpinner(plotOutput("effectDistributionPlot")),
                                p("Effect distribution plot: Histogram showing the distribution of effect sizes across studies with the pooled effect size (red dashed line).", class = "plot-explanation")
                            )
                   ),
@@ -182,13 +183,13 @@ ui <- page_fillable(
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("randomFunnelPlot"),
+                                        withSpinner(plotOutput("randomFunnelPlot")),
                                         p("Funnel plot: Plots effect sizes against standard errors to help detect publication bias. Asymmetry suggests potential publication bias.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("randomTrimFillPlot"),
+                                        withSpinner(plotOutput("randomTrimFillPlot")),
                                         p("Trim and fill plot: Estimates and adds potentially missing studies (in white) to adjust for publication bias.", class = "plot-explanation")
                                     )
                              )
@@ -201,18 +202,18 @@ ui <- page_fillable(
                            # Leave-One-Out Plot (full width, scrollable)
                            div(class = "plot-container",
                                style = "max-height: 600px; overflow-y: auto;",
-                               plotOutput("leaveOneOutPlot")
+                               withSpinner(plotOutput("leaveOneOutPlot"))
                            ),
                            p("Leave-one-out plot: Shows how overall effect changes when each study is removed.", class = "plot-explanation"),
 
                            # Baujat Plot (full width)
                            div(class = "plot-container",
-                               plotOutput("baujatPlot")
+                               withSpinner(plotOutput("baujatPlot"))
                            ),
                            p("Baujat plot: Identifies studies contributing to heterogeneity and influencing overall result.", class = "plot-explanation"),
 
                            div(class = "plot-container",
-                               plotOutput("randomGOSHPlot"),
+                               withSpinner(plotOutput("randomGOSHPlot")),
                                p("Effect size vs. standard error plot: Shows relationship between effect size and precision for each study.", class = "plot-explanation")
                            ),
                            verbatimTextOutput("influenceSummary")
@@ -228,7 +229,7 @@ ui <- page_fillable(
                   tabPanel("Effect Size and Heterogeneity", 
                            div(class = "plot-container",
                                style = "max-height: 600px; overflow-y: auto;",
-                               plotOutput("fixedForestPlot")
+                               withSpinner(plotOutput("fixedForestPlot"))
                            ),
                            p("Fixed effects forest plot: Shows individual study effect sizes and the pooled fixed effect estimate, assuming a common true effect size.", class = "plot-explanation"),
                            actionButton("fe_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
@@ -240,19 +241,19 @@ ui <- page_fillable(
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("fixedModelFitPlot"),
+                                        withSpinner(plotOutput("fixedModelFitPlot")),
                                         p("Radial plot: Visualizes the fit of the fixed effects model, with points closer to the line indicating better fit.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("fixedQQPlot"),
+                                        withSpinner(plotOutput("fixedQQPlot")),
                                         p("Q-Q plot: Assesses normality of residuals in fixed effects model, testing whether sampling error alone explains study differences.", class = "plot-explanation")
                                     )
                              )
                            ),
                            div(class = "plot-container",
-                               plotOutput("fixedOutlierDetectionPlot"),
+                               withSpinner(plotOutput("fixedOutlierDetectionPlot")),
                                p("Outlier detection: Identifies potential outliers in fixed effects model based on standardized residuals.", class = "plot-explanation")
                            )
                   ),
@@ -261,13 +262,13 @@ ui <- page_fillable(
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("fixedFunnelPlot"),
+                                        withSpinner(plotOutput("fixedFunnelPlot")),
                                         p("Funnel plot: Plots effect sizes against standard errors to help detect publication bias in the fixed effects model.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("fixedTrimFillPlot"),
+                                        withSpinner(plotOutput("fixedTrimFillPlot")),
                                         p("Trim and fill plot: Adjusts for potential publication bias by estimating and adding missing studies to the fixed effects model.", class = "plot-explanation")
                                     )
                              )
@@ -280,13 +281,13 @@ ui <- page_fillable(
                            # Leave-One-Out Plot (full width, scrollable)
                            div(class = "plot-container",
                                style = "max-height: 600px; overflow-y: auto;",
-                               plotOutput("fixedLeaveOneOutPlot")
+                               withSpinner(plotOutput("fixedLeaveOneOutPlot"))
                            ),
                            p("Leave-one-out plot: Shows sensitivity of fixed effects model to individual studies by sequentially removing each study.", class = "plot-explanation"),
 
                            # Influence Plot (Baujat) (full width)
                            div(class = "plot-container",
-                               plotOutput("fixedInfluencePlot")
+                               withSpinner(plotOutput("fixedInfluencePlot"))
                            ),
                            p("Influence plot: Identifies studies with disproportionate impact on fixed effects model.", class = "plot-explanation"),
 
@@ -306,18 +307,18 @@ ui <- page_fillable(
                            # Bivariate Forest Plot (full width)
                            div(class = "plot-container",
                                style = "max-height: 600px; overflow-y: auto;",
-                               plotOutput("bivariateForestPlot")
+                               withSpinner(plotOutput("bivariateForestPlot"))
                            ),
                            p("Bivariate forest plot: Shows study effects and overall effect estimated using a bivariate random effects model.", class = "plot-explanation"),
                            
                            # Confidence Region Plot (full width)
                            div(class = "plot-container",
-                               plotOutput("confidenceRegionPlot")
+                               withSpinner(plotOutput("confidenceRegionPlot"))
                            ),
                            p("Confidence region plot: Shows the joint confidence region for the effect size (μ) and between-study variability (τ).", class = "plot-explanation"),
                            
                            div(class = "plot-container",
-                               plotOutput("efficacyHarmPlot"),
+                               withSpinner(plotOutput("efficacyHarmPlot")),
                                p("Efficacy-harm plot: Visualizes probabilistic relationship between efficacy and harm for different thresholds.", class = "plot-explanation")
                            ),
                            verbatimTextOutput("bivariateOverallSummary")
@@ -327,13 +328,13 @@ ui <- page_fillable(
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("qqPlotMu"),
+                                        withSpinner(plotOutput("qqPlotMu")),
                                         p("Q-Q plot (standardized residuals): Assesses normality assumption for the random effects distribution.", class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
-                                        plotOutput("qqPlotMuRaw"),
+                                        withSpinner(plotOutput("qqPlotMuRaw")),
                                         p("Q-Q plot (raw residuals): Assesses normality of raw residuals, with point size proportional to study size.", class = "plot-explanation")
                                     )
                              )
@@ -342,7 +343,7 @@ ui <- page_fillable(
                   tabPanel("Publication Bias",
                            actionButton("publication_bias_info", "", icon = icon("info-circle"), class = "help-text"),
                            div(class = "plot-container",
-                               plotOutput("bivariateAdaptedFunnelPlot"),
+                               withSpinner(plotOutput("bivariateAdaptedFunnelPlot")),
                                p("Adapted funnel plot: Visualizes potential publication bias for the bivariate model using transformed effect sizes.", class = "plot-explanation")
                            ),
                            # verbatimTextOutput("bivariateBiasTestResults")
@@ -352,13 +353,13 @@ ui <- page_fillable(
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
-                                        plotlyOutput("confidenceRegionShiftPlot"),
+                                        withSpinner(plotlyOutput("confidenceRegionShiftPlot")),
                                         p("Confidence region shift plot: Visualizes how the confidence region changes with study removal.", class = "plot-explanation")
                                     )
                              ),
                              column(6,
                                     div(class = "plot-container",
-                                        plotlyOutput("enhancedBaujatPlot"),
+                                        withSpinner(plotlyOutput("enhancedBaujatPlot")),
                                         p("Enhanced Baujat plot: Identifies influential studies in the bivariate model.", class = "plot-explanation")
                                     )
                              )

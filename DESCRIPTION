@@ -1,2 +1,24 @@
+Package: meta-app
+Version: 0.1.0
+Title: Comprehensive Meta-Analysis App
+Author: David Grabois
+Maintainer: David Grabois <david.grabois@gmail.com>
+Description: An interactive Shiny application for performing comprehensive meta-analyses, including fixed and random effects models, bivariate analysis, publication bias assessment, and sensitivity analysis.
+License: MIT
+Encoding: UTF-8
 Imports:
+    shiny,
+    DT,
+    meta,
+    ggplot2,
+    plotly,
+    metafor,
+    BiasedUrn,
+    bslib,
+    shinyjs,
+    bsicons,
+    shinycssloaders,
     testthat (>= 3.0.0)
+Suggests:
+    knitr,
+    rmarkdown
