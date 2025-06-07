@@ -1,39 +1,52 @@
+# This is a temporary file for testing purposes.
+# It can be used for running ad-hoc R code.
+
 library(testthat)
 library(meta)
 library(metafor)
 library(ggplot2)
 library(plotly)
+library(BiasedUrn)
 
 source("R/bivariate_meta.R")
 source("R/functions.R")
 
-# Test data based on the provided Hypericum vs. Placebo study
-test_data <- data.frame(
-  studlab = c("Study 1", "Study 2", "Study 3", "Study 4", "Study 5", "Study 6", "Study 7", "Study 8", 
-              "Study 9", "Study 10", "Study 11", "Study 12", "Study 13", "Study 14", "Study 15", 
-              "Study 16", "Study 17", "Study 18"),
-  event.e = c(22, 17, 35, 23, 24, 4, 45, 26, 41, 64, 71, 46, 159, 98, 55, 67, 46, 34),
-  n.e = c(54, 45, 53, 37, 49, 20, 80, 98, 70, 109, 131, 113, 243, 186, 123, 106, 70, 48),
-  event.c = c(21, 9, 12, 15, 16, 11, 12, 19, 4, 48, 51, 56, 26, 80, 57, 22, 34, 25),
-  n.c = c(55, 43, 55, 35, 49, 26, 79, 102, 70, 109, 130, 116, 81, 189, 124, 47, 70, 49)
+
+
+# --- Validation Script ---
+# This script validates the output of the metabiv function against
+# the results from the 'analysis for BMJ paper.R' script.
+
+# 1. Load the Hypericum (St. John's Wort) dataset
+# This is the same as 'tbl.1' in the original analysis script.
+hypericum_data <- read.csv("data/hypericum_depression_default.csv")
+
+# Correct the column names to match what the function expects
+names(hypericum_data) <- c("study", "ie", "it", "pe", "pt")
+
+# 2. Run the bivariate meta-analysis using the metabiv function
+# We use sm = "RR" (Relative Risk) as done in the paper's analysis.
+validation_result <- metabiv(
+  event.e = hypericum_data$ie,
+  n.e = hypericum_data$it,
+  event.c = hypericum_data$pe,
+  n.c = hypericum_data$pt,
+  studlab = hypericum_data$study,
+  sm = "RR"
 )
-random_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
-                         event.c = test_data$event.c, n.c = test_data$n.c,
-                         studlab = test_data$studlab,
-                         sm = "RR", method = "Inverse", random = TRUE)
 
-fixed_result <- metabin(event.e = test_data$event.e, n.e = test_data$n.e,
-                        event.c = test_data$event.c, n.c = test_data$n.c,
-                        studlab = test_data$studlab,
-                        sm = "RR", method = "Inverse", common = TRUE)
+# 3. Print the key results (MLE for mu and tau)
+cat("--- Validation Results for Hypericum Dataset ---\n\n")
+cat("Estimated mu (Overall Effect):", validation_result$mu, "\n")
+cat("Estimated tau (Between-Study Heterogeneity):", validation_result$tau, "\n\n")
 
-bivariate_result <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e,
-                            event.c = test_data$event.c, n.c = test_data$n.c,
-                            studlab = test_data$studlab, sm = "RR")
+# 4. Compare with the benchmark from 'analysis for BMJ paper.R'
+# The benchmark results are approximately mu = 0.53 and tau = 0.23.
+cat("--- Benchmark Values from Original Script ---\n\n")
+cat("Expected mu: ~0.53\n")
+cat("Expected tau: ~0.23\n\n")
 
-output_file <- render_report(random_result, fixed_result, bivariate_result)
-
-expect_true(file.exists(output_file))
-expect_true(grepl("\\.html$", output_file))
+cat("==> Please compare the 'Estimated' values above with the 'Benchmark' values.\n")
+cat("==> Minor differences in the third or fourth decimal place are acceptable.\n")
 
 

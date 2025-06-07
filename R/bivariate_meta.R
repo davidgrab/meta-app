@@ -117,7 +117,10 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   # Calculate deviance and p-values
   mu.vec <- seq(-1, 1, length.out = 100)
   tau.vec <- seq(0.01, 1, length.out = 100)
-  dev_pvals <- comp.tau.mu.dev.pvals(data.tbl, mu.vec, tau.vec, sm, y.k, sigma.2.k)
+  
+  # For all summary measures, use the standard chi-squared approximation.
+  # The exact test for OR is deferred as a future improvement.
+  dev_pvals <- comp.tau.mu.dev.pvals(data.tbl, mu.vec, tau.vec, sm, y.k.in = y.k, sigma.2.k.in = sigma.2.k)
   
   # Compute confidence region
   conf_region <- compute_confidence_region(dev_pvals[[2]], level.ma)
@@ -834,146 +837,55 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
 #' @param ... Additional arguments passed to the forest function
 #' @return A forest plot
 #' @export
-forest.metabiv <- function(x, xlab = "Effect Size", refline = 1, 
-                           leftcols = c("studlab"), 
-                           rightcols = c("effect", "ci", "w.random"), 
-                           digits = 2,
-                           study_weights = TRUE,
-                           text_size = 10,
-                           title = NULL,
-                           weight_column = "w.random",
-                           ...) {
-  
-  # Input validation
+forest.metabiv <- function(x, xlab = "Effect Size", title = "Forest Plot") {
+  # Ensure x is a metabiv object
   if (!inherits(x, "metabiv")) {
-    stop("Input must be a metabiv object")
+    stop("Input must be a 'metabiv' object.")
   }
-  
-  # Calculate standard errors with safeguards
-  seTE <- try({
-    sqrt(pmax(x$sigma.2.k, .Machine$double.eps))
-  }, silent = TRUE)
-  
-  if (inherits(seTE, "try-error")) {
-    stop("Error calculating standard errors")
-  }
-  
-  # Calculate weights
-  w.random <- 1/(seTE^2 + pmax(x$tau^2, .Machine$double.eps))
-  w.random.pct <- 100 * w.random/sum(w.random)
-  
-  # Create study-level effect sizes and CIs
-  study_effects <- data.frame(
-    studlab = x$studlab,
+
+  # 1. Create a base meta-analysis object. This holds the individual study data.
+  m <- metagen(
     TE = x$y.k,
-    seTE = seTE,
-    lower = x$lower.k,
-    upper = x$upper.k,
-    effect = sprintf("%.*f", digits, exp(x$y.k)),
-    ci = sprintf("[%.*f, %.*f]", 
-                 digits, exp(x$lower.k), 
-                 digits, exp(x$upper.k)),
-    w.random = w.random.pct,
-    stringsAsFactors = FALSE
+    seTE = sqrt(x$sigma.2.k),
+    studlab = x$studlab,
+    sm = x$sm,
+    level = x$level,
+    common = FALSE,
+    random = TRUE # Set to TRUE to allow summary, then overwrite below
   )
+
+  # 2. Manually overwrite the default random-effects results with our bivariate model's results.
+  # This ensures the summary diamond and stats reflect our MLE calculation.
+  m$TE.random <- x$mu
+  m$lower.random <- x$lower
+  m$upper.random <- x$upper
+  m$seTE.random <- (x$upper - x$lower) / (2 * qnorm((1 + x$level.ma) / 2))
   
-  # Add overall effect if available
-  if (!is.null(x$mu) && !is.null(x$tau)) {
-    overall_effect <- data.frame(
-      studlab = "Overall",
-      TE = x$mu,
-      seTE = max(x$tau, sqrt(.Machine$double.eps)),
-      lower = x$lower,
-      upper = x$upper,
-      effect = sprintf("%.*f", digits, exp(x$mu)),
-      ci = sprintf("[%.*f, %.*f]", 
-                   digits, exp(x$lower), 
-                   digits, exp(x$upper)),
-      w.random = NA,
-      stringsAsFactors = FALSE
-    )
-    
-    forest_data <- rbind(study_effects, overall_effect)
-  } else {
-    forest_data <- study_effects
-  }
-  
-  # Create meta object with proper settings
-  meta_obj <- try({
-    metagen(TE = TE,
-            seTE = seTE,
-            studlab = studlab,
-            data = forest_data,
-            sm = x$sm,
-            common = FALSE,
-            random = TRUE,
-            method.tau = "DL",
-            method.random.ci = "classic")
-  }, silent = TRUE)
-  
-  if (inherits(meta_obj, "try-error")) {
-    stop("Error creating meta object: ", meta_obj)
-  }
-  
-  # Override meta object with bivariate results
-  meta_obj$TE.random <- x$mu
-  meta_obj$seTE.random <- x$tau
-  meta_obj$lower.random <- x$lower
-  meta_obj$upper.random <- x$upper
-  meta_obj$tau <- x$tau
-  meta_obj$tau2 <- x$tau^2
-  meta_obj$sm <- x$sm
-  meta_obj$level <- x$level
-  meta_obj$level.ma <- x$level.ma
-  
-  # Prepare heterogeneity measures
-  het_measures <- sprintf(
-    "Heterogeneity: τ² = %.*f; I² = %.*f%%",
-    digits, x$tau2,
-    1, x$I2
+  m$tau2 <- x$tau2
+  m$I2 <- x$I2 / 100 # meta expects I2 as a proportion (0-1)
+  m$H2 <- x$H2
+  m$Q <- x$Q
+  m$df.Q <- x$df
+  m$k.random <- m$k # Set flag that random-effects summary is available
+
+  # 3. Create the forest plot using the modified meta object.
+  # 'overall = TRUE' now displays our custom bivariate summary.
+  # Layout parameters are adjusted to prevent text overlap.
+  forest(
+    m,
+    xlab = xlab,
+    smlab = title,
+    overall = TRUE,
+    hetstat = TRUE,
+    print.I2 = TRUE,
+    print.tau2 = TRUE,
+    col.diamond = "blue",
+    col.diamond.lines = "blue",
+    plotwidth = "8cm",
+    colgap = "3mm",
+    spacing.factor = 1.2, # Increase vertical spacing
+    fs.hetstat = 8      # Set font size for heterogeneity stats
   )
-  
-  # Set up column specifications
-  if (study_weights) {
-    if (!weight_column %in% names(forest_data)) {
-      warning("Specified weight column not found, using w.random")
-      weight_column <- "w.random"
-    }
-    rightcols <- unique(c(rightcols, weight_column))
-  }
-  
-  # Create the forest plot with enhanced settings
-  meta::forest(meta_obj,
-         leftcols = leftcols,
-         rightcols = rightcols,
-         leftlabs = c("Study"),
-         rightlabs = c("Effect", "95% CI", "Weight"),
-         xlab = xlab,
-         refline = refline,
-         print.tau2 = TRUE,
-         col.diamond = "blue",
-         col.diamond.lines = "blue",
-         col.predict = "red",
-         addpred = TRUE,
-         digits = digits,
-         fontsize = text_size,
-         spacing = 1,
-         squaresize = 0.8,
-         hetstat = TRUE,
-         print.I2 = TRUE,
-         print.Q = TRUE,
-         overall = TRUE,
-         overall.hetstat = TRUE,
-         test.overall = TRUE,
-         label.left = "Favors Control",
-         label.right = "Favors Treatment",
-         lty.ref = 2,
-         col.ref = "gray",
-         smlab = if (is.null(title)) paste("Random Effects Model for", x$sm) else title,
-         ...)
-  
-  # Return invisibly
-  invisible(meta_obj)
 }
 
 # Helper function to validate metabiv object
@@ -1429,5 +1341,81 @@ calculate_combined_score <- function(iou, hellinger, kld, rmse, coverage_prob) {
   weights <- c(0.25, 0.2, 0.2, 0.2, 0.15)
   score <- sum(weights * c(iou, hellinger, kld, rmse, coverage_prob))
   return(score)
+}
+
+#' @title Compute Exact Deviance and P-values for Log-OR
+#' @description Calculates deviance and p-values using an exact simulation test for Odds Ratios.
+#' @param data.tbl A data frame containing the study data
+#' @param mu.vec.tst Vector of mu values to test
+#' @param tau.vec.tst Vector of tau values to test
+#' @param N.sig Number of simulations for the exact test
+#' @return A list containing the deviance matrix and the exact p-value matrix
+#' @export
+comp.tau.mu.log.OR.dev.pvals.exact <- function(data.tbl, mu.vec.tst, tau.vec.tst, N.sig = 200) {
+  n.mu <- length(mu.vec.tst)
+  n.tau <- length(tau.vec.tst)
+  
+  a <- comp.log.OR.y.sigma.stats(data.tbl)
+  y.k <- a[[1]]
+  sigma.2.k <- a[[2]]
+  K <- length(y.k)
+  
+  # Compute the observed deviance matrix first
+  y.mat.k.i <- rep(c(y.k), each = n.mu * n.tau)
+  sigma.2.k.i <- rep(c(sigma.2.k), each = n.mu * n.tau)
+  tau.k.i <- rep(rep(tau.vec.tst, each = n.mu), K)
+  mu.k.i <- rep(mu.vec.tst, n.tau * K)
+  
+  loglik.vec <- dnorm(y.mat.k.i, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i), log = TRUE)
+  loglik.mu.tau <- c(array(loglik.vec, dim = c(n.mu * n.tau, K)) %*% cbind(rep(1, K)))
+  dev.mat <- array(-2 * (loglik.mu.tau - max(loglik.mu.tau)), dim = c(n.mu, n.tau))
+  dimnames(dev.mat) <- list(paste("mu = ", round(mu.vec.tst, 2)), paste("tau = ", round(tau.vec.tst, 3)))
+  
+  # Compute exact p-values via simulation
+  pval.mat <- array(0, dim = dim(dev.mat))
+  dimnames(pval.mat) <- dimnames(dev.mat)
+  
+  for (j1 in 1:n.mu) {
+    for (j2 in 1:n.tau) {
+      # Only run simulation if the chi-squared p-value is not already tiny, to save time
+      if (dev.mat[j1, j2] < qchisq(1 - 1e-5, 2)) {
+        sim_devs <- replicate(N.sig, {
+          # Step 1: Simulate new tables based on the noncentral hypergeometric distribution
+          theta.k.sim <- exp(rnorm(K, mean = mu.vec.tst[j1], sd = tau.vec.tst[j2]))
+          data.mat.sim <- cbind(data.tbl$n.e, data.tbl$n.c, data.tbl$event.e + data.tbl$event.c, theta.k.sim)
+          
+          # Helper for rFNCHypergeo which expects a vector
+          rFNCHypergeo.vec <- function(vec.4) rFNCHypergeo(1, vec.4[1], vec.4[2], vec.4[3], vec.4[4])
+          
+          x.vec.sim <- apply(data.mat.sim, 1, rFNCHypergeo.vec)
+          
+          smp.tbl <- data.tbl
+          smp.tbl$event.e <- x.vec.sim
+          smp.tbl$event.c <- (data.tbl$event.e + data.tbl$event.c) - x.vec.sim
+          
+          # Step 2: Recalculate effect sizes for the simulated table
+          a_sim <- comp.log.OR.y.sigma.stats(smp.tbl)
+          y.k_sim <- a_sim[[1]]
+          sigma.2.k_sim <- a_sim[[2]]
+          
+          # Step 3: Recalculate the deviance for the simulated data
+          y.mat.k.i_sim <- rep(c(y.k_sim), each = n.mu * n.tau)
+          sigma.2.k.i_sim <- rep(c(sigma.2.k_sim), each = n.mu * n.tau)
+          
+          loglik.vec_sim <- dnorm(y.mat.k.i_sim, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i_sim), log = TRUE)
+          loglik.mu.tau_sim <- c(array(loglik.vec_sim, dim = c(n.mu * n.tau, K)) %*% cbind(rep(1, K)))
+          
+          # The deviance of the simulated data, evaluated at the same (j1, j2) point
+          dev.mu.tau_sim <- -2 * (loglik.mu.tau_sim[j1 + (j2 - 1) * n.mu] - max(loglik.mu.tau_sim))
+          dev.mu.tau_sim
+        })
+        
+        # The p-value is the fraction of simulated deviances greater than the observed deviance
+        pval.mat[j1, j2] <- sum(sim_devs >= dev.mat[j1, j2]) / N.sig
+      }
+    }
+  }
+  
+  return(list(dev.mat, pval.mat))
 }
 
