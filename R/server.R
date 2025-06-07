@@ -489,7 +489,12 @@ server <- function(input, output, session) {
   
   output$baujatPlot <- renderPlot({
     req(combinedResults()$random)
-    baujat(combinedResults()$random)
+    tryCatch({
+      baujat(combinedResults()$random)
+    }, error = function(e) {
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Baujat plot failed")
+      text(1, 1, paste("Error:", e$message))
+    })
   })
   
   output$influenceSummary <- renderPrint({
@@ -609,7 +614,12 @@ server <- function(input, output, session) {
   
   output$fixedInfluencePlot <- renderPlot({
     req(combinedResults()$fixed)
-    baujat(combinedResults()$fixed)
+    tryCatch({
+      baujat(combinedResults()$fixed)
+    }, error = function(e) {
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Baujat plot failed")
+      text(1, 1, paste("Error:", e$message))
+    })
   })
   
   output$fixedInfluenceSummary <- renderPrint({

@@ -1006,11 +1006,11 @@ comp.tau.mu.log.RR.MLE <- function(data.tbl, initial.value) {
   
   # Calculate DerSimonian-Laird if no initial value is provided
   if (is.null(initial.value)) {
-    w <- 1 / sigma.2.k
-    mu.init <- sum(w * y.k) / sum(w)
-    Q <- sum(w * (y.k - mu.init)^2)
-    df <- length(y.k) - 1
-    tau2.init <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
+  w <- 1 / sigma.2.k
+  mu.init <- sum(w * y.k) / sum(w)
+  Q <- sum(w * (y.k - mu.init)^2)
+  df <- length(y.k) - 1
+  tau2.init <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
     initial.value <- c(mu.init, sqrt(tau2.init))
   }
 
@@ -1045,7 +1045,7 @@ comp.tau.mu.log.OR.MLE <- function(data.tbl, initial.value) {
   } else {
       par.init <- initial.value
   }
-
+  
   # Step 3: Run optimizer with lower bound for tau
   opt_result <- nlminb(start = par.init, objective = neg.loglik, lower = c(-Inf, 0))
   

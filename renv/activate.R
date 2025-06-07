@@ -1,4 +1,3 @@
-
 local({
 
   # the requested version of renv
@@ -1215,6 +1214,14 @@ local({
   # run bootstrap code
   renv_bootstrap_exec(project, libpath, version)
 
-  invisible()
+  # now, attempt to load the project
+  load(project, libpath, ...)
+  
+  # install pandoc if not available
+  if (requireNamespace("rmarkdown", quietly = TRUE) && !rmarkdown::pandoc_available()) {
+    renv::install_pandoc()
+  }
+
+  invisible(project)
 
 })

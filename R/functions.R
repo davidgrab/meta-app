@@ -885,6 +885,13 @@ qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE
   # Remove any infinite or NA values
   valid_indices <- is.finite(residuals)
   residuals <- residuals[valid_indices]
+  
+  if (length(residuals) < 2) {
+    plot(1, type="n", axes=FALSE, xlab="", ylab="", main=title)
+    text(1, 1, "Not enough valid data to generate Q-Q plot.")
+    return(invisible(NULL))
+  }
+  
   sigma_2_k <- sigma_2_k[valid_indices]  # Ensure consistency
   n_k <- n_k[valid_indices]  # Ensure study sizes are consistent
   
