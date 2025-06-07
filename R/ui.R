@@ -60,9 +60,16 @@ ui <- page_fillable(
   
   layout_sidebar(
     sidebar = sidebar(
-      fileInput("datafile", "Upload Data (csv)", accept = c(".csv")),
+      radioButtons("data_type", "Select Data Type:",
+                   choices = list("Binary (2x2)" = "binary", 
+                                  "Continuous (SMD)" = "smd"),
+                   selected = "binary"),
+      fileInput("datafile", "Upload Data", accept = c(".csv", ".xlsx")),
       selectInput("het_estimator", "Heterogeneity Estimator", choices = c("DL", "PM", "REML", "ML"), selected = "DL"),
-      selectInput("effect_measure", "Effect Measure", choices = c("OR", "RR"), selected = "RR"),
+      conditionalPanel(
+        condition = "input.data_type == 'binary'",
+        selectInput("effect_measure", "Effect Measure", choices = c("OR", "RR"), selected = "RR")
+      ),
       actionButton("analyze", "Analyze", class = "btn-primary"),
       hr(),
       h4("Data Cleaning"),
@@ -84,7 +91,8 @@ ui <- page_fillable(
                                         choices = list(
                                           "Hypericum (St. John's Wort) - Depression (Default)" = "default",
                                           "Colditz et al. (1994) - BCG Vaccine" = "colditz",
-                                          "Yusuf et al. (1985) - Beta-Blockers" = "yusuf"
+                                          "Yusuf et al. (1985) - Beta-Blockers" = "yusuf",
+                                          "CBT for Depression (SMD)" = "smd"
                                         ), 
                                         selected = "default"),
                              actionButton("dataset_info", "", icon = icon("info-circle"), 

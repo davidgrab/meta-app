@@ -33,41 +33,56 @@ inv.log.odds <- function(theta) exp(theta) / (1 + exp(theta))
 #' @param n.c A numeric vector of sample sizes in the control group
 #' @param studlab An optional character vector of study labels
 #' @param data An optional data frame containing the variables
-#' @param sm A character string specifying the summary measure ("RR" or "OR")
+#' @param sm A character string specifying the summary measure ("RR", "OR", or "SMD")
+#' @param y An optional numeric vector of pre-calculated effect sizes
+#' @param sigma2 An optional numeric vector of pre-calculated variances
 #' @param level Confidence level for individual studies
 #' @param level.ma Confidence level for meta-analysis
 #' @return A list with class "metabiv" containing the results of the bivariate meta-analysis
 #' @export
-metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
-                    data = NULL, sm = "RR",
+metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, studlab = NULL,
+                    data = NULL, sm = "RR", y = NULL, sigma2 = NULL,
                     level = 0.95, level.ma = 0.95) {
-  # Data preparation
-  if (!is.null(data)) {
-    event.e <- data[[deparse(substitute(event.e))]]
-    n.e <- data[[deparse(substitute(n.e))]]
-    event.c <- data[[deparse(substitute(event.c))]]
-    n.c <- data[[deparse(substitute(n.c))]]
-    if (!is.null(studlab))
-      studlab <- data[[deparse(substitute(studlab))]]
+  
+  if (is.null(y) || is.null(sigma2)) {
+    # Data preparation for binary data
+    if (!is.null(data)) {
+      event.e <- data[[deparse(substitute(event.e))]]
+      n.e <- data[[deparse(substitute(n.e))]]
+      event.c <- data[[deparse(substitute(event.c))]]
+      n.c <- data[[deparse(substitute(n.c))]]
+      if (!is.null(studlab))
+        studlab <- data[[deparse(substitute(studlab))]]
+    }
+    
+    k.All <- length(event.e)
+    if (is.null(studlab))
+      studlab <- paste("Study", seq_len(k.All))
+    
+    data.tbl <- data.frame(studlab, event.e, n.e, event.c, n.c)
+    
+    # Calculate effect sizes and variances for binary data
+    res <- switch(sm,
+                  "RR" = comp.log.RR.y.sigma.stats(data.tbl),
+                  "OR" = comp.log.OR.y.sigma.stats(data.tbl),
+                  stop("Unsupported summary measure for binary data"))
+    y.k <- res[[1]]
+    sigma.2.k <- res[[2]]
+    
+  } else {
+    # Use pre-calculated effect sizes and variances for SMD data
+    y.k <- y
+    sigma.2.k <- sigma2
+    k.All <- length(y.k)
+    if (is.null(studlab))
+      studlab <- paste("Study", seq_len(k.All))
+    
+    data.tbl <- data.frame(studlab, y.k, sigma.2.k)
   }
-  
-  k.All <- length(event.e)
-  if (is.null(studlab))
-    studlab <- paste("Study", seq_len(k.All))
-  
-  data.tbl <- data.frame(studlab, event.e, n.e, event.c, n.c)
-  
-  # Calculate effect sizes and variances
-  res <- switch(sm,
-                "RR" = comp.log.RR.y.sigma.stats(data.tbl),
-                "OR" = comp.log.OR.y.sigma.stats(data.tbl),
-                stop("Unsupported summary measure"))
-  y.k <- res[[1]]
-  sigma.2.k <- res[[2]]
   
   # Estimate tau and mu using MLE
   initial.value <- c(0.4, 0.4)
-  mle_result <- comp.tau.mu.MLE(data.tbl, initial.value, sm)
+  mle_result <- comp.tau.mu.MLE(data.tbl, initial.value, sm, y.k, sigma.2.k)
   mu <- mle_result$mu
   tau <- mle_result$tau
   tau2 <- tau^2
@@ -102,7 +117,7 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
   # Calculate deviance and p-values
   mu.vec <- seq(-1, 1, length.out = 100)
   tau.vec <- seq(0.01, 1, length.out = 100)
-  dev_pvals <- comp.tau.mu.dev.pvals(data.tbl, mu.vec, tau.vec, sm)
+  dev_pvals <- comp.tau.mu.dev.pvals(data.tbl, mu.vec, tau.vec, sm, y.k, sigma.2.k)
   
   # Compute confidence region
   conf_region <- compute_confidence_region(dev_pvals[[2]], level.ma)
@@ -110,10 +125,10 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
   # Prepare results
   res <- list(
     studlab = studlab,
-    event.e = event.e, 
-    n.e = n.e,
-    event.c = event.c, 
-    n.c = n.c,
+    event.e = if(!is.null(y)) NULL else event.e, 
+    n.e = if(!is.null(y)) NULL else n.e,
+    event.c = if(!is.null(y)) NULL else event.c, 
+    n.c = if(!is.null(y)) NULL else n.c,
     y.k = y.k,
     sigma.2.k = sigma.2.k,
     sm = sm,
@@ -136,7 +151,7 @@ metabiv <- function(event.e, n.e, event.c, n.c, studlab = NULL,
     conf_region = conf_region,
     call = match.call(),
     tbl = data.tbl,
-    n_k = n.c+n.e
+    n_k = if(!is.null(y)) rep(NA, k.All) else n.c+n.e
     
   )
   
@@ -186,14 +201,21 @@ comp.log.OR.y.sigma.stats <- function(data.tbl) {
 #' @param data.tbl A data frame containing the study data
 #' @param initial.value Initial values for the optimization
 #' @param sm Summary measure ("RR" or "OR")
+#' @param y.k.in Optional pre-calculated effect sizes
+#' @param sigma.2.k.in Optional pre-calculated variances
 #' @return A list containing the MLE estimates for mu and tau
 #' @export
-comp.tau.mu.MLE <- function(data.tbl, initial.value, sm) {
-  a <- switch(sm,
-              "RR" = comp.log.RR.y.sigma.stats(data.tbl),
-              "OR" = comp.log.OR.y.sigma.stats(data.tbl))
-  y.k <- a[[1]]
-  sigma.2.k <- a[[2]]
+comp.tau.mu.MLE <- function(data.tbl, initial.value, sm, y.k.in = NULL, sigma.2.k.in = NULL) {
+  if (is.null(y.k.in) || is.null(sigma.2.k.in)) {
+    a <- switch(sm,
+                "RR" = comp.log.RR.y.sigma.stats(data.tbl),
+                "OR" = comp.log.OR.y.sigma.stats(data.tbl))
+    y.k <- a[[1]]
+    sigma.2.k <- a[[2]]
+  } else {
+    y.k <- y.k.in
+    sigma.2.k <- sigma.2.k.in
+  }
   
   minus.loglik <- function(par.vec) -sum(dnorm(y.k, mean = par.vec[1], sd = sqrt(par.vec[2]^2 + sigma.2.k), log = TRUE))
   a <- nlminb(initial.value, minus.loglik)
@@ -207,16 +229,25 @@ comp.tau.mu.MLE <- function(data.tbl, initial.value, sm) {
 #' @param mu.vec.tst Vector of mu values to test
 #' @param tau.vec.tst Vector of tau values to test
 #' @param sm Summary measure ("RR" or "OR")
+#' @param y.k.in Optional pre-calculated effect sizes
+#' @param sigma.2.k.in Optional pre-calculated variances
 #' @return A list containing the deviance matrix and p-value matrix
 #' @export
-comp.tau.mu.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst, sm) {
+comp.tau.mu.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst, sm, y.k.in = NULL, sigma.2.k.in = NULL) {
   n.mu <- length(mu.vec.tst)
   n.tau <- length(tau.vec.tst)
-  a <- switch(sm,
-              "RR" = comp.log.RR.y.sigma.stats(data.tbl),
-              "OR" = comp.log.OR.y.sigma.stats(data.tbl))
-  y.k <- a[[1]]
-  sigma.2.k <- a[[2]]
+
+  if (is.null(y.k.in) || is.null(sigma.2.k.in)) {
+    a <- switch(sm,
+                "RR" = comp.log.RR.y.sigma.stats(data.tbl),
+                "OR" = comp.log.OR.y.sigma.stats(data.tbl))
+    y.k <- a[[1]]
+    sigma.2.k <- a[[2]]
+  } else {
+    y.k <- y.k.in
+    sigma.2.k <- sigma.2.k.in
+  }
+  
   K <- length(y.k)
   y.mat.k.i <- rep(c(y.k), each = n.mu * n.tau)
   sigma.2.k.i <- rep(c(sigma.2.k), each = n.mu * n.tau)
@@ -514,12 +545,19 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     tbl_mod <- x$tbl[-i, ]
     
     # Calculate leave-one-out confidence region
-    res_i <- metabiv(event.e = tbl_mod$event.e,
-                     n.e = tbl_mod$n.e,
-                     event.c = tbl_mod$event.c,
-                     n.c = tbl_mod$n.c,
-                     studlab = tbl_mod$studlab,
-                     sm = sm)
+    if (sm == "SMD") {
+      res_i <- metabiv(studlab = tbl_mod$studlab,
+                       sm = sm,
+                       y = tbl_mod$y.k,
+                       sigma2 = tbl_mod$sigma.2.k)
+    } else {
+      res_i <- metabiv(event.e = tbl_mod$event.e,
+                       n.e = tbl_mod$n.e,
+                       event.c = tbl_mod$event.c,
+                       n.c = tbl_mod$n.c,
+                       studlab = tbl_mod$studlab,
+                       sm = sm)
+    }
     
     # Get contours
     contour_50 <- get_contours(res_i$dev_pvals[[2]], 0.50)

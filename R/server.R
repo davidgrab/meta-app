@@ -39,6 +39,7 @@ server <- function(input, output, session) {
   exampleData <- read.csv("data/hypericum_depression_default.csv", stringsAsFactors = FALSE)
   colditzData <- read.csv("data/colditz_1994_bcg_vaccine.csv", stringsAsFactors = FALSE)
   yusufData <- read.csv("data/yusuf_1985_beta_blockers.csv", stringsAsFactors = FALSE)
+  smdData <- read.csv("data/smd_example.csv", stringsAsFactors = FALSE)
 
   print("Functions sourced")
   
@@ -102,16 +103,39 @@ server <- function(input, output, session) {
   # Data Upload Info popup
   observeEvent(input$data_info, {
     print("Data info button clicked")
+    
+    binary_instructions <- HTML(
+      paste0(
+        "<h4>Binary (2x2) Data</h4>",
+        "1. Prepare your CSV or Excel file with the following columns: <b>study, ie, it, pe, pt</b>.<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ie</b>: Intervention group events<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>it</b>: Intervention group total<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pe</b>: Placebo/control group events<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pt</b>: Placebo/control group total<br><br>",
+        "2. Click 'Browse' to select your file.<br><br>",
+        "3. The data will load and display in the 'Data Preview' tab."
+      )
+    )
+    
+    smd_instructions <- HTML(
+      paste0(
+        "<h4>Continuous (SMD) Data</h4>",
+        "1. Prepare your CSV or Excel file with the following columns: <b>study, smd, ci_lower, ci_upper</b>.<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>smd</b>: Standardized Mean Difference<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_lower</b>: Lower bound of the 95% confidence interval<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_upper</b>: Upper bound of the 95% confidence interval<br><br>",
+        "2. Click 'Browse' to select your file.<br><br>",
+        "3. The app will calculate the standard error and variance for you."
+      )
+    )
+    
+    modal_content <- if (input$data_type == "smd") smd_instructions else binary_instructions
+    
     showModal(modalDialog(
       title = "How to Upload Data",
-      HTML(
-        paste0(
-          "1. Prepare your CSV file with columns: study, ie (intervention events), it (intervention total), pe (placebo events), pt (placebo total).<br><br>",
-          "2. Click 'Browse' in the 'Upload Data (CSV)' section.<br><br>",
-          "3. Select your prepared CSV file.<br><br>",
-          "4. The data will automatically load and display in the 'Data Preview' tab."
-        )
-      ),
+      modal_content,
       easyClose = TRUE,
       footer = NULL
     ))
@@ -149,7 +173,13 @@ server <- function(input, output, session) {
     if (input$remove_na) {
       df <- na.omit(df)
     }
-    names(df) <- c("study", "ie", "it", "pe", "pt")
+    
+    # Defensively check column count before assigning names
+    if (input$data_type == "binary" && ncol(df) == 5) {
+      names(df) <- c("study", "ie", "it", "pe", "pt")
+    } else if (input$data_type == "smd" && ncol(df) == 4) {
+      names(df) <- c("study", "smd", "ci_lower", "ci_upper")
+    }
     df
   })
   
@@ -173,7 +203,8 @@ server <- function(input, output, session) {
     description <- switch(dataset_choice,
       "colditz" = "13 studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude).",
       "yusuf" = "22 studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes.",
-      "default" = "Cochrane review of 18 RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR)."
+      "default" = "Cochrane review of 18 RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR).",
+      "smd" = "87 studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as Hedges' g standardized mean difference (SMD)."
     )
     
     HTML(paste("<div style='font-size: 0.85em; margin-bottom: 10px; color: #666;'>", description, "</div>"))
@@ -189,6 +220,10 @@ server <- function(input, output, session) {
     } else if (dataset_choice == "yusuf") {
       currentData(yusufData)
       showNotification("Loaded Yusuf et al. (1985) Beta-Blockers Dataset", type = "message")
+    } else if (dataset_choice == "smd") {
+      currentData(smdData)
+      updateRadioButtons(session, "data_type", selected = "smd")
+      showNotification("Loaded CBT for Depression (SMD) Dataset", type = "message")
     } else {
       currentData(exampleData)
       showNotification("Loaded Default Example Dataset", type = "message")
@@ -197,7 +232,13 @@ server <- function(input, output, session) {
   
   observeEvent(input$datafile, {
     req(input$datafile)
-    currentData(read.csv(input$datafile$datapath, stringsAsFactors = FALSE))
+    ext <- tools::file_ext(input$datafile$name)
+    df <- switch(ext,
+                 csv = read.csv(input$datafile$datapath, stringsAsFactors = FALSE),
+                 xlsx = read_excel(input$datafile$datapath),
+                 validate("Invalid file type. Please upload a .csv or .xlsx file.")
+    )
+    currentData(df)
   })
   
   output$dataPreview <- renderDT({
@@ -279,31 +320,65 @@ server <- function(input, output, session) {
   # Combined analysis
   combinedResults <- eventReactive(input$analyze, {
     req(data())
-    random_model <- metabin(event.e = data()$ie, 
-                            n.e = data()$it,
-                            event.c = data()$pe,
-                            n.c = data()$pt,
-                            studlab = data()$study,
-                            sm = input$effect_measure, 
-                            method.tau = input$het_estimator,
-                            fixed = FALSE,
-                            random = TRUE)
+    df <- data()
     
-    fixed_model <- metabin(event.e = data()$ie, 
-                           n.e = data()$it,
-                           event.c = data()$pe,
-                           n.c = data()$pt,
-                           studlab = data()$study,
-                           sm = input$effect_measure, 
-                           common = TRUE,
-                           random = FALSE)
-    
-    bivariate_model <- metabiv(event.e = data()$ie, 
-                               n.e = data()$it, 
-                               event.c = data()$pe, 
-                               n.c = data()$pt,
-                               studlab = data()$study,
-                               sm = input$effect_measure)
+    if (input$data_type == "binary" && ncol(df) == 5) {
+      random_model <- metabin(event.e = df$ie, 
+                              n.e = df$it,
+                              event.c = df$pe,
+                              n.c = df$pt,
+                              studlab = df$study,
+                              sm = input$effect_measure, 
+                              method.tau = input$het_estimator,
+                              common = FALSE,
+                              random = TRUE)
+      
+      fixed_model <- metabin(event.e = df$ie, 
+                             n.e = df$it,
+                             event.c = df$pe,
+                             n.c = df$pt,
+                             studlab = df$study,
+                             sm = input$effect_measure, 
+                             common = TRUE,
+                             random = FALSE)
+      
+      bivariate_model <- metabiv(event.e = df$ie, 
+                                 n.e = df$it, 
+                                 event.c = df$pe, 
+                                 n.c = df$pt,
+                                 studlab = df$study,
+                                 sm = input$effect_measure)
+      
+    } else if (input$data_type == "smd" && ncol(df) == 4) {
+      
+      # Calculate SE and variance from CI
+      se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+      var <- se^2
+      
+      random_model <- metagen(TE = df$smd,
+                              seTE = se,
+                              studlab = df$study,
+                              sm = "SMD",
+                              method.tau = input$het_estimator,
+                              common = FALSE,
+                              random = TRUE)
+      
+      fixed_model <- metagen(TE = df$smd,
+                             seTE = se,
+                             studlab = df$study,
+                             sm = "SMD",
+                             common = TRUE,
+                             random = FALSE)
+      
+      bivariate_model <- metabiv(studlab = df$study,
+                                 sm = "SMD",
+                                 y = df$smd,
+                                 sigma2 = var)
+    } else {
+      # Handle cases where data and type don't match, maybe show a warning
+      showNotification("Data columns do not match selected data type.", type = "warning")
+      return(NULL)
+    }
     
     list(random = random_model, fixed = fixed_model, bivariate = bivariate_model)
   })  
@@ -537,12 +612,20 @@ server <- function(input, output, session) {
   # Bivariate analysis results
   bivariate_result <- eventReactive(input$analyze, {
     req(data())
-    metabiv(event.e = data()$ie, 
-            n.e = data()$it, 
-            event.c = data()$pe, 
-            n.c = data()$pt,
-            studlab = data()$study,
-            sm = input$effect_measure)
+    # Handle both data types
+    df <- data()
+    if (input$data_type == "smd") {
+        se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+        var <- se^2
+        metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var)
+    } else {
+        metabiv(event.e = df$ie, 
+                n.e = df$it, 
+                event.c = df$pe, 
+                n.c = df$pt,
+                studlab = df$study,
+                sm = input$effect_measure)
+    }
   })
   
   # Bivariate Forest Plot
@@ -580,12 +663,15 @@ server <- function(input, output, session) {
   output$enhancedBaujatPlot <- renderPlotly({
     req(bivariate_result())
     influence <- lapply(1:length(bivariate_result()$y.k), function(i) {
-      res_i <- metabiv(event.e = data()$ie[-i], 
-                       n.e = data()$it[-i], 
-                       event.c = data()$pe[-i], 
-                       n.c = data()$pt[-i],
-                       studlab = data()$study[-i],
-                       sm = input$effect_measure)
+        df <- data()[-i, ]
+        if (input$data_type == "smd") {
+            se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+            var <- se^2
+            res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var)
+        } else {
+            res_i <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+                             studlab = df$study, sm = input$effect_measure)
+        }
       c(contribution = (bivariate_result()$y.k[i] - res_i$mu)^2 / (bivariate_result()$sigma.2.k[i] + res_i$tau^2),
         influence = (bivariate_result()$y.k[i] - res_i$mu)^2 / (bivariate_result()$sigma.2.k[i] + res_i$tau^2)^2)
     })
@@ -602,12 +688,15 @@ server <- function(input, output, session) {
     req(bivariate_result())
     cat("Bivariate Influence Summary\n")
     influence <- lapply(1:length(bivariate_result()$y.k), function(i) {
-      res_i <- metabiv(event.e = data()$ie[-i], 
-                       n.e = data()$it[-i], 
-                       event.c = data()$pe[-i], 
-                       n.c = data()$pt[-i],
-                       studlab = data()$study[-i],
-                       sm = input$effect_measure)
+        df <- data()[-i, ]
+        if (input$data_type == "smd") {
+            se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+            var <- se^2
+            res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var)
+        } else {
+            res_i <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+                             studlab = df$study, sm = input$effect_measure)
+        }
       c(mu_change = res_i$mu - bivariate_result()$mu,
         tau_change = res_i$tau - bivariate_result()$tau)
     })
@@ -658,14 +747,18 @@ server <- function(input, output, session) {
   output$bivariateGOSHPlot <- renderPlotly({
     req(bivariate_result())
     # Implement GOSH plot
-    subsets <- replicate(1000, sample(1:nrow(data()), size = nrow(data())/2, replace = FALSE))
+    df <- data()
+    subsets <- replicate(1000, sample(1:nrow(df), size = nrow(df)/2, replace = FALSE))
     gosh_results <- apply(subsets, 2, function(subset) {
-      res <- metabiv(event.e = data()$ie[subset], 
-                     n.e = data()$it[subset], 
-                     event.c = data()$pe[subset], 
-                     n.c = data()$pt[subset],
-                     studlab = data()$study[subset],
-                     sm = input$effect_measure)
+        df_sub <- df[subset, ]
+        if (input$data_type == "smd") {
+            se <- (df_sub$ci_upper - df_sub$ci_lower) / (2 * 1.96)
+            var <- se^2
+            res <- metabiv(studlab = df_sub$study, sm = "SMD", y = df_sub$smd, sigma2 = var)
+        } else {
+            res <- metabiv(event.e = df_sub$ie, n.e = df_sub$it, event.c = df_sub$pe, n.c = df_sub$pt,
+                           studlab = df_sub$study, sm = input$effect_measure)
+        }
       c(mu = res$mu, tau = res$tau)
     })
     gosh_df <- as.data.frame(t(gosh_results))
@@ -737,28 +830,35 @@ server <- function(input, output, session) {
   # Method Comparison Plot
   output$methodComparisonPlot <- renderPlot({
     req(bivariate_result())
-  
-    # Traditional meta-analysis (random effects)
-    trad_meta_random <- metabin(event.e = data()$ie, 
-                                n.e = data()$it, 
-                                event.c = data()$pe, 
-                                n.c = data()$pt,
-                                studlab = data()$study,
-                                sm = input$effect_measure,
-                                method = "Inverse",
-                                fixed = FALSE,
-                                random = TRUE)
     
-    # Traditional meta-analysis (fixed effects)
-    trad_meta_fixed <- metabin(event.e = data()$ie, 
-                               n.e = data()$it, 
-                               event.c = data()$pe, 
-                               n.c = data()$pt,
-                               studlab = data()$study,
-                               sm = input$effect_measure,
-                               method = "Inverse",
-                               common = TRUE,
-                               random = FALSE)
+    df <- data()
+    if (input$data_type == "smd") {
+        se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+        trad_meta_random <- metagen(TE = df$smd, seTE = se, studlab = df$study, sm = "SMD", common = FALSE, random = TRUE)
+        trad_meta_fixed <- metagen(TE = df$smd, seTE = se, studlab = df$study, sm = "SMD", common = TRUE, random = FALSE)
+    } else {
+        # Traditional meta-analysis (random effects)
+        trad_meta_random <- metabin(event.e = df$ie, 
+                                    n.e = df$it, 
+                                    event.c = df$pe, 
+                                    n.c = df$pt,
+                                    studlab = df$study,
+                                    sm = input$effect_measure,
+                                    method = "Inverse",
+                                    common = FALSE, # Corrected
+                                    random = TRUE)
+        
+        # Traditional meta-analysis (fixed effects)
+        trad_meta_fixed <- metabin(event.e = df$ie, 
+                                   n.e = df$it, 
+                                   event.c = df$pe, 
+                                   n.c = df$pt,
+                                   studlab = df$study,
+                                   sm = input$effect_measure,
+                                   method = "Inverse",
+                                   common = TRUE,
+                                   random = FALSE)
+    }
     
 
     # Combine results
