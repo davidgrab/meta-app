@@ -679,11 +679,34 @@ calculate_residuals <- function(model) {
 
 
 calculate_random_residuals <- function(model) {
-  observed <- model$event.e / model$n.e
-  expected <- model$TE.random
-  se <- sqrt(model$seTE^2 + model$tau2)
-  residuals <- (observed - expected) / se
-  return(residuals)
+  # Check if model is metagen (continuous) or metabin (binary)
+  if (inherits(model, "metagen")) {
+    TE <- model$TE
+    seTE <- model$seTE
+    weights <- model$w.random
+  } else if (inherits(model, "metabin")) {
+    # For metabin, TE and seTE are directly available for each study
+    TE <- model$TE
+    seTE <- model$seTE
+    weights <- model$w.random
+  } else {
+    # Return NULL if the model type is not supported
+    return(NULL)
+  }
+
+  # Defensive check for needed components
+  if (is.null(TE) || is.null(seTE) || is.null(weights)) {
+    return(NULL)
+  }
+  
+  # Calculate the overall effect size and residuals
+  overall_effect <- sum(weights * TE) / sum(weights)
+  residuals <- (TE - overall_effect) / seTE
+  
+  # Standardize residuals
+  std_residuals <- residuals / sd(residuals, na.rm = TRUE)
+  
+  return(std_residuals)
 }
 
 

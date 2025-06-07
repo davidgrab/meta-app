@@ -908,7 +908,7 @@ forest.metabiv <- function(x, xlab = "Effect Size", refline = 1,
             common = FALSE,
             random = TRUE,
             method.tau = "DL",
-            hakn = FALSE)
+            method.random.ci = "classic")
   }, silent = TRUE)
   
   if (inherits(meta_obj, "try-error")) {
@@ -1281,7 +1281,7 @@ comp.tau.mu.log.RR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
 #   invisible(list(mu_mle = mu_mle, tau_mle = tau_mle))
 # }
 
-plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = "", mu_mle = NULL, tau_mle = NULL) {
+plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = "", xlab = "Effect Size (OR/RR)", mu_mle = NULL, tau_mle = NULL) {
   # Extract sequences for µ and τ
   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
@@ -1298,7 +1298,7 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
   plot(1, type = "n", log = "x",
        xlim = c(min(mu.pred.vec), max(mu.pred.vec)),
        ylim = range(tau.pred.vec),
-       xlab = "Effect Size (OR/RR)", 
+       xlab = xlab, 
        ylab = "τ",
        main = mlb,
        cex.lab = 1.2, 
@@ -1337,11 +1337,44 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
   
   return(invisible(list(mu_mle = mu_mle, tau_mle = tau_mle)))
 }
+
+# Helper function to create a valid polygon for sf operations
+create_valid_polygon <- function(contour) {
+  # Ensure the contour is a closed loop
+  if (contour$x[1] != contour$x[length(contour$x)] || contour$y[1] != contour$y[length(contour$y)]) {
+    contour$x <- c(contour$x, contour$x[1])
+    contour$y <- c(contour$y, contour$y[1])
+  }
+  
+  # Create a polygon and make it valid
+  p <- st_polygon(list(cbind(contour$x, contour$y)))
+  
+  # Check validity and attempt to fix if needed
+  if (!st_is_valid(p)) {
+    p <- st_make_valid(p)
+  }
+  return(p)
+}
+
 calculate_iou <- function(contour1, contour2) {
   tryCatch({
+    # Ensure contours have the same length for comparison by interpolating
+    len1 <- length(contour1$x)
+    len2 <- length(contour2$x)
+    if (len1 != len2) {
+      if (len1 > len2) {
+        contour2$x <- approx(1:len2, contour2$x, n = len1)$y
+        contour2$y <- approx(1:len2, contour2$y, n = len1)$y
+      } else {
+        contour1$x <- approx(1:len1, contour1$x, n = len2)$y
+        contour1$y <- approx(1:len1, contour1$y, n = len2)$y
+      }
+    }
+    
     poly1 <- create_valid_polygon(contour1)
     poly2 <- create_valid_polygon(contour2)
     
+    # Calculate intersection and union
     intersection <- st_intersection(st_sfc(poly1), st_sfc(poly2))
     union <- st_union(st_sfc(poly1), st_sfc(poly2))
     
@@ -1355,6 +1388,7 @@ calculate_iou <- function(contour1, contour2) {
     return(0)  # Return 0 if there's an error
   })
 }
+
 calculate_shift <- function(mu_main, mu_secondary) {
   return(abs(mu_main - mu_secondary))
 }

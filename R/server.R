@@ -125,7 +125,8 @@ server <- function(input, output, session) {
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>smd</b>: Standardized Mean Difference<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_lower</b>: Lower bound of the 95% confidence interval<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_upper</b>: Upper bound of the 95% confidence interval<br><br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_upper</b>: Upper bound of the 95% confidence interval<br>",
+        "<br><b>Note:</b> The SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br><br>",
         "2. Click 'Browse' to select your file.<br><br>",
         "3. The app will calculate the standard error and variance for you."
       )
@@ -186,10 +187,20 @@ server <- function(input, output, session) {
   # New download
   output$downloadSampleStructure <- downloadHandler(
     filename = function() {
-      "sample_data_structure.csv"
+      if (input$data_type == "smd") {
+        "sample_data_structure_continuous.csv"
+      } else {
+        "sample_data_structure_binary.csv"
+      }
     },
     content = function(file) {
-      write.csv(sampleDataStructure, file, row.names = FALSE)
+      if (input$data_type == "smd") {
+        write.csv(sampleDataStructure_continuous, file, row.names = FALSE)
+        # Append note to the file
+        cat("\n# Note: The 'smd' column may also appear as 'CoNC' or 'HeadGrid-G'. All are interpreted as SMD for now.\n", file = file, append = TRUE)
+      } else {
+        write.csv(sampleDataStructure_binary, file, row.names = FALSE)
+      }
     }
   )
   
@@ -247,14 +258,23 @@ server <- function(input, output, session) {
   })
   
   # New data structures
-  sampleDataStructure <- data.frame(
-    study = character(),
-    Intervention_effected = integer(),
-    Intervention_total = integer(),
-    Placebo_effected = integer(),
-    Placebo_total = integer(),
+  sampleDataStructure_binary <- data.frame(
+    study = c("Study 1", "Study 2"),
+    ie = c(12, 8),
+    it = c(100, 95),
+    pe = c(10, 7),
+    pt = c(98, 93),
     stringsAsFactors = FALSE
   )
+  
+  sampleDataStructure_continuous <- data.frame(
+    study = c("Study 1", "Study 2"),
+    smd = c(0.45, -0.12),
+    ci_lower = c(0.10, -0.30),
+    ci_upper = c(0.80, 0.06),
+    stringsAsFactors = FALSE
+  )
+  attr(sampleDataStructure_continuous, "note") <- "Note: The 'smd' column may also appear as 'CoNC' or 'HeadGrid-G'. All are interpreted as SMD for now."
   
   # Example dataset
   # exampleData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
@@ -404,14 +424,34 @@ server <- function(input, output, session) {
   
   # Random Effects Analysis Tab
   
+  # Helper to get effect measure label for plots
+  effect_measure_label <- reactive({
+    if (input$data_type == "smd") {
+      "SMD"
+    } else {
+      switch(input$effect_measure,
+             OR = "Odds Ratio",
+             RR = "Risk Ratio",
+             input$effect_measure)
+    }
+  })
+  
+  # Dynamic height for forest plots
+  forest_plot_height <- reactive({
+    req(data())
+    # Base height of 400px, plus 20px for each study
+    400 + nrow(data()) * 20
+  })
+  
   output$randomForestPlot <- renderPlot({
     req(combinedResults()$random)
     meta::forest(combinedResults()$random, 
            leftlabs = c("Study", "TE", "seTE"),
            rightlabs = c("TE", "95%-CI", "Weight"),
            fontsize = 10, 
-           xlab = paste("Effect Size (", combinedResults()$random$sm, ")", sep=""))
-  })
+           xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+           main = paste0("Random Effects Forest Plot (", effect_measure_label(), ")"))
+  }, height = function() forest_plot_height())
   
   output$randomHeterogeneityPlot <- renderPlot({
     req(combinedResults()$random)
@@ -425,12 +465,27 @@ server <- function(input, output, session) {
   
   output$leaveOneOutPlot <- renderPlot({
     req(combinedResults()$random)
-    inf <- metainf(combinedResults()$random)
-    meta::forest(inf, 
-           leftlabs = c("Omitted Study"),
-           xlab = "Effect Size",
-           title = "Leave-One-Out Analysis")
-  })
+    tryCatch({
+      inf <- metainf(combinedResults()$random)
+      
+      # Create a data frame and remove non-finite results to prevent errors
+      inf_df <- data.frame(TE = inf$TE, seTE = inf$seTE, studlab = inf$studlab)
+      inf_df_clean <- subset(inf_df, is.finite(TE) & is.finite(seTE))
+      
+      if (nrow(inf_df_clean) == 0) {
+        plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Leave-One-Out plot cannot be generated\n(no valid studies to plot)")
+      } else {
+        # Create a new meta-object from the cleaned data for robust plotting
+        m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+        meta::forest(m_clean, 
+               leftlabs = c("Omitted Study"),
+               xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+               main = "Leave-One-Out Analysis (Random Effects)")
+      }
+    }, error = function(e) {
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main=paste("Leave-One-Out plot failed:", e$message))
+    })
+  }, height = function() forest_plot_height())
   
   output$baujatPlot <- renderPlot({
     req(combinedResults()$random)
@@ -509,8 +564,9 @@ server <- function(input, output, session) {
            leftlabs = c("Study", "TE", "seTE"),
            rightlabs = c("TE", "95%-CI", "Weight"),
            fontsize = 10, 
-           xlab = paste("Effect Size (", combinedResults()$fixed$sm, ")", sep=""))
-  })
+           xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+           main = paste0("Fixed Effects Forest Plot (", effect_measure_label(), ")"))
+  }, height = function() forest_plot_height())
   
   output$fixedModelFitPlot <- renderPlot({
     req(combinedResults()$fixed)
@@ -529,12 +585,27 @@ server <- function(input, output, session) {
   
   output$fixedLeaveOneOutPlot <- renderPlot({
     req(combinedResults()$fixed)
-    inf <- metainf(combinedResults()$fixed)
-    meta::forest(inf, 
-           leftlabs = c("Omitted Study"),
-           xlab = "Effect Size",
-           title = "Leave-One-Out Analysis")
-  })
+    tryCatch({
+      inf <- metainf(combinedResults()$fixed)
+      
+      # Create a data frame and remove non-finite results to prevent errors
+      inf_df <- data.frame(TE = inf$TE, seTE = inf$seTE, studlab = inf$studlab)
+      inf_df_clean <- subset(inf_df, is.finite(TE) & is.finite(seTE))
+      
+      if (nrow(inf_df_clean) == 0) {
+        plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Leave-One-Out plot cannot be generated\n(no valid studies to plot)")
+      } else {
+        # Create a new meta-object from the cleaned data for robust plotting
+        m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+        meta::forest(m_clean, 
+               leftlabs = c("Omitted Study"),
+               xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+               main = "Leave-One-Out Analysis (Fixed Effects)")
+      }
+    }, error = function(e) {
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main=paste("Leave-One-Out plot failed:", e$message))
+    })
+  }, height = function() forest_plot_height())
   
   output$fixedInfluencePlot <- renderPlot({
     req(combinedResults()$fixed)
@@ -631,17 +702,26 @@ server <- function(input, output, session) {
   # Bivariate Forest Plot
   output$bivariateForestPlot <- renderPlot({
     req(bivariate_result())
-    #browser()
-    forest.metabiv(bivariate_result())
-  })
+    forest.metabiv(bivariate_result(),
+                   title = paste("Bivariate Forest Plot (", effect_measure_label(), ")"),
+                   xlab = paste("Effect Size (", effect_measure_label(), ")"))
+  }, height = function() forest_plot_height())
   
   # Confidence Region Plot
   output$confidenceRegionPlot <- renderPlot({
     req(bivariate_result())
     
+    # Get the effect measure label
+    effect_label <- effect_measure_label()
+    
+    # Generate a dynamic title and xlab
+    plot_title <- paste("Confidence Region for (", effect_label, ", τ)")
+    x_label <- paste("Effect Size (", effect_label, ")")
+    
     plot.mu.tau.CI(bivariate_result()$dev_pvals[[1]], 
                    bivariate_result()$dev_pvals[[2]], 
-                   mlb = "Confidence Region for (Effect Size, τ)",
+                   mlb = plot_title,
+                   xlab = x_label,  # Pass xlab to the plotting function
                    mu_mle = bivariate_result()$mu,
                    tau_mle = bivariate_result()$tau)
   })
@@ -662,26 +742,63 @@ server <- function(input, output, session) {
   # Enhanced Baujat Plot
   output$enhancedBaujatPlot <- renderPlotly({
     req(bivariate_result())
-    influence <- lapply(1:length(bivariate_result()$y.k), function(i) {
-        df <- data()[-i, ]
-        if (input$data_type == "smd") {
-            se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
-            var <- se^2
-            res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var)
-        } else {
-            res_i <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
-                             studlab = df$study, sm = input$effect_measure)
-        }
-      c(contribution = (bivariate_result()$y.k[i] - res_i$mu)^2 / (bivariate_result()$sigma.2.k[i] + res_i$tau^2),
-        influence = (bivariate_result()$y.k[i] - res_i$mu)^2 / (bivariate_result()$sigma.2.k[i] + res_i$tau^2)^2)
-    })
-    influence_df <- do.call(rbind, influence)
-    plot_ly(x = influence_df[,1], y = influence_df[,2], text = bivariate_result()$studlab,
-            type = "scatter", mode = "markers+text") %>%
-      layout(title = "Enhanced Baujat Plot",
-             xaxis = list(title = "Contribution to Q"),
-             yaxis = list(title = "Influence on pooled estimate"))
+    
+    influence_data <- calculate_influence_bivariate(bivariate_result(), data(), input)
+    
+    p <- plot_ly(data = influence_data, 
+                 x = ~contribution, 
+                 y = ~influence, 
+                 text = ~study,
+                 type = "scatter", 
+                 mode = "markers+text",
+                 textposition = "top right",
+                 marker = list(size = 10, opacity = 0.7, line = list(width=1, color = 'black'))) %>%
+      layout(title = paste("Enhanced Baujat Plot (", effect_measure_label(), ")"),
+             xaxis = list(title = "Contribution to Q (Heterogeneity)"),
+             yaxis = list(title = "Influence on Pooled Estimate"),
+             shapes = list(
+               list(type = 'line', 
+                    x0 = mean(influence_data$contribution), 
+                    y0 = 0, 
+                    x1 = mean(influence_data$contribution), 
+                    y1 = max(influence_data$influence), 
+                    line = list(dash = 'dash', color = 'red')),
+               list(type = 'line', 
+                    x0 = 0, 
+                    y0 = mean(influence_data$influence), 
+                    x1 = max(influence_data$contribution), 
+                    y1 = mean(influence_data$influence), 
+                    line = list(dash = 'dash', color = 'red'))
+             ))
+    p
   })
+  
+  # Helper function to calculate influence for bivariate model
+  calculate_influence_bivariate <- function(biv_res, full_data, input) {
+    studylab <- biv_res$studlab
+    influence <- lapply(1:length(studylab), function(i) {
+      loo_data <- full_data[full_data$study != studylab[i], ]
+      
+      res_i <- if (input$data_type == "smd") {
+        se <- (loo_data$ci_upper - loo_data$ci_lower) / (2 * 1.96)
+        var <- se^2
+        metabiv(studlab = loo_data$study, sm = "SMD", y = loo_data$smd, sigma2 = var)
+      } else {
+        metabiv(event.e = loo_data$ie, n.e = loo_data$it, 
+                event.c = loo_data$pe, n.c = loo_data$pt,
+                studlab = loo_data$study, sm = input$effect_measure)
+      }
+      
+      # Calculate contribution and influence
+      contribution <- (biv_res$y.k[i] - res_i$mu)^2 / (biv_res$sigma.2.k[i] + res_i$tau^2)
+      influence_val <- (biv_res$y.k[i] - res_i$mu)^2 / (biv_res$sigma.2.k[i] + res_i$tau^2)^2
+      c(contribution = contribution, influence = influence_val)
+    })
+    
+    influence_df <- as.data.frame(do.call(rbind, influence))
+    influence_df$study <- studylab
+    return(influence_df)
+  }
   
   # Bivariate Influence Summary
   output$bivariateInfluenceSummary <- renderPrint({
@@ -737,10 +854,15 @@ server <- function(input, output, session) {
   # Efficacy-Harm Plot
   output$efficacyHarmPlot <- renderPlot({
     req(bivariate_result())
+    
+    # Get the effect measure label
+    effect_label <- effect_measure_label()
+    plot_title <- paste("Efficacy/Harm Plot for", effect_label)
+    
     CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result()$dev_pvals)
     comp.eff.harm.plot(CDF.ci.obj,
                        efficacy.is.OR.le1 = (bivariate_result()$sm == "OR"),
-                       mlb = paste("Efficacy/Harm plot for", bivariate_result()$sm))
+                       mlb = plot_title)
   })
   
   # Bivariate GOSH Plot
@@ -772,21 +894,26 @@ server <- function(input, output, session) {
   # Bivariate Adapted Funnel Plot
   output$bivariateAdaptedFunnelPlot <- renderPlot({
     req(bivariate_result())
-    # Assuming bivariate_result() returns a list with y.k and sigma.2.k
-    y.k <- exp(bivariate_result()$y.k)
-    se.k <- sqrt(bivariate_result()$sigma.2.k) # Standard errors
-    sm<-bivariate_result()$sm
-    # Create a meta-analysis object
-    meta_analysis <- metagen(TE = y.k, seTE = se.k, common = TRUE, random = FALSE)
-    funnel(meta_analysis, sm = sm, xlab = "Effect Size",
-           ylab = "Standard Error")
     
-    # plot_ly(x = bivariate_result()$y.k, y = sqrt(bivariate_result()$sigma.2.k), type = "scatter", mode = "markers") %>%
-    #   add_trace(x = bivariate_result()$mu, y = 0, type = "scatter", mode = "markers",
-    #             marker = list(size = 10, color = "red", symbol = "diamond")) %>%
-    #   layout(title = "Adapted Funnel Plot",
-    #          xaxis = list(title = "Effect Size"),
-    #          yaxis = list(title = "Standard Error", autorange = "reversed"))
+    y.k <- bivariate_result()$y.k
+    se.k <- sqrt(bivariate_result()$sigma.2.k) # Standard errors
+    
+    # Use effect measure for sm and xlab
+    effect_label <- effect_measure_label()
+    
+    # Create a meta-analysis object
+    # For OR and RR, we exponentiate for the plot
+    if (bivariate_result()$sm %in% c("OR", "RR")) {
+      meta_analysis <- metagen(TE = y.k, seTE = se.k, sm = bivariate_result()$sm)
+      funnel(meta_analysis, 
+             xlab = paste("Effect Size (", effect_label, ")"),
+             main = paste("Funnel Plot (", effect_label, ")"))
+    } else { # For SMD, plot on original scale
+      meta_analysis <- metagen(TE = y.k, seTE = se.k, sm = "SMD")
+      funnel(meta_analysis, 
+             xlab = paste("Effect Size (", effect_label, ")"),
+             main = paste("Funnel Plot (", effect_label, ")"))
+    }
   })
   
   # Bivariate Bias Test Results
@@ -895,33 +1022,27 @@ server <- function(input, output, session) {
         "This app provides a comprehensive tool for conducting and interpreting meta-analyses. Here's how to use it:<br><br>",
         
         "<b>1. Data Input:</b><br>",
-        "- Upload your data CSV file using the 'Upload Data' button in the sidebar<br>",
-        "- Ensure your data includes columns for study name, intervention events, intervention total, placebo events, and placebo total<br>",
-        "- You can use the 'Load Example Dataset' button to see the required format<br><br>",
+        "- Upload your data CSV file using the 'Upload Data' button in the sidebar.<br>",
+        "- Supported data types:<br>",
+        "&nbsp;&nbsp;• <b>Binary (2x2):</b> Columns: study, ie, it, pe, pt<br>",
+        "&nbsp;&nbsp;• <b>Continuous (SMD):</b> Columns: study, smd, ci_lower, ci_upper<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>Note:</b> The SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br>",
+        "- You can use the 'Download Sample Structure' button to see the required format for each data type.<br><br>",
         
         "<b>2. Analysis Settings:</b><br>",
-        "- Choose your heterogeneity estimator and effect measure in the sidebar<br>",
-        "- Click 'Analyze' to run the meta-analysis<br><br>",
+        "- Choose your heterogeneity estimator and effect measure in the sidebar.<br>",
+        "- For binary data, select the effect measure (Odds Ratio, Risk Ratio, etc.).<br>",
+        "- For continuous data, the effect measure is always SMD (regardless of column label).<br>",
+        "- Click 'Analyze' to run the meta-analysis.<br><br>",
         
         "<b>3. Results Tabs:</b><br>",
-        "- <i>Data Preview:</i> Check your uploaded data<br>",
-        "- <i>Overall Results:</i> Compare results across all methods<br>",
-        "- <i>Random Effects Analysis:</i> Detailed random effects model results<br>",
-        "- <i>Fixed Effects Analysis:</i> Detailed fixed effects model results<br>",
-        "- <i>Bivariate Approach:</i> Results from the bivariate analysis<br><br>",
-        
-        "<b>4. Key Features in Each Analysis Tab:</b><br>",
-        "- Effect size and heterogeneity assessment<br>",
-        "- Model diagnostics<br>",
-        "- Publication bias evaluation<br>",
-        "- Sensitivity analysis<br>",
-        "- Quality assessment (GRADE)<br><br>",
-        
-        "<b>5. Generating Reports:</b><br>",
-        "- Use the 'Download Report' button to create a comprehensive HTML report of all analyses<br><br>",
+        "- <i>Data Preview:</i> Check your uploaded data.<br>",
+        "- <i>Overall Results:</i> Compare results across all methods.<br>",
+        "- <i>Random Effects Analysis:</i> Detailed random effects model results.<br>",
+        "- <i>Fixed Effects Analysis:</i> Detailed fixed effects model results.<br>",
+        "- <i>Bivariate Approach:</i> Results from the bivariate analysis.<br><br>",
         
         "Throughout the app, look for info buttons (?) for additional guidance on interpreting results and using features.<br><br>",
-        
         "This tool is designed to help researchers thoroughly examine their meta-analytic data and draw robust conclusions from their analyses."
       )),
       easyClose = TRUE,
@@ -943,11 +1064,9 @@ server <- function(input, output, session) {
         "   - Effect sizes<br>",
         "   - Standard errors or confidence intervals<br><br>",
         "Expected column names:<br>",
-        "- study: Study identifier<br>",
-        "- ie: Intervention events<br>",
-        "- it: Intervention total<br>",
-        "- pe: Placebo/control events<br>",
-        "- pt: Placebo/control total<br><br>",
+        "<b>Binary (2x2):</b> study, ie, it, pe, pt<br>",
+        "<b>Continuous (SMD):</b> study, smd, ci_lower, ci_upper<br>",
+        "<b>Note:</b> For continuous data, the SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br><br>",
         "If your data doesn't match this format, please reformat it before proceeding with the analysis."
       )),
       easyClose = TRUE,

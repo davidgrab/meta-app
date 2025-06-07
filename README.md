@@ -28,6 +28,8 @@ Experience the future of meta-analysis: [Modern Meta-Analysis App](https://moder
 - 📚 Comprehensive publication bias evaluation
 - ⚖️ Rigorous quality assessment (GRADE)
 - 📄 One-click comprehensive report generation
+- **Supports both binary (2x2) and continuous (SMD) data structures**
+- **For continuous data, the SMD column may also appear as CoNC or HeadGrid-G (all interpreted as SMD for now)**
 
 ## 🚀 Quick Start
 
@@ -40,13 +42,17 @@ Get up and running in minutes:
 
 2. Install the required R packages:
    ```r
-   install.packages(c("shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr", "gridExtra", "sp", "sf", "testthat"))
+   install.packages(c("shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr", "gridExtra", "sp", "sf", "testthat","BiasedUrn","bsicons","readxl"))
    ```
 
 3. Run the app locally:
    ```r
    shiny::runApp("path/to/meta-app")
    ```
+
+**Data Format:**
+- For binary (2x2) data: columns should be `study`, `ie`, `it`, `pe`, `pt`
+- For continuous data: columns should be `study`, `smd`, `ci_lower`, `ci_upper` (the SMD column may also be labeled `CoNC` or `HeadGrid-G`)
 
 ## 📁 Project Structure
 

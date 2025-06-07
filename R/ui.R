@@ -148,9 +148,10 @@ ui <- page_fillable(
                   # ),
                   tabPanel("Effect Size and Heterogeneity", 
                            div(class = "plot-container",
-                               plotOutput("randomForestPlot"),
-                               p("Forest plot: Shows individual study effect sizes with weights (box size) and confidence intervals (horizontal lines), plus the pooled random effects estimate (diamond).", class = "plot-explanation")
+                               style = "max-height: 600px; overflow-y: auto;",
+                               plotOutput("randomForestPlot")
                            ),
+                           p("Forest plot: Shows individual study effect sizes with weights (box size) and confidence intervals (horizontal lines), plus the pooled random effects estimate (diamond).", class = "plot-explanation"),
                            actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("randomOverallSummary"),
                            verbatimTextOutput("randomHeterogeneitySummary")
@@ -196,20 +197,20 @@ ui <- page_fillable(
                   ),
                   tabPanel("Sensitivity Analysis",
                            actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("leaveOneOutPlot"),
-                                        p("Leave-one-out plot: Shows how overall effect changes when each study is removed.", class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("baujatPlot"),
-                                        p("Baujat plot: Identifies studies contributing to heterogeneity and influencing overall result.", class = "plot-explanation")
-                                    )
-                             )
+                           
+                           # Leave-One-Out Plot (full width, scrollable)
+                           div(class = "plot-container",
+                               style = "max-height: 600px; overflow-y: auto;",
+                               plotOutput("leaveOneOutPlot")
                            ),
+                           p("Leave-one-out plot: Shows how overall effect changes when each study is removed.", class = "plot-explanation"),
+
+                           # Baujat Plot (full width)
+                           div(class = "plot-container",
+                               plotOutput("baujatPlot")
+                           ),
+                           p("Baujat plot: Identifies studies contributing to heterogeneity and influencing overall result.", class = "plot-explanation"),
+
                            div(class = "plot-container",
                                plotOutput("randomGOSHPlot"),
                                p("Effect size vs. standard error plot: Shows relationship between effect size and precision for each study.", class = "plot-explanation")
@@ -226,9 +227,10 @@ ui <- page_fillable(
                 tabsetPanel(
                   tabPanel("Effect Size and Heterogeneity", 
                            div(class = "plot-container",
-                               plotOutput("fixedForestPlot"),
-                               p("Fixed effects forest plot: Shows individual study effect sizes and the pooled fixed effect estimate, assuming a common true effect size.", class = "plot-explanation")
+                               style = "max-height: 600px; overflow-y: auto;",
+                               plotOutput("fixedForestPlot")
                            ),
+                           p("Fixed effects forest plot: Shows individual study effect sizes and the pooled fixed effect estimate, assuming a common true effect size.", class = "plot-explanation"),
                            actionButton("fe_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("fixedOverallSummary"),
                            verbatimTextOutput("modelFitStatistics")
@@ -274,19 +276,20 @@ ui <- page_fillable(
                   ),
                   tabPanel("Sensitivity Analysis",
                            actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("fixedLeaveOneOutPlot"),
-                                        p("Leave-one-out plot: Shows sensitivity of fixed effects model to individual studies by sequentially removing each study.", class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("fixedInfluencePlot"),
-                                        p("Baujat plot: Visualizes each study's contribution to heterogeneity and influence on the overall result in the fixed effects model.", class = "plot-explanation")                                    )
-                             )
+
+                           # Leave-One-Out Plot (full width, scrollable)
+                           div(class = "plot-container",
+                               style = "max-height: 600px; overflow-y: auto;",
+                               plotOutput("fixedLeaveOneOutPlot")
                            ),
+                           p("Leave-one-out plot: Shows sensitivity of fixed effects model to individual studies by sequentially removing each study.", class = "plot-explanation"),
+
+                           # Influence Plot (Baujat) (full width)
+                           div(class = "plot-container",
+                               plotOutput("fixedInfluencePlot")
+                           ),
+                           p("Influence plot: Identifies studies with disproportionate impact on fixed effects model.", class = "plot-explanation"),
+
                            verbatimTextOutput("fixedInfluenceSummary")
                   ),
                   # tabPanel("Quality Assessment",
@@ -298,21 +301,21 @@ ui <- page_fillable(
       nav_panel("Bivariate Approach",
                 tabsetPanel(
                   tabPanel("Effect Size and Heterogeneity", 
-                           actionButton("biv_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("bivariateForestPlot"),
-                                        p("Bivariate forest plot: Shows study effects and overall effect estimated using a bivariate random effects model.", class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        plotOutput("confidenceRegionPlot"),
-                                        p("Confidence region plot: Shows the joint confidence region for the effect size (μ) and between-study variability (τ).", class = "plot-explanation")
-                                    )
-                             )
+                           actionButton("biv_effect_size_heterogeneity_info", "", icon = icon("info-circle")),
+                           
+                           # Bivariate Forest Plot (full width)
+                           div(class = "plot-container",
+                               style = "max-height: 600px; overflow-y: auto;",
+                               plotOutput("bivariateForestPlot")
                            ),
+                           p("Bivariate forest plot: Shows study effects and overall effect estimated using a bivariate random effects model.", class = "plot-explanation"),
+                           
+                           # Confidence Region Plot (full width)
+                           div(class = "plot-container",
+                               plotOutput("confidenceRegionPlot")
+                           ),
+                           p("Confidence region plot: Shows the joint confidence region for the effect size (μ) and between-study variability (τ).", class = "plot-explanation"),
+                           
                            div(class = "plot-container",
                                plotOutput("efficacyHarmPlot"),
                                p("Efficacy-harm plot: Visualizes probabilistic relationship between efficacy and harm for different thresholds.", class = "plot-explanation")
@@ -320,7 +323,7 @@ ui <- page_fillable(
                            verbatimTextOutput("bivariateOverallSummary")
                   ),
                   tabPanel("Model Diagnostics",
-                           actionButton("biv_model_diagnostics_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("biv_model_diagnostics_info", "", icon = icon("info-circle")),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -345,7 +348,7 @@ ui <- page_fillable(
                            # verbatimTextOutput("bivariateBiasTestResults")
                   ),
                   tabPanel("Sensitivity Analysis",
-                           actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
+                           actionButton("sensitivity_analysis_info", "", icon = icon("info-circle")),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -353,18 +356,14 @@ ui <- page_fillable(
                                         p("Confidence region shift plot: Visualizes how the confidence region changes with study removal.", class = "plot-explanation")
                                     )
                              ),
-                             column(6, 
+                             column(6,
                                     div(class = "plot-container",
                                         plotlyOutput("enhancedBaujatPlot"),
-                                        p("Enhanced Baujat plot: Shows each study's contribution to heterogeneity and influence on results.", class = "plot-explanation")
+                                        p("Enhanced Baujat plot: Identifies influential studies in the bivariate model.", class = "plot-explanation")
                                     )
                              )
                            ),
-                           # div(class = "plot-container",
-                           #     plotlyOutput("bivariateGOSHPlot"),
-                           #     p("Bivariate GOSH plot: Assesses stability of results in the bivariate model.", class = "plot-explanation")
-                           # ),
-                           # verbatimTextOutput("bivariateInfluenceSummary")
+                           verbatimTextOutput("bivariateInfluenceSummary")
                   ),
                   # tabPanel("Quality Assessment",
                   #          actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
