@@ -1,0 +1,40 @@
+---
+description: 
+globs: .cursor/rules/summary.mdc,**/.cursor/rules/summary.mdc
+alwaysApply: false
+---
+# Project Notes
+## High-Level Notes
+- **Always** consult `.cursor/rules/context.mdc` for cross-project integrations.
+- **Never** introduce redundancy between Summary and Plan.
+
+## Project-Specific Notes
+- This is a Shiny application written in R.
+- The app relies on packages like `shiny`, `meta`, `metafor`, and `ggplot2`.
+- The main application file is `app.R`, which sources `ui.R` and `server.R`.
+- Core logic is in `R/`.
+
+# Codebase Overview
+This project is a Shiny web application designed for conducting modern meta-analyses. It allows users to upload their data, perform various types of meta-analysis (Random Effects, Fixed Effects, Bivariate), and generate insightful visualizations like forest plots and funnel plots. The application also includes features for assessing heterogeneity, publication bias, and performing sensitivity analyses. It supports both binary (2x2) and continuous (Standardized Mean Difference - SMD) data.
+
+## Module Map
+- `app.R`: Main application entry point.
+- `R/ui.R`: Defines the user interface of the Shiny app.
+- `R/server.R`: Contains the server-side logic for the analyses and visualizations.
+- `R/functions.R`: Provides helper functions used throughout the application.
+- `R/bivariate_meta.R`: Contains functions specifically for bivariate meta-analysis.
+- `data/`: Contains sample datasets for demonstration.
+- `tests/`: Holds unit tests for the application.
+- `www/`: Stores static web assets like CSS and images.
+
+## Key Workflows
+1.  **Data Upload**: User uploads a dataset (binary or continuous).
+2.  **Analysis Selection**: User chooses a meta-analysis method.
+3.  **Analysis Execution**: The server performs the statistical calculations using packages like `meta` and `metafor`.
+4.  **Visualization**: The results are displayed using `ggplot2` and `plotly` through various plots.
+5.  **Report Generation**: A comprehensive report can be generated.
+
+# Recent Important Changes
+- Initial project setup.
+
+Ready to update `.cursor/rules/summary.mdc`?

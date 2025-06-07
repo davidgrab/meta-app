@@ -1,0 +1,15 @@
+---
+description: 
+globs: .cursor/rules/plan.mdc,**/.cursor/rules/plan.mdc
+alwaysApply: false
+---
+## Tasks
+- [ ] Set up project structure by creating `.cursor` directory and rule files. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: Initialize the project with the standard `.cursor` directory and rule files (`summary.mdc`, `plan.mdc`, `context.mdc`).
+- [ ] Review and enhance existing tests in `tests/testthat`. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: Examine the existing test suite, identify gaps in coverage, and add new tests for robustness.
+- [ ] Populate `FUTURE_IMPROVEMENTS.md` with ideas from the codebase and README. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: The README mentions many features. We should document potential future work in `FUTURE_IMPROVEMENTS.md`.
+- [ ] Add session info to report. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: Add a section to the downloadable report that includes session information (`sessionInfo()`) for reproducibility.
+- [ ] Create a more comprehensive sample dataset. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: The current sample data could be expanded to better showcase all features of the app.
+
+## Next Up
+1. Set up project structure by creating `.cursor` directory and rule files.
+2. Review and enhance existing tests in `tests/testthat`.
