@@ -30,7 +30,6 @@ jobs:
       - run:
           name: Restore R environment via renv
           command: |
-            R -e "install.packages('renv')"
             R -e "renv::restore()"
 
       - run:

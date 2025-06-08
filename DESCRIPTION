@@ -18,7 +18,8 @@ Imports:
     shinyjs,
     bsicons,
     shinycssloaders,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    rsconnect
 Suggests:
     knitr,
     rmarkdown
