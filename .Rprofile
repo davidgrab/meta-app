@@ -6,5 +6,6 @@ if (file.exists("~/.Rprofile")) {
 options(
   repos = c(CRAN = "https://cloud.r-project.org"),
   browserNLdisabled = TRUE,
-  deparse.max.lines = 2
+  deparse.max.lines = 2,
+  rsconnect.check.certificate = FALSE
 )

@@ -1,10 +1,10 @@
-name: meta-app
+name: main-app
 title: meta-app
 username: modern-meta-analysis
 account: modern-meta-analysis
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
-appId: 12375404
-bundleId:
-url: https://modern-meta-analysis.shinyapps.io/meta-app/
+appId: 14900636
+bundleId: 10419535
+url: https://modern-meta-analysis.shinyapps.io/main-app/
 version: 1
