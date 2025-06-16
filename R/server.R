@@ -54,9 +54,20 @@ server <- function(input, output, session) {
   # Show all tabs when Analyze button is clicked
   observeEvent(input$analyze, {
     print("Analyze button clicked")
-    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach"), function(tab) {
+    # Show common tabs first
+    common_tabs <- c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis")
+    lapply(common_tabs, function(tab) {
       showTab(inputId = "main_tabs", target = tab)
     })
+
+    # Conditionally show or hide Bivariate Approach tab
+    if (input$data_type == "hr") {
+      hideTab(inputId = "main_tabs", target = "Bivariate Approach")
+      print("Data type is HR, hiding Bivariate Approach tab")
+    } else {
+      showTab(inputId = "main_tabs", target = "Bivariate Approach")
+      print(paste("Data type is", input$data_type, ", showing Bivariate Approach tab"))
+    }
   })
   
   # React to dark mode toggle
@@ -132,7 +143,31 @@ server <- function(input, output, session) {
       )
     )
     
-    modal_content <- if (input$data_type == "smd") smd_instructions else binary_instructions
+    hr_instructions <- HTML(
+      paste0(
+        "<h4>Hazard Ratio (HR) Data</h4>",
+        "1. Prepare your CSV or Excel file with one of the following column structures:<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;<b>Format 1 (HR and Confidence Intervals):</b> study, hr, ci_lower, ci_upper<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>hr</b>: Hazard Ratio<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_lower</b>: Lower bound of the 95% confidence interval for HR<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_upper</b>: Upper bound of the 95% confidence interval for HR<br><br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;<b>Format 2 (Log Hazard Ratio and Standard Error):</b> study, loghr, se_loghr<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>loghr</b>: Natural logarithm of the Hazard Ratio<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>se_loghr</b>: Standard error of the log Hazard Ratio<br><br>",
+        "2. Click 'Browse' to select your file.<br><br>",
+        "3. The data will load and display in the 'Data Preview' tab. The app will convert Format 1 to logHR and SE for analysis."
+      )
+    )
+
+    modal_content <- if (input$data_type == "smd") {
+      smd_instructions
+    } else if (input$data_type == "hr") {
+      hr_instructions
+    } else {
+      binary_instructions
+    }
     
     showModal(modalDialog(
       title = "How to Upload Data",
@@ -178,8 +213,53 @@ server <- function(input, output, session) {
     # Defensively check column count before assigning names
     if (input$data_type == "binary" && ncol(df) == 5) {
       names(df) <- c("study", "ie", "it", "pe", "pt")
+      # Convert to numeric just in case they are not
+      df$ie <- as.numeric(df$ie)
+      df$it <- as.numeric(df$it)
+      df$pe <- as.numeric(df$pe)
+      df$pt <- as.numeric(df$pt)
     } else if (input$data_type == "smd" && ncol(df) == 4) {
       names(df) <- c("study", "smd", "ci_lower", "ci_upper")
+      # Convert to numeric
+      df$smd <- as.numeric(df$smd)
+      df$ci_lower <- as.numeric(df$ci_lower)
+      df$ci_upper <- as.numeric(df$ci_upper)
+    } else if (input$data_type == "hr") {
+      if (ncol(df) == 4) {
+        names(df) <- c("study", "hr", "ci_lower", "ci_upper")
+        df$hr <- suppressWarnings(as.numeric(df$hr))
+        df$ci_lower <- suppressWarnings(as.numeric(df$ci_lower))
+        df$ci_upper <- suppressWarnings(as.numeric(df$ci_upper))
+
+        # Check for non-positive values which would cause issues with log
+        if (any(df$hr <= 0, na.rm = TRUE) || any(df$ci_lower <= 0, na.rm = TRUE) || any(df$ci_upper <= 0, na.rm = TRUE)) {
+          showNotification("HR and CIs must be positive for log transformation. Please check input data.", type = "error", duration = 10)
+          return(NULL)
+        }
+        if (any(is.na(df$hr)) || any(is.na(df$ci_lower)) || any(is.na(df$ci_upper))) {
+          showNotification("Non-numeric HR or CI values detected after conversion. Please check input data.", type = "error", duration = 10)
+          return(NULL)
+        }
+
+        # Calculate loghr and se_loghr
+        loghr <- log(df$hr)
+        se_loghr <- (log(df$ci_upper) - log(df$ci_lower)) / (2 * qnorm(0.975))
+        df <- data.frame(study = df$study, loghr = loghr, se_loghr = se_loghr)
+
+      } else if (ncol(df) == 3) {
+        names(df) <- c("study", "loghr", "se_loghr")
+        df$loghr <- suppressWarnings(as.numeric(df$loghr))
+        df$se_loghr <- suppressWarnings(as.numeric(df$se_loghr))
+
+        if (any(is.na(df$loghr)) || any(is.na(df$se_loghr))) {
+          showNotification("Non-numeric logHR or SE_logHR values detected after conversion. Please check input data.", type = "error", duration = 10)
+          return(NULL)
+        }
+        # df is already in the desired format
+      } else {
+        showNotification("For HR data, please provide 3 columns (study, loghr, se_loghr) or 4 columns (study, hr, ci_lower, ci_upper).", type = "error", duration = 10)
+        return(NULL)
+      }
     }
     df
   })
@@ -189,6 +269,8 @@ server <- function(input, output, session) {
     filename = function() {
       if (input$data_type == "smd") {
         "sample_data_structure_continuous.csv"
+      } else if (input$data_type == "hr") {
+        "sample_data_structure_hr.csv"
       } else {
         "sample_data_structure_binary.csv"
       }
@@ -196,8 +278,10 @@ server <- function(input, output, session) {
     content = function(file) {
       if (input$data_type == "smd") {
         write.csv(sampleDataStructure_continuous, file, row.names = FALSE)
-        # Append note to the file
         cat("\n# Note: The 'smd' column may also appear as 'CoNC' or 'HeadGrid-G'. All are interpreted as SMD for now.\n", file = file, append = TRUE)
+      } else if (input$data_type == "hr") {
+        write.csv(sampleDataStructure_hr, file, row.names = FALSE)
+        cat("\n# Note: Alternatively, you can provide columns named 'study', 'loghr', and 'se_loghr' (natural log of HR and its standard error).\n", file = file, append = TRUE)
       } else {
         write.csv(sampleDataStructure_binary, file, row.names = FALSE)
       }
@@ -221,6 +305,31 @@ server <- function(input, output, session) {
     HTML(paste("<div style='font-size: 0.85em; margin-bottom: 10px; color: #666;'>", description, "</div>"))
   })
   
+  # UI for subgroup variable selection
+  output$subgroup_var_ui <- renderUI({
+    req(currentData()) # Ensure data is loaded
+    df_raw <- currentData()
+    original_col_names <- names(df_raw)
+
+    suitable_for_subgrouping <- sapply(original_col_names, function(col_name) {
+      col_data <- df_raw[[col_name]]
+      is_char_factor <- is.character(col_data) || is.factor(col_data)
+      # Allow numeric if it has few unique values (more than 1, less than or equal to 7, and not all unique)
+      is_sensible_numeric_subgroup <- is.numeric(col_data) &&
+                                      length(unique(na.omit(col_data))) > 1 &&
+                                      length(unique(na.omit(col_data))) <= 7 &&
+                                      length(unique(na.omit(col_data))) < nrow(df_raw)
+      return(is_char_factor || is_sensible_numeric_subgroup)
+    })
+
+    choices_for_subgroup <- original_col_names[suitable_for_subgrouping]
+
+    selectInput("subgroup_var",
+                "Select Subgroup Variable (Optional):",
+                choices = c("None" = "", choices_for_subgroup),
+                selected = "")
+  })
+
   # New observe events
   observeEvent(input$loadExampleData, {
     dataset_choice <- input$exampleDatasetChoice
@@ -275,6 +384,14 @@ server <- function(input, output, session) {
     stringsAsFactors = FALSE
   )
   attr(sampleDataStructure_continuous, "note") <- "Note: The 'smd' column may also appear as 'CoNC' or 'HeadGrid-G'. All are interpreted as SMD for now."
+
+  sampleDataStructure_hr <- data.frame(
+    study = c("Study H1", "Study H2"),
+    hr = c(0.75, 1.25),
+    ci_lower = c(0.60, 0.90),
+    ci_upper = c(0.95, 1.75),
+    stringsAsFactors = FALSE
+  )
   
   # Example dataset
   # exampleData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
@@ -394,9 +511,28 @@ server <- function(input, output, session) {
                                  sm = "SMD",
                                  y = df$smd,
                                  sigma2 = var)
+    } else if (input$data_type == "hr" && ncol(df) == 3 && all(c("study", "loghr", "se_loghr") %in% names(df))) {
+      # Data should already be processed into loghr and se_loghr by the `data()` reactive
+      random_model <- metagen(TE = df$loghr,
+                              seTE = df$se_loghr,
+                              studlab = df$study,
+                              sm = "HR",
+                              method.tau = input$het_estimator,
+                              common = FALSE,
+                              random = TRUE)
+
+      fixed_model <- metagen(TE = df$loghr,
+                             seTE = df$se_loghr,
+                             studlab = df$study,
+                             sm = "HR",
+                             common = TRUE,
+                             random = FALSE)
+
+      bivariate_model <- NULL # No bivariate model for HR data for now
+
     } else {
-      # Handle cases where data and type don't match, maybe show a warning
-      showNotification("Data columns do not match selected data type.", type = "warning")
+      # Handle cases where data and type don't match, or HR data is not in the expected 3-column format here
+      showNotification("Data columns do not match selected data type or expected HR format (study, loghr, se_loghr).", type = "warning")
       return(NULL)
     }
     
@@ -428,6 +564,8 @@ server <- function(input, output, session) {
   effect_measure_label <- reactive({
     if (input$data_type == "smd") {
       "SMD"
+    } else if (input$data_type == "hr") {
+      "Hazard Ratio"
     } else {
       switch(input$effect_measure,
              OR = "Odds Ratio",
@@ -445,12 +583,23 @@ server <- function(input, output, session) {
   
   output$randomForestPlot <- renderPlot({
     req(combinedResults()$random)
-    meta::forest(combinedResults()$random, 
-           leftlabs = c("Study", "TE", "seTE"),
-           rightlabs = c("TE", "95%-CI", "Weight"),
-           fontsize = 10, 
-           xlab = paste0("Effect Size (", effect_measure_label(), ")"),
-           main = paste0("Random Effects Forest Plot (", effect_measure_label(), ")"))
+    if (input$data_type == "hr") {
+      meta::forest(combinedResults()$random,
+             leftlabs = c("Study", "TE", "seTE"), # TE and seTE are on logHR scale
+             rightlabs = c("HR", "95%-CI", "Weight"), # forest will backtransform TE
+             fontsize = 10,
+             xlab = "Hazard Ratio (HR)",
+             main = paste0("Random Effects Forest Plot (", effect_measure_label(), ")"),
+             backtransf = exp,
+             sm = "HR") # Explicitly set sm for clarity with backtransf
+    } else {
+      meta::forest(combinedResults()$random,
+             leftlabs = c("Study", "TE", "seTE"),
+             rightlabs = c("TE", "95%-CI", "Weight"),
+             fontsize = 10,
+             xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+             main = paste0("Random Effects Forest Plot (", effect_measure_label(), ")"))
+    }
   }, height = function() forest_plot_height())
   
   output$randomHeterogeneityPlot <- renderPlot({
@@ -511,7 +660,7 @@ server <- function(input, output, session) {
     
     # Check if we have valid residuals
     if (!is.null(residuals) && !all(is.na(residuals))) {
-      qqnorm(residuals, main = "Q-Q Plot of Random Effects Standardized Residuals")
+      qqnorm(residuals, main = if (input$data_type == "hr") "Q-Q Plot of Random Effects Standardized Residuals (logHR)" else "Q-Q Plot of Random Effects Standardized Residuals")
       qqline(residuals, col = "red")
     } else {
       plot(1, type = "n", xlab = "", ylab = "", main = "Q-Q Plot Unavailable")
@@ -526,7 +675,9 @@ server <- function(input, output, session) {
   
   output$effectDistributionPlot <- renderPlot({
     req(combinedResults()$random)
-    effect_distribution_plot(combinedResults()$random)
+    current_model <- combinedResults()$random
+    current_xlab <- if (input$data_type == "hr") "log(Hazard Ratio)" else paste("Effect Size (", current_model$sm, ")")
+    effect_distribution_plot(current_model, xlab_label = current_xlab)
   })
   
   output$randomGOSHPlot <- renderPlot({
@@ -536,7 +687,9 @@ server <- function(input, output, session) {
   
   output$randomFunnelPlot <- renderPlot({
     req(combinedResults()$random)
-    funnel(combinedResults()$random)
+    current_model <- combinedResults()$random
+    current_xlab <- if (input$data_type == "hr") "log(Hazard Ratio)" else current_model$sm
+    funnel(current_model, xlab = current_xlab)
   })
   
   output$randomEggerTestResults <- renderPrint({
@@ -565,12 +718,23 @@ server <- function(input, output, session) {
   
   output$fixedForestPlot <- renderPlot({
     req(combinedResults()$fixed)
-    meta::forest(combinedResults()$fixed, 
-           leftlabs = c("Study", "TE", "seTE"),
-           rightlabs = c("TE", "95%-CI", "Weight"),
-           fontsize = 10, 
-           xlab = paste0("Effect Size (", effect_measure_label(), ")"),
-           main = paste0("Fixed Effects Forest Plot (", effect_measure_label(), ")"))
+    if (input$data_type == "hr") {
+      meta::forest(combinedResults()$fixed,
+             leftlabs = c("Study", "TE", "seTE"), # TE and seTE are on logHR scale
+             rightlabs = c("HR", "95%-CI", "Weight"), # forest will backtransform TE
+             fontsize = 10,
+             xlab = "Hazard Ratio (HR)",
+             main = paste0("Fixed Effects Forest Plot (", effect_measure_label(), ")"),
+             backtransf = exp,
+             sm = "HR") # Explicitly set sm for clarity with backtransf
+    } else {
+      meta::forest(combinedResults()$fixed,
+             leftlabs = c("Study", "TE", "seTE"),
+             rightlabs = c("TE", "95%-CI", "Weight"),
+             fontsize = 10,
+             xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+             main = paste0("Fixed Effects Forest Plot (", effect_measure_label(), ")"))
+    }
   }, height = function() forest_plot_height())
   
   output$fixedModelFitPlot <- renderPlot({
@@ -636,7 +800,7 @@ server <- function(input, output, session) {
     
     # Check if we have valid residuals
     if (!is.null(residuals) && !all(is.na(residuals))) {
-      qqnorm(residuals, main = "Q-Q Plot of Fixed Effects Residuals")
+      qqnorm(residuals, main = if (input$data_type == "hr") "Q-Q Plot of Fixed Effects Residuals (logHR)" else "Q-Q Plot of Fixed Effects Residuals")
       qqline(residuals, col = "red")
     } else {
       plot(1, type = "n", xlab = "", ylab = "", main = "Q-Q Plot Unavailable")
@@ -651,7 +815,9 @@ server <- function(input, output, session) {
   
   output$fixedFunnelPlot <- renderPlot({
     req(combinedResults()$fixed)
-    funnel(combinedResults()$fixed)
+    current_model <- combinedResults()$fixed
+    current_xlab <- if (input$data_type == "hr") "log(Hazard Ratio)" else current_model$sm
+    funnel(current_model, xlab = current_xlab)
   })
   
   output$fixedTrimFillPlot <- renderPlot({
@@ -1037,12 +1203,13 @@ server <- function(input, output, session) {
         "&nbsp;&nbsp;• <b>Binary (2x2):</b> Columns: study, ie, it, pe, pt<br>",
         "&nbsp;&nbsp;• <b>Continuous (SMD):</b> Columns: study, smd, ci_lower, ci_upper<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>Note:</b> The SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br>",
+        "&nbsp;&nbsp;• <b>Hazard Ratio (HR):</b> Columns: study, hr, ci_lower, ci_upper OR study, loghr, se_loghr<br>",
         "- You can use the 'Download Sample Structure' button to see the required format for each data type.<br><br>",
         
         "<b>2. Analysis Settings:</b><br>",
-        "- Choose your heterogeneity estimator and effect measure in the sidebar.<br>",
+        "- Choose your heterogeneity estimator in the sidebar.<br>",
         "- For binary data, select the effect measure (Odds Ratio, Risk Ratio, etc.).<br>",
-        "- For continuous data, the effect measure is always SMD (regardless of column label).<br>",
+        "- For continuous data (SMD) and Hazard Ratio (HR) data, the effect measure is fixed (SMD and HR respectively).<br>",
         "- Click 'Analyze' to run the meta-analysis.<br><br>",
         
         "<b>3. Results Tabs:</b><br>",

@@ -4,10 +4,13 @@ This document provides a detailed explanation of the theoretical underpinnings a
 
 ## Data Input and Pre-processing
 
-The application accepts two main types of data:
+The application accepts three main types of data:
 
 1.  **Binary (2x2) Data**: Requires columns `study`, `ie` (intervention events), `it` (intervention total), `pe` (placebo/control events), and `pt` (placebo/control total).
 2.  **Continuous (SMD) Data**: Requires columns `study`, `smd` (Standardized Mean Difference), `ci_lower` (lower confidence interval bound), and `ci_upper` (upper confidence interval bound).
+3.  **Hazard Ratio (HR) Data**: For time-to-event outcomes. Two formats are accepted:
+    *   **Format 1 (HR and Confidence Intervals):** Columns `study`, `hr` (Hazard Ratio), `ci_lower` (lower 95% CI for HR), `ci_upper` (upper 95% CI for HR).
+    *   **Format 2 (Log Hazard Ratio and Standard Error):** Columns `study`, `loghr` (natural logarithm of the Hazard Ratio), `se_loghr` (standard error of the log Hazard Ratio).
 
 For SMD data, the standard error (SE) and variance are calculated from the confidence intervals as follows:
 
@@ -17,6 +20,15 @@ SE = \frac{CI_{upper} - CI_{lower}}{2 \times 1.96}
 \[
 Variance = SE^2
 \]
+
+For HR data provided in Format 1 (HR and CIs), the application internally converts these values to the log scale for analysis:
+\[
+loghr = \ln(hr)
+\]
+\[
+se\_loghr = \frac{\ln(CI_{upper}) - \ln(CI_{lower})}{2 \times \Phi^{-1}(0.975)}
+\]
+where $\Phi^{-1}(0.975)$ is the 0.975 quantile of the standard normal distribution (approximately 1.96).
 
 The application allows for the removal of rows with missing values.
 

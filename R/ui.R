@@ -63,7 +63,8 @@ ui <- page_fillable(
     sidebar = sidebar(
       radioButtons("data_type", "Select Data Type:",
                    choices = list("Binary (2x2)" = "binary", 
-                                  "Continuous (SMD)" = "smd"),
+                                  "Continuous (SMD)" = "smd",
+                                  "Hazard Ratio (HR)" = "hr"),
                    selected = "binary"),
       fileInput("datafile", "Upload Data", accept = c(".csv", ".xlsx")),
       selectInput("het_estimator", "Heterogeneity Estimator", choices = c("DL", "PM", "REML", "ML"), selected = "DL"),
@@ -71,6 +72,8 @@ ui <- page_fillable(
         condition = "input.data_type == 'binary'",
         selectInput("effect_measure", "Effect Measure", choices = c("OR", "RR"), selected = "RR")
       ),
+      hr(), # Visual separation for subgroup UI
+      uiOutput("subgroup_var_ui"), # Placeholder for subgroup variable selection
       actionButton("analyze", "Analyze", class = "btn-primary"),
       hr(),
       h4("Data Cleaning"),

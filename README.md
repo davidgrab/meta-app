@@ -28,8 +28,9 @@ Experience the future of meta-analysis: [Modern Meta-Analysis App](https://moder
 - 📚 Comprehensive publication bias evaluation
 - ⚖️ Rigorous quality assessment (GRADE)
 - 📄 One-click comprehensive report generation
-- **Supports both binary (2x2) and continuous (SMD) data structures**
+- **Supports binary (2x2), continuous (Standardized Mean Difference - SMD), and Hazard Ratio (HR) data structures**
 - **For continuous data, the SMD column may also appear as CoNC or HeadGrid-G (all interpreted as SMD for now)**
+- **For Hazard Ratios, data can be provided as HR and 95% CI, or as log(HR) and its standard error**
 
 ## 🚀 Quick Start
 
@@ -51,8 +52,28 @@ Get up and running in minutes:
    ```
 
 **Data Format:**
-- For binary (2x2) data: columns should be `study`, `ie`, `it`, `pe`, `pt`
-- For continuous data: columns should be `study`, `smd`, `ci_lower`, `ci_upper` (the SMD column may also be labeled `CoNC` or `HeadGrid-G`)
+- For **binary (2x2) data**:
+    - Columns: `study, ie, it, pe, pt`
+    - `ie`: Intervention group events
+    - `it`: Intervention group total
+    - `pe`: Placebo/control group events
+    - `pt`: Placebo/control group total
+- For **continuous (SMD) data**:
+    - Columns: `study, smd, ci_lower, ci_upper`
+    - `smd`: Standardized Mean Difference (can also be labeled `CoNC` or `HeadGrid-G`)
+    - `ci_lower`: Lower bound of the 95% confidence interval for SMD
+    - `ci_upper`: Upper bound of the 95% confidence interval for SMD
+- For **Hazard Ratio (HR) data**:
+    - **Format 1 (HR and Confidence Intervals):**
+        - Columns: `study, hr, ci_lower, ci_upper`
+        - `hr`: Hazard Ratio
+        - `ci_lower`: Lower bound of the 95% confidence interval for HR
+        - `ci_upper`: Upper bound of the 95% confidence interval for HR
+        - *The app will internally convert these to log(HR) and its standard error for analysis.*
+    - **Format 2 (Log Hazard Ratio and Standard Error):**
+        - Columns: `study, loghr, se_loghr`
+        - `loghr`: Natural logarithm of the Hazard Ratio
+        - `se_loghr`: Standard error of the log Hazard Ratio
 
 ## 📁 Project Structure
 
