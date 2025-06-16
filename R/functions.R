@@ -1237,7 +1237,7 @@ subgroup_analysis_performed <- !is.null(params$input_subgroup_var) &&
                                !is.null(params$random_results) &&
                                !is.null(params$random_results$k.byvar) &&
                                length(params$random_results$k.byvar) > 0 &&
-                               any(params$random_results$k.byvar > 0) # Ensures there's at least one subgroup with studies
+                               any(params$random_results$k.byvar > 0)
 
 ```
 
@@ -1302,11 +1302,11 @@ if(subgroup_analysis_performed && !is.null(params$random_results)) {
 
 ```{r subgroup-interpretation, eval = subgroup_analysis_performed, echo = FALSE, comment = NA}
 if(subgroup_analysis_performed && !is.null(params$random_results) && !is.null(params$random_results$Q.b) && !is.null(params$random_results$pval.Q.b)) {
-  cat("\n\n**Interpretation of Subgroup Analysis:**\n")
+  cat("\\n\\n**Interpretation of Subgroup Analysis:**\\n")
   if (params$random_results$pval.Q.b < 0.05) {
-    cat(paste0("The test for subgroup differences (based on the random effects model) was statistically significant (p = ", sprintf("%.4f", params$random_results$pval.Q.b), "), suggesting that the `r effect_measure_label` may differ across subgroups of '", params$input_subgroup_var, "'. Further investigation of individual subgroup estimates is warranted.\n"))
+    cat(sprintf("The test for subgroup differences (based on the random effects model) was statistically significant (p = %s), suggesting that the %s may differ across subgroups of \'%s\'. Further investigation of individual subgroup estimates is warranted.\\n", sprintf("%.4f", params$random_results$pval.Q.b), params$effect_measure_label, params$input_subgroup_var))
   } else {
-    cat(paste0("The test for subgroup differences (based on the random effects model) was not statistically significant (p = ", sprintf("%.4f", params$random_results$pval.Q.b), "), suggesting no clear evidence that the `r effect_measure_label` differs across subgroups of '", params$input_subgroup_var, "'. However, this does not rule out clinically relevant differences, especially if the power of the test was low.\n"))
+    cat(sprintf("The test for subgroup differences (based on the random effects model) was not statistically significant (p = %s), suggesting no clear evidence that the %s differs across subgroups of \'%s\'. However, this does not rule out clinically relevant differences, especially if the power of the test was low.\\n", sprintf("%.4f", params$random_results$pval.Q.b), params$effect_measure_label, params$input_subgroup_var))
   }
 }
 ```
@@ -1393,8 +1393,8 @@ safe_run({
 
 ```{r random-egger-test, error=TRUE}
 safe_run(
-  cat(capture.output(metabias(params$random_results, method = "Egger")), sep = "\n"),
-  cat("Egger test unavailable")
+  cat(capture.output(metabias(params$random_results, method = "Egger"))),
+  cat("Egger test unavailable (apostrophe removed)")
 )
 ```
 
@@ -1512,8 +1512,8 @@ safe_run({
 
 ```{r fixed-egger-test, error=TRUE}
 safe_run(
-  cat(capture.output(metabias(params$fixed_results, method = "Egger")), sep = "\n"),
-  cat("Egger test unavailable")
+  cat(capture.output(metabias(params$fixed_results, method = "Egger"))),
+  cat("Egger test unavailable (apostrophe removed)")
 )
 ```
 
@@ -1656,19 +1656,19 @@ safe_run({
 }, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
 ```
 
-```{r bivariate-egger-test, error=TRUE, eval = !is.null(params$bivariate_results)}
+```{r bivariate-egger-test, error=TRUE, eval = !is.null(params$bivariate_results) && !metareg_performed_and_results_available}
 safe_run({
   if(!is.null(params$bivariate_results$y.k) && !is.null(params$bivariate_results$sigma.2.k)) {
     meta_analysis_biv_egger <- metagen(TE = params$bivariate_results$y.k,
                             seTE = sqrt(params$bivariate_results$sigma.2.k))
-    cat(capture.output(metabias(meta_analysis_biv_egger, method = "Egger")), sep = "\n")
+    cat(capture.output(metabias(meta_analysis_biv_egger, method = "Egger")))
   } else {
-    cat("Egger test unavailable for bivariate model")
+    cat("Egger test unavailable for bivariate model (apostrophe removed)")
   }
-}, cat("Egger test unavailable for bivariate model"))
+}, cat("Egger test unavailable for bivariate model (apostrophe removed)"))
 ```
 
-`r if (!is.null(params$bivariate_results)) {"## Sensitivity Analysis"} else {""}`
+`r if (!is.null(params$bivariate_results) && !metareg_performed_and_results_available) {"## Sensitivity Analysis"} else {""}`
 
 ```{r bivariate-sensitivity-analysis, fig.width=10, fig.height=6, error=TRUE, eval = !is.null(params$bivariate_results)}
 safe_run({
