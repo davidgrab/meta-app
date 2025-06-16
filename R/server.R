@@ -733,7 +733,8 @@ server <- function(input, output, session) {
                    mlb = plot_title,
                    xlab = x_label,  # Pass xlab to the plotting function
                    mu_mle = bivariate_result()$mu,
-                   tau_mle = bivariate_result()$tau)
+                   tau_mle = bivariate_result()$tau,
+                   sm = bivariate_result()$sm)
   })
   
   
@@ -869,10 +870,12 @@ server <- function(input, output, session) {
     effect_label <- effect_measure_label()
     plot_title <- paste("Efficacy/Harm Plot for", effect_label)
     
-    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result()$dev_pvals)
+    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result()$dev_pvals, sm = bivariate_result()$sm)
     comp.eff.harm.plot(CDF.ci.obj,
                        efficacy.is.OR.le1 = (bivariate_result()$sm == "OR"),
-                       mlb = plot_title)
+                       mlb = plot_title,
+                       xlb = paste("Effect Size (", effect_label, ")"),
+                       sm = bivariate_result()$sm)
   })
   
   # Bivariate GOSH Plot
