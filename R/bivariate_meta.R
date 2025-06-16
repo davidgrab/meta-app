@@ -10,6 +10,11 @@ library(metafor)
 library(BiasedUrn)
 library(sf)
 
+# Replace all cat() statements with console_log() function
+console_log <- function(...) {
+  # This sends output directly to the R console/server logs, not to Shiny UI
+  message(paste(..., collapse = ""))
+}
 
 #' @title Log Odds Function
 #' @description Calculates the log odds from a probability
@@ -38,11 +43,19 @@ inv.log.odds <- function(theta) exp(theta) / (1 + exp(theta))
 #' @param sigma2 An optional numeric vector of pre-calculated variances
 #' @param level Confidence level for individual studies
 #' @param level.ma Confidence level for meta-analysis
+#' @param verbose Logical, whether to print verbose output
 #' @return A list with class "metabiv" containing the results of the bivariate meta-analysis
 #' @export
 metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, studlab = NULL,
                     data = NULL, sm = "RR", y = NULL, sigma2 = NULL,
-                    level = 0.95, level.ma = 0.95) {
+                    level = 0.95, level.ma = 0.95, verbose = TRUE) {
+  
+  # Helper function for conditional logging
+  log_if_verbose <- function(...) {
+    if (verbose) {
+      message(paste(..., collapse = ""))
+    }
+  }
   
   if (is.null(y) || is.null(sigma2)) {
     # Data preparation for binary data
@@ -80,6 +93,39 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
     data.tbl <- data.frame(studlab, y.k, sigma.2.k)
   }
   
+  # Print individual study effects for comparison with supplementary material
+  log_if_verbose("\n=== MLE-BASED META-ANALYSIS ESTIMATES ===")
+  log_if_verbose("Summary Measure: ", sm)
+  log_if_verbose("Number of studies: ", k.All, "\n")
+  
+  if (sm %in% c("OR", "RR")) {
+    log_if_verbose("INDIVIDUAL STUDY EFFECTS:")
+    log_if_verbose("========================")
+    log_if_verbose("LOG-SCALE (for literature comparison):")
+    log_if_verbose("--------------------------------------")
+    for(i in 1:length(y.k)) {
+      log_if_verbose(sprintf("Study %2d (%s): log-%s = %8.4f, SE = %6.4f, Var = %8.6f", 
+                  i, studlab[i], sm, y.k[i], sqrt(sigma.2.k[i]), sigma.2.k[i]))
+    }
+    log_if_verbose("\nORIGINAL SCALE (for clinical interpretation):")
+    log_if_verbose("---------------------------------------------")
+    for(i in 1:length(y.k)) {
+      log_if_verbose(sprintf("Study %2d (%s): %s = %8.4f, 95%% CI: [%6.4f, %6.4f]", 
+                  i, studlab[i], sm, exp(y.k[i]), 
+                  exp(y.k[i] - 1.96 * sqrt(sigma.2.k[i])), 
+                  exp(y.k[i] + 1.96 * sqrt(sigma.2.k[i]))))
+    }
+  } else {
+    log_if_verbose("INDIVIDUAL STUDY SMD EFFECTS:")
+    log_if_verbose("============================")
+    for(i in 1:length(y.k)) {
+      log_if_verbose(sprintf("Study %2d (%s): SMD = %8.4f, SE = %6.4f, 95%% CI: [%6.4f, %6.4f]", 
+                  i, studlab[i], y.k[i], sqrt(sigma.2.k[i]),
+                  y.k[i] - 1.96 * sqrt(sigma.2.k[i]),
+                  y.k[i] + 1.96 * sqrt(sigma.2.k[i])))
+    }
+  }
+  
   # Estimate tau and mu using MLE
   # Improved initial value calculation using DerSimonian-Laird
   w.k <- 1 / sigma.2.k
@@ -88,6 +134,17 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   df.init <- k.All - 1
   tau2.init <- max(0, (Q.init - df.init) / (sum(w.k) - sum(w.k^2)/sum(w.k)))
   initial.value <- c(mu.init, sqrt(tau2.init))
+  
+  log_if_verbose("\nINITIAL VALUES (DerSimonian-Laird):")
+  log_if_verbose("===================================")
+  if (sm %in% c("OR", "RR")) {
+    log_if_verbose(sprintf("μ_initial (log-%s) = %8.6f  →  %s_initial = %8.4f", 
+                sm, mu.init, sm, exp(mu.init)))
+    log_if_verbose(sprintf("τ_initial (log-scale) = %8.6f", sqrt(tau2.init)))
+  } else {
+    log_if_verbose(sprintf("μ_initial (SMD) = %8.6f", mu.init))
+    log_if_verbose(sprintf("τ_initial = %8.6f", sqrt(tau2.init)))
+  }
 
   mle_result <- comp.tau.mu.MLE(data.tbl, initial.value, sm, y.k, sigma.2.k)
   mu <- mle_result$mu
@@ -98,14 +155,54 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   ci_level <- level
   z_score <- qnorm((1 + ci_level) / 2)
   
-  # Individual study CIs (on log scale)
+  # Individual study CIs (on original scale for both SMD and log OR/RR)
   lower.k <- y.k - z_score * sqrt(pmax(sigma.2.k, 0))
   upper.k <- y.k + z_score * sqrt(pmax(sigma.2.k, 0))
   
-  # Overall effect CI (on log scale)
+  # Overall effect CI (on original scale for both SMD and log OR/RR)
   se.mu <- sqrt(1 / sum(1 / (sigma.2.k + tau2)))
   lower <- mu - z_score * se.mu
   upper <- mu + z_score * se.mu
+  
+  # Print comprehensive MLE estimates
+  log_if_verbose("\nMLE ESTIMATES:")
+  log_if_verbose("==============")
+  
+  if (sm %in% c("OR", "RR")) {
+    log_if_verbose("RAW LOG-SCALE (for literature comparison):")
+    log_if_verbose("------------------------------------------")
+    log_if_verbose(sprintf("μ (log-%s) = %10.6f", sm, mu))
+    log_if_verbose(sprintf("τ (log-scale) = %10.6f", tau))
+    log_if_verbose(sprintf("τ² (log-scale) = %10.6f", tau2))
+    log_if_verbose(sprintf("SE(μ) (log-scale) = %10.6f", se.mu))
+    log_if_verbose(sprintf("95%% CI for μ (log-%s): [%8.6f, %8.6f]", sm, lower, upper))
+    
+    log_if_verbose("\nTRANSFORMED ORIGINAL SCALE (for clinical interpretation):")
+    log_if_verbose("--------------------------------------------------------")
+    log_if_verbose(sprintf("μ → %s estimate = exp(%8.6f) = %8.4f", sm, mu, exp(mu)))
+    log_if_verbose(sprintf("95%% CI for %s: [%6.4f, %6.4f]", sm, exp(lower), exp(upper)))
+    
+    # Calculate approximate CI for tau on original scale
+    # Note: This is an approximation since tau represents log-scale heterogeneity
+    log_if_verbose(sprintf("τ (between-study SD on log-scale) = %8.6f", tau))
+    log_if_verbose(sprintf("τ² (between-study variance on log-scale) = %8.6f", tau2))
+    
+    # For interpretation: what does tau mean in terms of RR/OR variability?
+    log_if_verbose(sprintf("Interpretation: 95%% of true study %ss lie approximately between:", sm))
+    log_if_verbose(sprintf("  Lower bound ≈ %6.4f", exp(mu - 1.96 * tau)))
+    log_if_verbose(sprintf("  Upper bound ≈ %6.4f", exp(mu + 1.96 * tau)))
+    
+  } else {
+    log_if_verbose("SMD ESTIMATES:")
+    log_if_verbose("--------------")
+    log_if_verbose(sprintf("μ (SMD) = %10.6f", mu))
+    log_if_verbose(sprintf("τ = %10.6f", tau))
+    log_if_verbose(sprintf("τ² = %10.6f", tau2))
+    log_if_verbose(sprintf("SE(μ) = %10.6f", se.mu))
+    log_if_verbose(sprintf("95%% CI for μ (SMD): [%8.6f, %8.6f]", lower, upper))
+    log_if_verbose(sprintf("95%% of true study SMDs lie approximately between: [%6.4f, %6.4f]", 
+                mu - 1.96 * tau, mu + 1.96 * tau))
+  }
   
   # Calculate Q statistic
   w <- 1 / pmax(sigma.2.k, 1e-10)
@@ -121,9 +218,24 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   # Calculate H2
   H2 <- Q / df
   
+  log_if_verbose("\nHETEROGENEITY STATISTICS:")
+  log_if_verbose("========================")
+  log_if_verbose(sprintf("Q = %8.4f (df = %d, p = %6.4f)", Q, df, p_value))
+  log_if_verbose(sprintf("I² = %6.2f%%", I2))
+  log_if_verbose(sprintf("H² = %8.4f", H2))
+  
   # Calculate deviance and p-values
-  mu.vec <- seq(-1, 1, length.out = 100)
-  tau.vec <- seq(0.01, 1, length.out = 100)
+  # Set appropriate range for mu based on summary measure
+  if (sm == "SMD") {
+    # For SMD, use wider range around the MLE estimate with higher resolution
+    mu_range <- max(3, 1.5 * max(abs(c(y.k, mu))))
+    mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for smoother contours
+    tau.vec <- seq(0.01, 1, length.out = 150)  # Higher resolution for smoother contours
+  } else {
+    # For OR/RR, use traditional log scale range
+    mu.vec <- seq(-1, 1, length.out = 100)
+    tau.vec <- seq(0.01, 1, length.out = 100)
+  }
   
   # For all summary measures, use the standard chi-squared approximation.
   # The exact test for OR is deferred as a future improvement.
@@ -131,6 +243,47 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   
   # Compute confidence region
   conf_region <- compute_confidence_region(dev_pvals[[2]], level.ma)
+  
+  # Print confidence region bounds
+  log_if_verbose("\nCONFIDENCE REGION BOUNDS:")
+  log_if_verbose("========================")
+  
+  if (sm %in% c("OR", "RR")) {
+    log_if_verbose("RAW LOG-SCALE:")
+    log_if_verbose("--------------")
+    log_if_verbose(sprintf("μ (log-%s) range: [%8.6f, %8.6f]", sm, min(conf_region$mu), max(conf_region$mu)))
+    log_if_verbose(sprintf("τ range: [%8.6f, %8.6f]", min(conf_region$tau), max(conf_region$tau)))
+    
+    log_if_verbose("\nTRANSFORMED ORIGINAL SCALE:")
+    log_if_verbose("---------------------------")
+    log_if_verbose(sprintf("%s range: [%6.4f, %6.4f]", sm, exp(min(conf_region$mu)), exp(max(conf_region$mu))))
+    log_if_verbose(sprintf("τ range (log-scale): [%6.4f, %6.4f]", min(conf_region$tau), max(conf_region$tau)))
+  } else {
+    log_if_verbose("SMD SCALE:")
+    log_if_verbose("----------")
+    log_if_verbose(sprintf("μ (SMD) range: [%8.6f, %8.6f]", min(conf_region$mu), max(conf_region$mu)))
+    log_if_verbose(sprintf("τ range: [%8.6f, %8.6f]", min(conf_region$tau), max(conf_region$tau)))
+  }
+  
+  # Summary comparison table
+  log_if_verbose("\nSUMMARY FOR COMPARISON WITH OTHER META-ANALYSES:")
+  log_if_verbose("================================================")
+  
+  if (sm %in% c("OR", "RR")) {
+    log_if_verbose(sprintf("Pooled %s estimate: %6.4f (95%% CI: %6.4f to %6.4f)", 
+                sm, exp(mu), exp(lower), exp(upper)))
+    log_if_verbose(sprintf("Between-study heterogeneity (τ): %6.4f (on log-scale)", tau))
+    log_if_verbose(sprintf("I² = %5.1f%%, indicating %s heterogeneity", I2, 
+                ifelse(I2 < 25, "low", ifelse(I2 < 50, "moderate", ifelse(I2 < 75, "substantial", "considerable")))))
+  } else {
+    log_if_verbose(sprintf("Pooled SMD estimate: %6.4f (95%% CI: %6.4f to %6.4f)", 
+                mu, lower, upper))
+    log_if_verbose(sprintf("Between-study heterogeneity (τ): %6.4f", tau))
+    log_if_verbose(sprintf("I² = %5.1f%%, indicating %s heterogeneity", I2, 
+                ifelse(I2 < 25, "low", ifelse(I2 < 50, "moderate", ifelse(I2 < 75, "substantial", "considerable")))))
+  }
+  
+  log_if_verbose("\n=== END MLE ESTIMATES ===\n")
   
   # Prepare results
   res <- list(
@@ -305,12 +458,18 @@ compute_confidence_region <- function(pval.mat, level.ma) {
 #' @return A list containing the CDF vector, MLE CDF, and lower and upper CIs
 #' @export
 comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05, 
-                                  min_ci = log(0.2), max_ci = log(10)) {
+                                  min_ci = log(0.2), max_ci = log(10), sm = NULL) {
   # Extract matrices and dimensions
   dev.mat <- dev.lst[[1]]
   pval.mat <- dev.lst[[2]]
   n.mu <- dim(pval.mat)[1]
   n.tau <- dim(pval.mat)[2]
+  
+  # Set appropriate ranges based on summary measure
+  if (!is.null(sm) && sm == "SMD") {
+    min_ci <- -3
+    max_ci <- 3
+  }
   
   # Extract sequences with error handling
   seq.mu <- tryCatch({
@@ -351,7 +510,7 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
   
   # Fit loess model with error handling
   logit.p.loess <- tryCatch({
-    loess(logit.p ~ x.mu + x.tau, span = 0.1)
+    loess(logit.p ~ x.mu + x.tau, span = 0.1, degree = 2)
   }, error = function(e) {
     # Fallback to simpler model if loess fails
     lm(logit.p ~ x.mu + x.tau)
@@ -385,7 +544,8 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
   CDF.vec <- seq(0.01, 0.99, length = 99)
   MLE.CDF <- pmax(pmin(qnorm(CDF.vec, mean = MLE.mu, sd = MLE.tau), max_ci), min_ci)
   
-  # Calculate CI bounds with clamping
+  # Use the statistically correct method for both SMD and OR/RR
+  # This properly accounts for uncertainty in both mu and tau parameters
   ci.CDF.mat <- array(
     pmax(pmin(
       qnorm(rep(CDF.vec, each = n.ci), 
@@ -416,8 +576,90 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
 #' @return A ggplot object representing the efficacy/harm plot
 #' @export
 comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Efficacy/Harm Plot", 
-                               xlb = "Efficacy/Harm", min.OR = 0.3, max.OR = 3) {
-  # Create sequence for x-axis with safeguards
+                               xlb = "Efficacy/Harm", min.OR = 0.3, max.OR = 3, sm = NULL) {
+  
+  # Check if we're dealing with SMD
+  is_smd <- !is.null(sm) && sm == "SMD"
+  
+  if (is_smd) {
+    # For SMD: Use linear scale centered around 0
+    x.seq <- seq(-3, 3, length = 1000)
+    
+    # Use the CDF values directly (no exponential transformation)
+    x.est.taper <- c(
+      seq(-3, min(CDF.ci.obj[[2]]), length = 50),
+      CDF.ci.obj[[2]],
+      seq(max(CDF.ci.obj[[2]]), 3, length = 50)
+    )
+    
+    x.ll.taper <- c(
+      seq(-3, min(CDF.ci.obj[[3]]), length = 50),
+      CDF.ci.obj[[3]],
+      seq(max(CDF.ci.obj[[3]]), 3, length = 50)
+    )
+    
+    x.ul.taper <- c(
+      seq(-3, min(CDF.ci.obj[[4]]), length = 50),
+      CDF.ci.obj[[4]],
+      seq(max(CDF.ci.obj[[4]]), 3, length = 50)
+    )
+    
+    # Safe approximation with error handling
+    safe_approx <- function(x, y, xout) {
+      tryCatch({
+        approx(x, y, xout = xout)$y
+      }, error = function(e) {
+        rep(mean(y, na.rm = TRUE), length(xout))
+      })
+    }
+    
+    # Calculate CDFs with error handling
+    cdf.est <- safe_approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+    cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+    cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+    
+    # Set colors (beneficial vs harmful for SMD)
+    le0.col <- 3  # Green for beneficial (SMD < 0 if lower is better, or SMD > 0 if higher is better)
+    gt0.col <- 2  # Red for harmful
+    
+    # Calculate values for plotting with SMD ranges
+    le0.vec <- seq(-3, 0, length = 200)
+    le0.est <- safe_approx(x.seq, cdf.est, xout = le0.vec)
+    le0.ll <- safe_approx(x.seq, cdf.ll, xout = le0.vec)
+    le0.ul <- safe_approx(x.seq, cdf.ul, xout = le0.vec)
+    
+    gt0.vec <- seq(0, 3, length = 200)
+    gt0.est <- safe_approx(x.seq, 1-cdf.est, xout = gt0.vec)
+    gt0.ll <- safe_approx(x.seq, 1-cdf.ll, xout = gt0.vec)
+    gt0.ul <- safe_approx(x.seq, 1-cdf.ul, xout = gt0.vec)
+    
+    # Create data frame for plotting
+    plot_data <- rbind(
+      data.frame(x = le0.vec, y = le0.est, lower = le0.ll, upper = le0.ul, group = "le0"),
+      data.frame(x = gt0.vec, y = gt0.est, lower = gt0.ll, upper = gt0.ul, group = "gt0")
+    )
+    
+    # Remove any non-finite values
+    plot_data <- plot_data[is.finite(plot_data$x) & 
+                          is.finite(plot_data$y) & 
+                          is.finite(plot_data$lower) & 
+                          is.finite(plot_data$upper), ]
+    
+    # Create plot with ggplot2 - linear scale for SMD
+    p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
+      geom_line(aes(y = y), size = 1) +
+      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+      scale_x_continuous(breaks = seq(-3, 3, by = 0.5),
+                        limits = c(-3, 3)) +
+      scale_color_manual(values = c("le0" = le0.col, "gt0" = gt0.col)) +
+      scale_fill_manual(values = c("le0" = le0.col, "gt0" = gt0.col)) +
+      labs(title = mlb, x = xlb, y = "Probability") +
+      theme_minimal() +
+      theme(legend.position = "none") +
+      geom_vline(xintercept = 0, linetype = "dashed", color = "gray50")
+    
+  } else {
+    # Original code for OR/RR with log scale
   x.seq <- exp(seq(-5, log(10), length = 1000))
   
   # Safely get CDF values with finite bounds
@@ -492,7 +734,7 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
                         is.finite(plot_data$lower) & 
                         is.finite(plot_data$upper), ]
   
-  # Create plot with ggplot2
+    # Create plot with ggplot2 - log scale for OR/RR
   p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
     geom_line(aes(y = y), size = 1) +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
@@ -504,6 +746,7 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     labs(title = mlb, x = xlb, y = "Probability") +
     theme_minimal() +
     theme(legend.position = "none")
+  }
   
   return(p)
 }
@@ -548,8 +791,12 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
   
-  # Transform to exp scale for plotting
+  # Transform appropriately based on summary measure
+  if (sm == "SMD") {
+    mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length.out = 100)
+  } else {
   mu.pred.vec <- exp(seq(min(seq.mu), max(seq.mu), length.out = 100))
+  }
   tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
   
   # Get full model contours
@@ -600,6 +847,21 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
   p <- plot_ly()
   
   # Add full model contours
+  if (sm == "SMD") {
+    p <- add_trace(p, 
+                   x = full_contour_95[[1]]$x, 
+                   y = full_contour_95[[1]]$y,
+                   type = "scatter", mode = "lines",
+                   line = list(color = "red", width = 1),
+                   name = "Full Model 95% CI")
+    
+    p <- add_trace(p, 
+                   x = full_contour_50[[1]]$x, 
+                   y = full_contour_50[[1]]$y,
+                   type = "scatter", mode = "lines",
+                   line = list(color = "blue", width = 1),
+                   name = "Full Model 50% CI")
+  } else {
   p <- add_trace(p, 
                  x = exp(full_contour_95[[1]]$x), 
                  y = full_contour_95[[1]]$y,
@@ -613,12 +875,30 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
                  type = "scatter", mode = "lines",
                  line = list(color = "blue", width = 1),
                  name = "Full Model 50% CI")
+  }
   
   # Add leave-one-out contours with transparency
   for (i in 1:k) {
     contour_95 <- loo_results[[i]]$contour_95
     contour_50 <- loo_results[[i]]$contour_50
     
+    # Create appropriate hover text based on summary measure
+    if (sm == "SMD") {
+      hover_text <- sprintf(
+        "Study: %d (omitted)<br>Effect Size (SMD): %.3f<br>τ: %.3f<br>
+         Relative Shift: %.3f<br>IoU: %.3f<br>Hellinger: %.3f<br>KLD: %.3f<br>
+         RMSE: %.3f<br>Coverage Prob: %.3f<br>Combined Score: %.3f<br>
+         50%% CI: (%.3f, %.3f) to (%.3f, %.3f)<br>95%% CI: (%.3f, %.3f) to (%.3f, %.3f)",
+        i, loo_results[[i]]$mu, loo_results[[i]]$tau,
+        loo_results[[i]]$shift, loo_results[[i]]$iou, loo_results[[i]]$hellinger,
+        loo_results[[i]]$kld, loo_results[[i]]$rmse, loo_results[[i]]$coverage_prob,
+        loo_results[[i]]$combined_score,
+        min(sapply(contour_50, function(x) min(x$x))), min(sapply(contour_50, function(x) min(x$y))),
+        max(sapply(contour_50, function(x) max(x$x))), max(sapply(contour_50, function(x) max(x$y))),
+        min(sapply(contour_95, function(x) min(x$x))), min(sapply(contour_95, function(x) min(x$y))),
+        max(sapply(contour_95, function(x) max(x$x))), max(sapply(contour_95, function(x) max(x$y)))
+      )
+    } else {
     hover_text <- sprintf(
       "Study: %d (omitted)<br>Effect Size: %.3f (log: %.3f)<br>τ: %.3f<br>
        Relative Shift: %.3f<br>IoU: %.3f<br>Hellinger: %.3f<br>KLD: %.3f<br>
@@ -633,9 +913,11 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
       exp(min(sapply(contour_95, function(x) min(x$x)))), min(sapply(contour_95, function(x) min(x$y))),
       exp(max(sapply(contour_95, function(x) max(x$x)))), max(sapply(contour_95, function(x) max(x$y)))
     )
+    }
     # Add points for studies
+    mu_val <- if (sm == "SMD") loo_results[[i]]$mu else exp(loo_results[[i]]$mu)
     p <- add_trace(p, 
-                   x = exp(loo_results[[i]]$mu), 
+                   x = mu_val, 
                    y = loo_results[[i]]$tau,
                    type = "scatter", mode = "markers",
                    marker = list(size = 8,
@@ -647,8 +929,9 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
                    showlegend = FALSE,
                    customdata = i)
     # Add contours
+    contour_x_vals <- if (sm == "SMD") contour_95[[1]]$x else exp(contour_95[[1]]$x)
     p <- add_trace(p, 
-                   x = exp(contour_95[[1]]$x), 
+                   x = contour_x_vals, 
                    y = contour_95[[1]]$y,
                    type = "scatter", mode = "lines",
                    line = list(color = "blue", width = 2),
@@ -660,8 +943,9 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
   
 
   # Add full model point
+  main_mu_val <- if (sm == "SMD") x$mu else exp(x$mu)
   p <- add_trace(p, 
-                 x = exp(x$mu), 
+                 x = main_mu_val, 
                  y = x$tau,
                  type = "scatter", mode = "markers",
                  marker = list(size = 12,
@@ -670,6 +954,21 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
                  name = "Full Model MLE")
   
   # Set layout
+  if (sm == "SMD") {
+    p <- p %>% layout(
+      title = paste("Confidence Region Shift Plot for", sm),
+      xaxis = list(
+        title = "Effect Size (SMD)",
+        range = c(-3, 3)
+      ),
+      yaxis = list(
+        title = "tau",
+        range = c(0, 1)
+      ),
+      showlegend = TRUE,
+      hovermode = "closest"
+    )
+  } else {
   p <- p %>% layout(
     title = paste("Confidence Region Shift Plot for", sm),
     xaxis = list(
@@ -686,10 +985,12 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     showlegend = TRUE,
     hovermode = "closest"
   )
+  }
   
   # Add reference line
+  ref_val <- if (sm == "SMD") 0 else 1
   p <- add_trace(p,
-                 x = c(1, 1),
+                 x = c(ref_val, ref_val),
                  y = c(0, 1),
                  type = "scatter", mode = "lines",
                  line = list(color = "gray", dash = "dash"),
@@ -1191,11 +1492,51 @@ comp.tau.mu.log.RR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
 #   invisible(list(mu_mle = mu_mle, tau_mle = tau_mle))
 # }
 
-plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = "", xlab = "Effect Size (OR/RR)", mu_mle = NULL, tau_mle = NULL) {
+plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = "", xlab = "Effect Size (OR/RR)", mu_mle = NULL, tau_mle = NULL, sm = NULL) {
   # Extract sequences for µ and τ
   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
   
+  # Check if we're dealing with SMD
+  is_smd <- !is.null(sm) && sm == "SMD"
+  
+  if (is_smd) {
+    # For SMD: Use linear scale centered around 0
+    mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length.out = 100)
+    tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
+    
+    # Extract 95% and 50% confidence contours using the correct method
+    contour_50 <- get_contours(pval.mat, 0.50)
+    contour_95 <- get_contours(pval.mat, 0.05)
+    
+    # Set up plot with linear scale
+    plot(1, type = "n",
+         xlim = c(min(mu.pred.vec), max(mu.pred.vec)),
+         ylim = range(tau.pred.vec),
+         xlab = xlab, 
+         ylab = "τ",
+         main = mlb,
+         cex.lab = 1.2, 
+         cex.axis = 0.8, 
+         cex.main = 1.2)
+    
+    # Draw confidence contours (no exp transformation for SMD)
+    lines(contour_95[[1]]$x, contour_95[[1]]$y, col = "red", lwd = 2, lty = 1)  # 95% CI
+    lines(contour_50[[1]]$x, contour_50[[1]]$y, col = "blue", lwd = 2, lty = 1) # 50% CI
+    
+    # Add MLE point
+    if (is.null(mu_mle) || is.null(tau_mle)) {
+      mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
+      mu_mle <- seq.mu[mle_index[1]]
+      tau_mle <- seq.tau[mle_index[2]]
+    }
+    points(mu_mle, tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
+    
+    # Add reference line at 0 for SMD
+    abline(v = 0, lty = 2, col = "gray")
+    
+  } else {
+    # Original code for OR/RR with log scale
   # Convert to exponentiated scale for effect sizes
   mu.pred.vec <- exp(seq(min(seq.mu), max(seq.mu), length.out = 100))
   tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
@@ -1204,7 +1545,7 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
   contour_50 <- get_contours(pval.mat, 0.50)
   contour_95 <- get_contours(pval.mat, 0.05)
   
-  # Set up plot
+    # Set up plot with log scale
   plot(1, type = "n", log = "x",
        xlim = c(min(mu.pred.vec), max(mu.pred.vec)),
        ylim = range(tau.pred.vec),
@@ -1234,6 +1575,7 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
   
   # Custom x-axis
   axis(1, at = c(0.5, 1.0, 2.0, 3.2))
+  }
   
   # Add legend
   legend("topright", 

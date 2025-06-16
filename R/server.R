@@ -691,21 +691,21 @@ server <- function(input, output, session) {
   
   
   # Bivariate analysis results
-  bivariate_result <- eventReactive(input$analyze, {
-    req(data())
+  bivariate_result <- reactive({
+    req(input$analyze)
     # Handle both data types
     df <- data()
     if (input$data_type == "smd") {
         se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
         var <- se^2
-        metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var)
+        metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var, verbose = TRUE)
     } else {
         metabiv(event.e = df$ie, 
                 n.e = df$it, 
                 event.c = df$pe, 
                 n.c = df$pt,
                 studlab = df$study,
-                sm = input$effect_measure)
+                sm = input$effect_measure, verbose = TRUE)
     }
   })
   
@@ -733,7 +733,8 @@ server <- function(input, output, session) {
                    mlb = plot_title,
                    xlab = x_label,  # Pass xlab to the plotting function
                    mu_mle = bivariate_result()$mu,
-                   tau_mle = bivariate_result()$tau)
+                   tau_mle = bivariate_result()$tau,
+                   sm = bivariate_result()$sm)
   })
   
   
@@ -792,11 +793,11 @@ server <- function(input, output, session) {
       res_i <- if (input$data_type == "smd") {
         se <- (loo_data$ci_upper - loo_data$ci_lower) / (2 * 1.96)
         var <- se^2
-        metabiv(studlab = loo_data$study, sm = "SMD", y = loo_data$smd, sigma2 = var)
+        metabiv(studlab = loo_data$study, sm = "SMD", y = loo_data$smd, sigma2 = var, verbose = FALSE)  # No logs
       } else {
         metabiv(event.e = loo_data$ie, n.e = loo_data$it, 
                 event.c = loo_data$pe, n.c = loo_data$pt,
-                studlab = loo_data$study, sm = input$effect_measure)
+                studlab = loo_data$study, sm = input$effect_measure, verbose = FALSE)  # No logs
       }
       
       # Calculate contribution and influence
@@ -819,10 +820,10 @@ server <- function(input, output, session) {
         if (input$data_type == "smd") {
             se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
             var <- se^2
-            res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var)
+            res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var, verbose = FALSE)  # No logs
         } else {
             res_i <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
-                             studlab = df$study, sm = input$effect_measure)
+                             studlab = df$study, sm = input$effect_measure, verbose = FALSE)  # No logs
         }
       c(mu_change = res_i$mu - bivariate_result()$mu,
         tau_change = res_i$tau - bivariate_result()$tau)
@@ -869,10 +870,12 @@ server <- function(input, output, session) {
     effect_label <- effect_measure_label()
     plot_title <- paste("Efficacy/Harm Plot for", effect_label)
     
-    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result()$dev_pvals)
+    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result()$dev_pvals, sm = bivariate_result()$sm)
     comp.eff.harm.plot(CDF.ci.obj,
                        efficacy.is.OR.le1 = (bivariate_result()$sm == "OR"),
-                       mlb = plot_title)
+                       mlb = plot_title,
+                       xlb = paste("Effect Size (", effect_label, ")"),
+                       sm = bivariate_result()$sm)
   })
   
   # Bivariate GOSH Plot

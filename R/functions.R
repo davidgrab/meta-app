@@ -1806,10 +1806,12 @@ efficacy_harm_plot <- function(bivariate_model) {
     return(invisible(NULL))
   }
   
-  CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_model$dev_pvals)
+  CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_model$dev_pvals, sm = bivariate_model$sm)
   comp.eff.harm.plot(CDF.ci.obj,
                      efficacy.is.OR.le1 = (bivariate_model$sm == "OR"),
-                     mlb = paste("Efficacy/Harm plot for", bivariate_model$sm))
+                     mlb = paste("Efficacy/Harm plot for", bivariate_model$sm),
+                     xlb = paste("Effect Size (", bivariate_model$sm, ")"),
+                     sm = bivariate_model$sm)
 }
 
 enhanced_baujat_plot <- function(bivariate_model) {
