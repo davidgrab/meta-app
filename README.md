@@ -31,6 +31,12 @@ Experience the future of meta-analysis: [Modern Meta-Analysis App](https://moder
 - **Supports binary (2x2), continuous (Standardized Mean Difference - SMD), and Hazard Ratio (HR) data structures**
 - **For continuous data, the SMD column may also appear as CoNC or HeadGrid-G (all interpreted as SMD for now)**
 - **For Hazard Ratios, data can be provided as HR and 95% CI, or as log(HR) and its standard error**
+- **Subgroup analysis to explore heterogeneity based on study characteristics.**
+- **Meta-regression to explore the impact of study-level covariates on effect sizes.**
+
+## 📝 App Overview
+
+This Shiny application provides a comprehensive platform for conducting meta-analyses. Users can upload their data in various formats (binary, SMD, HR), perform meta-analyses using fixed effect or random effects models, and explore results through interactive plots and tables. Key functionalities include heterogeneity assessment, publication bias diagnostics, sensitivity analyses, and GRADE quality assessment. The app also supports subgroup analyses, allowing users to investigate whether observed effects differ across predefined study characteristics (e.g., patient populations, study settings). Furthermore, it incorporates meta-regression capabilities, enabling users to explore how specific study-level covariates (continuous or categorical) influence the overall effect sizes, providing deeper insights into sources of variation. This feature helps in understanding potential sources of heterogeneity and tailoring conclusions.
 
 ## 🚀 Quick Start
 

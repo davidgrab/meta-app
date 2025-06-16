@@ -1184,6 +1184,7 @@ params:
   fixed_results: NA
   bivariate_results: NA
   data: NA
+  input_subgroup_var: NA # Added for subgroup variable
 ---
 
 ```{r setup, include=FALSE}
@@ -1208,10 +1209,35 @@ safe_run <- function(expr, fallback = NULL) {
   )
 }
 
-# Determine if HR analysis
-is_hr_analysis <- !is.null(params$random_results) && params$random_results$sm == "HR"
-effect_measure_label <- if (is_hr_analysis) "Hazard Ratio (HR)" else paste0(params$random_results$sm)
-log_effect_measure_label <- if (is_hr_analysis) "log(Hazard Ratio)" else paste0("log(", params$random_results$sm, ")")
+# Determine if HR analysis and set labels
+is_hr_analysis <- !is.null(params$random_results) && !is.na(params$random_results$sm) && params$random_results$sm == "HR"
+effect_measure_label <- "Effect Size" # Default
+log_effect_measure_label <- "log(Effect Size)" # Default
+
+if (!is.null(params$random_results) && !is.na(params$random_results$sm)) {
+  effect_measure_label <- switch(params$random_results$sm,
+                                 "HR" = "Hazard Ratio (HR)",
+                                 "OR" = "Odds Ratio (OR)",
+                                 "RR" = "Risk Ratio (RR)",
+                                 "SMD" = "Standardized Mean Difference (SMD)",
+                                 params$random_results$sm)
+  log_effect_measure_label <- switch(params$random_results$sm,
+                                     "HR" = "log(Hazard Ratio)",
+                                     "OR" = "log(Odds Ratio)",
+                                     "RR" = "log(Risk Ratio)",
+                                     # SMD is usually not logged in the same way for interpretation in funnel plots, but analysis is on original SMD scale
+                                     "SMD" = "Standardized Mean Difference (SMD)",
+                                     paste0("log(",params$random_results$sm,")"))
+}
+
+
+# Determine if subgroup analysis was performed
+subgroup_analysis_performed <- !is.null(params$input_subgroup_var) &&
+                               params$input_subgroup_var != "" &&
+                               !is.null(params$random_results) &&
+                               !is.null(params$random_results$k.byvar) &&
+                               length(params$random_results$k.byvar) > 0 &&
+                               any(params$random_results$k.byvar > 0) # Ensures there's at least one subgroup with studies
 
 ```
 
@@ -1253,9 +1279,47 @@ safe_run({
 }, cat("Interpretation unavailable"))
 ```
 
+```{r subgroup-test-results, eval = subgroup_analysis_performed, echo = FALSE, comment = NA}
+if(subgroup_analysis_performed && !is.null(params$random_results)) {
+  cat("### Test for Subgroup Differences\n\n")
+  cat(paste0("Subgrouping variable: **", params$input_subgroup_var, "**\n\n"))
+  cat("Based on Random Effects Model:\n")
+  if (!is.null(params$random_results$Q.b) && !is.null(params$random_results$df.Q.b) && !is.null(params$random_results$pval.Q.b)) {
+    cat(sprintf("  Test for subgroup differences: Q = %.2f, df = %d, p = %.4f\n", params$random_results$Q.b, params$random_results$df.Q.b, params$random_results$pval.Q.b))
+    if (!is.null(params$random_results$I2.b)) {
+      cat(sprintf("  Between-subgroup heterogeneity (I²_b): %.2f%%\n", params$random_results$I2.b * 100))
+    }
+  } else {
+    cat("  Test for subgroup differences not available or not calculated (e.g., only one subgroup level has data, or too few studies per subgroup).\n")
+  }
+  # Optionally, add fixed effects model subgroup test results if desired and available
+  if (!is.null(params$fixed_results) && !is.null(params$fixed_results$Q.b) && !is.null(params$fixed_results$df.Q.b) && !is.null(params$fixed_results$pval.Q.b)) {
+    cat("\nBased on Fixed Effects Model:\n")
+    cat(sprintf("  Test for subgroup differences: Q = %.2f, df = %d, p = %.4f\n", params$fixed_results$Q.b, params$fixed_results$df.Q.b, params$fixed_results$pval.Q.b))
+  }
+}
+```
+
+```{r subgroup-interpretation, eval = subgroup_analysis_performed, echo = FALSE, comment = NA}
+if(subgroup_analysis_performed && !is.null(params$random_results) && !is.null(params$random_results$Q.b) && !is.null(params$random_results$pval.Q.b)) {
+  cat("\n\n**Interpretation of Subgroup Analysis:**\n")
+  if (params$random_results$pval.Q.b < 0.05) {
+    cat(paste0("The test for subgroup differences (based on the random effects model) was statistically significant (p = ", sprintf("%.4f", params$random_results$pval.Q.b), "), suggesting that the `r effect_measure_label` may differ across subgroups of '", params$input_subgroup_var, "'. Further investigation of individual subgroup estimates is warranted.\n"))
+  } else {
+    cat(paste0("The test for subgroup differences (based on the random effects model) was not statistically significant (p = ", sprintf("%.4f", params$random_results$pval.Q.b), "), suggesting no clear evidence that the `r effect_measure_label` differs across subgroups of '", params$input_subgroup_var, "'. However, this does not rule out clinically relevant differences, especially if the power of the test was low.\n"))
+  }
+}
+```
+
 # Random Effects Analysis
 
-## `r effect_measure_label` and Heterogeneity
+```{r random-summary-title, eval = subgroup_analysis_performed, echo = FALSE, comment=NA}
+if(subgroup_analysis_performed) {
+  cat(paste0("## Random Effects Model (Subgrouped by: ", params$input_subgroup_var, ")\n\n"))
+} else {
+  cat("## `r effect_measure_label` and Heterogeneity\n\n")
+}
+```
 
 ```{r random-forest-plot, fig.width=12, fig.height=8, error=TRUE}
 safe_run({
@@ -1369,7 +1433,13 @@ safe_run({
 
 # Fixed Effects Analysis
 
-## `r effect_measure_label` and Heterogeneity
+```{r fixed-summary-title, eval = subgroup_analysis_performed, echo = FALSE, comment=NA}
+if(subgroup_analysis_performed) {
+  cat(paste0("## Fixed Effects Model (Subgrouped by: ", params$input_subgroup_var, ")\n\n"))
+} else {
+  cat("## `r effect_measure_label` and Heterogeneity\n\n")
+}
+```
 
 ```{r fixed-forest-plot, fig.width=12, fig.height=8, error=TRUE}
 safe_run({

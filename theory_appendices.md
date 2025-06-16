@@ -81,6 +81,19 @@ The random-effects model assumes that the true effect size varies from study to 
 
 The plots and summaries in this section are analogous to those in the Fixed Effects Analysis section but are based on the random-effects model assumptions.
 
+## Subgroup Analysis
+
+Subgroup analyses can be performed to investigate heterogeneity and explore whether the overall effect size differs based on certain study characteristics (e.g., patient populations, study settings, intervention types).
+
+In this application, subgroup analyses are conducted by specifying a categorical `byvar` (subgrouping variable) in the `metabin` (for binary data) or `metagen` (for continuous/SMD and HR data) functions from the `meta` package.
+
+When a subgroup analysis is performed:
+*   The chosen meta-analysis model (fixed effect or random effects) is applied separately to each subgroup defined by the levels of the `byvar`.
+*   An overall test for subgroup differences (also known as a test for interaction) is performed. This test assesses whether there is statistically significant heterogeneity between the subgroup-specific effect estimates. It is typically based on a Q-statistic (Cochran's Q) with degrees of freedom equal to the number of subgroups minus 1. A significant p-value for this test suggests that the effect measure truly varies across the subgroups. The `meta` package provides this test (often denoted $Q_b$) and its p-value.
+*   The results will include both the pooled estimates within each subgroup and the overall pooled estimate across all studies (if applicable, depending on the model and settings). Forest plots will also display results by subgroup.
+
+It's important to note that subgroup analyses should be pre-specified whenever possible and interpreted with caution, especially if there are many subgroup variables tested or if subgroups contain few studies, as this can lead to spurious findings. The power to detect genuine subgroup differences is often low.
+
 ## Bivariate Approach
 
 The bivariate approach is a more advanced random-effects model that is implemented in this application based on the methodology described in Saad et al. (2019) and the supplementary material provided. This model assumes that the observed effect sizes (`y_k` for study `k`) arise from a normal distribution with a study-specific mean (`θ_k`) and within-study variance (`σ_k^2`). The study-specific means `θ_k` are themselves assumed to be a random sample from a normal distribution with a common mean `μ` (the overall effect size) and between-study variance `τ^2`.
@@ -132,4 +145,43 @@ The bivariate model is adapted for different effect measures:
 *   **Confidence Region Shift Plot**: This is a novel plot for sensitivity analysis in the bivariate model. It shows how the 95% confidence region for (`μ`, `τ`) shifts when each study is removed one at a time. This helps to visually identify influential studies that cause a large shift in the confidence region.
 *   **Enhanced Baujat Plot**: This plot is adapted for the bivariate model to identify influential studies. It plots a measure of a study's contribution to heterogeneity against its influence on the pooled estimate.
 
-This completes the theoretical overview of the methods implemented in the app. The use of established libraries for standard methods and a custom implementation for the advanced bivariate approach provides a robust and comprehensive tool for meta-analysis. 
+This completes the theoretical overview of the methods implemented in the app. The use of established libraries for standard methods and a custom implementation for the advanced bivariate approach provides a robust and comprehensive tool for meta-analysis.
+
+## Meta-Regression
+
+Meta-regression is used to explore the relationship between study-level covariates (characteristics of the studies) and the effect sizes observed in those studies. It aims to explain some of the heterogeneity between studies by accounting for these covariates.
+
+The basic model for a meta-regression with one covariate can be expressed as:
+\[
+TE_i = \beta_0 + \beta_1 \times X_{1i} + u_i + e_i
+\]
+Where:
+- $TE_i$ is the observed effect size in study $i$.
+- $\beta_0$ is the estimated overall effect size when the covariate $X_{1i}$ is zero (or at its baseline level if categorical).
+- $X_{1i}$ is the value of the covariate for study $i$.
+- $\beta_1$ is the estimated change in $TE_i$ for each one-unit increase in $X_{1i}$. If $X_{1i}$ is categorical, $\beta_1$ represents the difference compared to a reference category.
+- $u_i$ is the random effect for study $i$, representing the deviation of study $i$'s true effect from that predicted by covariates, where $u_i \sim N(0, \tau^2)$. $\tau^2$ is the residual heterogeneity, i.e., the between-study variance not explained by the covariate(s).
+- $e_i$ is the within-study error for study $i$, where $e_i \sim N(0, \sigma_i^2)$, and $\sigma_i^2$ is the known within-study variance.
+
+This model can be extended to include multiple covariates.
+
+### Implementation
+In this application, meta-regression is performed using the `metareg()` function from the **`meta`** R package. This function takes a pre-existing meta-analysis object (typically a random-effects model from `metagen` or `metabin`) and adds one or more covariates to the model.
+
+### Key Outputs
+Common outputs from a meta-regression analysis include:
+*   **Coefficients ($\beta$) for each covariate**: These indicate the strength and direction of the relationship between the covariate and the effect size.
+*   **Standard Errors (SE) and Confidence Intervals for coefficients**: These provide a measure of precision for the estimated coefficients.
+*   **Test of Significance for each coefficient**: Typically a z-test or t-test to determine if the coefficient is statistically significantly different from zero.
+*   **Test of Moderators (e.g., QM statistic)**: An omnibus test to assess whether the set of all covariates included in the model significantly explains heterogeneity.
+*   **Residual Heterogeneity ($\tau^2$)**: An estimate of the between-study variance that remains unexplained after accounting for the covariates. A reduction in $\tau^2$ compared to the model without covariates suggests that the covariates explain some of the heterogeneity.
+*   **R-squared (R²)**: An estimate of the proportion of between-study variance explained by the covariates.
+
+### Bubble Plot
+A common visualization for meta-regression (especially with a single continuous covariate) is a bubble plot. In this plot:
+*   The x-axis represents the values of the covariate.
+*   The y-axis represents the effect sizes of the studies.
+*   Each study is represented by a bubble, where the size of the bubble is often proportional to the precision of the study (e.g., inverse of the within-study variance).
+*   A regression line is typically overlaid to show the estimated relationship between the covariate and the effect size.
+
+This plot helps to visually assess the relationship and identify studies that may be particularly influential or deviate from the overall trend.

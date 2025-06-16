@@ -74,6 +74,13 @@ ui <- page_fillable(
       ),
       hr(), # Visual separation for subgroup UI
       uiOutput("subgroup_var_ui"), # Placeholder for subgroup variable selection
+      hr(), # Visual separation for meta-regression UI
+      div(style = "display: flex; align-items: center;",
+          h4("Meta-Regression (Optional)", style = "margin-right: 10px;"),
+          actionButton("metareg_info", "", icon = icon("info-circle"),
+                       style = "height: 20px; width: 20px; padding: 0; font-size: 10px; line-height: 1px;")
+      ),
+      uiOutput("metareg_var_ui"), # Placeholder for meta-regression covariate selection
       actionButton("analyze", "Analyze", class = "btn-primary"),
       hr(),
       h4("Data Cleaning"),
@@ -123,7 +130,12 @@ ui <- page_fillable(
                            verbatimTextOutput("methodComparisonSummary")),
                   tabPanel("Summary Table", 
                            actionButton("summary_table_info", "", icon = icon("info-circle"), class = "help-text"),
-                           tableOutput("overallSummaryTable")),
+                           tableOutput("overallSummaryTable"),
+                           hr(),
+                           h4("Test for Subgroup Differences"),
+                           verbatimTextOutput("subgroup_test_output"),
+                           p("This test assesses whether there is significant heterogeneity between the subgroups.", class = "plot-explanation")
+                           ),
                   # tabPanel("Overall Interpretation", 
                   #          actionButton("overall_interpretation_info", "", icon = icon("info-circle"), class = "help-text"),
                   #          verbatimTextOutput("overallInterpretation"))
@@ -338,7 +350,7 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         withSpinner(plotOutput("qqPlotMuRaw")),
-                                        p("Q-Q plot (raw residuals): Assesses normality of raw residuals, with point size proportional to study size.", class = "plot-explanation")
+                                        p("Q-Q plot (raw residuals): Assesses normality of raw residuals. Point size is scaled by study precision (lower variance = larger point).", class = "plot-explanation")
                                     )
                              )
                            )
@@ -386,6 +398,18 @@ ui <- page_fillable(
                   #          verbatimTextOutput("bivariateGRADESummary")
                   # )
                 )
+      ),
+      nav_panel("Meta-Regression",
+                icon = icon("chart-line"),
+                h4("Meta-Regression Model Summary"),
+                withSpinner(verbatimTextOutput("metareg_summary_output")),
+                p("Shows coefficients, standard errors, p-values, and heterogeneity statistics for the meta-regression model.", class="plot-explanation"),
+                hr(),
+                h4("Meta-Regression Plot(s)"),
+                # Optional: UI to select which covariate to plot if multiple are selected
+                # uiOutput("metareg_covariate_plot_selector_ui"),
+                withSpinner(plotOutput("metareg_plot_output")),
+                p("Displays the relationship between the selected covariate(s) and the effect size. If multiple covariates were selected, a plot for the first selected covariate is shown by default.", class="plot-explanation")
       )
     )
   )

@@ -46,7 +46,8 @@ server <- function(input, output, session) {
   # Initially hide all tabs except Data Preview
   observe({
     print("Hiding tabs")
-    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach"), function(tab) {
+    # Also hide Meta-Regression tab initially
+    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach", "Meta-Regression"), function(tab) {
       hideTab(inputId = "main_tabs", target = tab)
     })
   })
@@ -60,13 +61,34 @@ server <- function(input, output, session) {
       showTab(inputId = "main_tabs", target = tab)
     })
 
+    subgroup_selected <- !is.null(input$subgroup_var) && input$subgroup_var != ""
+    metareg_selected <- !is.null(input$metareg_vars) && length(input$metareg_vars) > 0
+
     # Conditionally show or hide Bivariate Approach tab
-    if (input$data_type == "hr") {
+    if (input$data_type == "hr" || subgroup_selected || metareg_selected) {
       hideTab(inputId = "main_tabs", target = "Bivariate Approach")
-      print("Data type is HR, hiding Bivariate Approach tab")
+      if (input$data_type == "hr") print("Data type is HR, hiding Bivariate Approach tab.")
+      if (subgroup_selected) print("Subgroup analysis active, hiding Bivariate Approach tab.")
+      if (metareg_selected && !subgroup_selected && input$data_type != "hr") print("Meta-regression active, hiding Bivariate Approach tab.")
     } else {
       showTab(inputId = "main_tabs", target = "Bivariate Approach")
-      print(paste("Data type is", input$data_type, ", showing Bivariate Approach tab"))
+      print(paste("Data type is", input$data_type, ", no subgroup analysis, and no meta-regression, showing Bivariate Approach tab."))
+    }
+
+    # Notification for meta-regression and subgroup analysis conflict
+    if (subgroup_selected && metareg_selected) {
+      showNotification("Subgroup analysis and meta-regression are both selected. Meta-regression will be skipped. Bivariate tab will also be hidden.",
+                       type = "warning", duration = 10)
+    }
+
+    # Conditionally show or hide Meta-Regression tab
+    if (metareg_selected && !subgroup_selected) {
+      showTab(inputId = "main_tabs", target = "Meta-Regression")
+      print("Meta-regression selected, showing Meta-Regression tab.")
+    } else {
+      hideTab(inputId = "main_tabs", target = "Meta-Regression")
+      if (metareg_selected && subgroup_selected) print("Meta-regression will be skipped due to active subgroup analysis; hiding Meta-Regression tab.")
+      else if (!metareg_selected) print("No meta-regression covariates selected, hiding Meta-Regression tab.")
     }
   })
   
@@ -75,28 +97,20 @@ server <- function(input, output, session) {
     print(paste("Dark mode toggled:", input$dark_mode))
     if (input$dark_mode == "light") {
       showNotification("Welcome to the light side!")
-      # session$setCurrentTheme(
-      #   #bs_theme(version = 5, bootswatch = "vapor")
-      #   light_theme
-      # )
     }else {
       showNotification("Welcome to the dark side!")
-      #session$setCurrentTheme(
-      #bs_theme(version = 5, bootswatch = "flatly")
-      #dark_theme
-      #)
-      
     }
   })
-  
-  
   
   # App Info popup
   observeEvent(input$info, {
     print("Info button clicked")
     showModal(modalDialog(
       title = "About this App",
-      "This app performs advanced meta-analysis with GRADE assessment. Upload your data, choose analysis options, and explore the results across different models.",
+      HTML(paste0("This app performs advanced meta-analysis with GRADE assessment. Upload your data, choose analysis options, and explore the results across different models.",
+                  " Key features include support for various data types (binary, continuous/SMD, Hazard Ratio), heterogeneity assessment, publication bias diagnostics, sensitivity analyses, and GRADE quality assessment. ",
+                  "The app also supports subgroup analyses to investigate sources of heterogeneity based on study-level covariates. ",
+                  "Additionally, meta-regression can be performed to investigate how study characteristics (covariates) influence the observed effect sizes.")),
       easyClose = TRUE,
       footer = NULL
     ))
@@ -125,7 +139,9 @@ server <- function(input, output, session) {
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pe</b>: Placebo/control group events<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pt</b>: Placebo/control group total<br><br>",
         "2. Click 'Browse' to select your file.<br><br>",
-        "3. The data will load and display in the 'Data Preview' tab."
+        "3. The data will load and display in the 'Data Preview' tab.<br><br>",
+        "4. Optionally, include additional columns with categorical study characteristics (e.g., study setting, patient demographics) for subgroup analysis. Ensure these columns have a limited number of distinct categories.<br><br>",
+        "5. For meta-regression, ensure your dataset includes columns for potential covariates (moderators). These can be numeric (e.g., average age, year of publication) or categorical (e.g., study setting, intervention type)."
       )
     )
     
@@ -139,7 +155,9 @@ server <- function(input, output, session) {
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_upper</b>: Upper bound of the 95% confidence interval<br>",
         "<br><b>Note:</b> The SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br><br>",
         "2. Click 'Browse' to select your file.<br><br>",
-        "3. The app will calculate the standard error and variance for you."
+        "3. The app will calculate the standard error and variance for you.<br><br>",
+        "4. Optionally, include additional columns with categorical study characteristics for subgroup analysis.<br><br>",
+        "5. For meta-regression, ensure your dataset includes columns for potential covariates (moderators). These can be numeric (e.g., average age, year of publication) or categorical (e.g., study setting, intervention type)."
       )
     )
     
@@ -157,7 +175,9 @@ server <- function(input, output, session) {
         "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>loghr</b>: Natural logarithm of the Hazard Ratio<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• <b>se_loghr</b>: Standard error of the log Hazard Ratio<br><br>",
         "2. Click 'Browse' to select your file.<br><br>",
-        "3. The data will load and display in the 'Data Preview' tab. The app will convert Format 1 to logHR and SE for analysis."
+        "3. The data will load and display in the 'Data Preview' tab. The app will convert Format 1 to logHR and SE for analysis.<br><br>",
+        "4. Optionally, include additional columns with categorical study characteristics for subgroup analysis.<br><br>",
+        "5. For meta-regression, ensure your dataset includes columns for potential covariates (moderators). These can be numeric (e.g., average age, year of publication) or categorical (e.g., study setting, intervention type)."
       )
     )
 
@@ -165,15 +185,78 @@ server <- function(input, output, session) {
       smd_instructions
     } else if (input$data_type == "hr") {
       hr_instructions
-    } else {
-      binary_instructions
+    } else { # binary
+      # Add the meta-regression point to the binary_instructions string directly
+      HTML(
+        paste0(
+          binary_instructions, # This already has points 1-4
+          "<br><br>5. For meta-regression, ensure your dataset includes columns for potential covariates (moderators). These can be numeric (e.g., average age, year of publication) or categorical (e.g., study setting, intervention type)."
+        )
+      )
     }
+    # If it's SMD or HR, the variables smd_instructions and hr_instructions already contain point 5.
+    # If it's binary, we append point 5.
+    # This avoids duplicating point 5 if modal_content is one of the pre-defined ones.
+    # However, the current structure assigns one of the *_instructions to modal_content first, then shows it.
+    # A cleaner way is to append to each instruction string first.
+
+    # Re-evaluate modal_content with appended meta-regression info for all types
+    general_metareg_note <- "<br><br><b>Meta-Regression Note:</b> For meta-regression, ensure your dataset includes columns for potential covariates (moderators). These can be numeric (e.g., average age, year of publication) or categorical (e.g., study setting, intervention type)."
+
+    modal_content_final <- if (input$data_type == "smd") {
+      HTML(paste0(smd_instructions)) # Already updated, but ensure it is used.
+    } else if (input$data_type == "hr") {
+      HTML(paste0(hr_instructions)) # Already updated
+    } else { # binary
+       HTML(paste0(
+         "<h4>Binary (2x2) Data</h4>",
+         "1. Prepare your CSV or Excel file with the following columns: <b>study, ie, it, pe, pt</b>.<br>",
+         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
+         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ie</b>: Intervention group events<br>",
+         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>it</b>: Intervention group total<br>",
+         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pe</b>: Placebo/control group events<br>",
+         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pt</b>: Placebo/control group total<br><br>",
+         "2. Click 'Browse' to select your file.<br><br>",
+         "3. The data will load and display in the 'Data Preview' tab.<br><br>",
+         "4. Optionally, include additional columns with categorical study characteristics (e.g., study setting, patient demographics) for subgroup analysis. Ensure these columns have a limited number of distinct categories.",
+         general_metareg_note # Append the general note
+      ))
+    }
+
+
     
     showModal(modalDialog(
       title = "How to Upload Data",
-      modal_content,
+      modal_content_final, # Use the final version with the note
       easyClose = TRUE,
       footer = NULL
+    ))
+  })
+
+  # Meta-Regression Info Popup
+  observeEvent(input$metareg_info, {
+    showModal(modalDialog(
+      title = "Meta-Regression Information",
+      HTML(paste0(
+        "<h4>What is Meta-Regression?</h4>",
+        "<p>Meta-regression is an extension to meta-analysis that allows you to investigate whether specific study characteristics (covariates or moderators) are associated with the magnitude of the effect size. It helps explore sources of heterogeneity between studies.</p>",
+        "<h4>How to Select Covariates:</h4>",
+        "<p>From the sidebar, you can select one or more covariates from your uploaded dataset. These can be:",
+        "<ul><li><b>Numeric:</b> e.g., average age of participants, year of publication, dosage.</li>",
+        "<li><b>Categorical:</b> e.g., study setting (hospital vs. community), type of intervention, patient population (male vs. female). Categorical variables will be dummy coded for the analysis.</li></ul></p>",
+        "<h4>Interpreting the Summary Output:</h4>",
+        "<ul><li><b>Coefficients (estimate):</b> For a numeric covariate, the coefficient indicates the change in the (log) effect size for each one-unit increase in the covariate. For a categorical covariate, it represents the difference in (log) effect size for that category compared to the reference category.</li>",
+        "<li><b>p-value (pval):</b> A small p-value (typically < 0.05) for a coefficient suggests that the covariate is significantly associated with the effect size.</li>",
+        "<li><b>Test of Moderators (QM):</b> This tests the overall significance of all covariates in the model. A significant p-value suggests that at least one covariate influences the effect size.</li>",
+        "<li><b>Adjusted R-squared (R2.adj):</b> Indicates the proportion of between-study variance (heterogeneity) explained by the covariates in the model.</li>",
+        "<li><b>Residual Heterogeneity (tau^2):</b> The amount of between-study variance remaining after accounting for the covariates.</li></ul>",
+        "<h4>Interpreting the Bubble Plot:</h4>",
+        "<p>The bubble plot visualizes the relationship between a selected numeric covariate (on the x-axis) and the study effect sizes (on the y-axis). Each bubble represents a study, and its size is typically proportional to the precision of the study (inverse of its variance). A regression line shows the trend. For HR/OR/RR, effect sizes are plotted on the log scale.</p>",
+        "<h4>Interaction with Subgroup Analysis:</h4>",
+        "<p>Currently, meta-regression will be skipped if a subgroup analysis is also selected. Please choose one or the other for analysis.</p>"
+      )),
+      easyClose = TRUE,
+      footer = modalButton("Close")
     ))
   })
   
@@ -202,66 +285,145 @@ server <- function(input, output, session) {
   })
   
   # Data loading
-  # Modified data reactive
   data <- reactive({
     req(currentData())
-    df <- currentData()
+    raw_df_snapshot <- currentData() # Keep a snapshot of currentData before it's modified by na.omit
+
+    df_to_process <- currentData()
     if (input$remove_na) {
-      df <- na.omit(df)
-    }
-    
-    # Defensively check column count before assigning names
-    if (input$data_type == "binary" && ncol(df) == 5) {
-      names(df) <- c("study", "ie", "it", "pe", "pt")
-      # Convert to numeric just in case they are not
-      df$ie <- as.numeric(df$ie)
-      df$it <- as.numeric(df$it)
-      df$pe <- as.numeric(df$pe)
-      df$pt <- as.numeric(df$pt)
-    } else if (input$data_type == "smd" && ncol(df) == 4) {
-      names(df) <- c("study", "smd", "ci_lower", "ci_upper")
-      # Convert to numeric
-      df$smd <- as.numeric(df$smd)
-      df$ci_lower <- as.numeric(df$ci_lower)
-      df$ci_upper <- as.numeric(df$ci_upper)
-    } else if (input$data_type == "hr") {
-      if (ncol(df) == 4) {
-        names(df) <- c("study", "hr", "ci_lower", "ci_upper")
-        df$hr <- suppressWarnings(as.numeric(df$hr))
-        df$ci_lower <- suppressWarnings(as.numeric(df$ci_lower))
-        df$ci_upper <- suppressWarnings(as.numeric(df$ci_upper))
-
-        # Check for non-positive values which would cause issues with log
-        if (any(df$hr <= 0, na.rm = TRUE) || any(df$ci_lower <= 0, na.rm = TRUE) || any(df$ci_upper <= 0, na.rm = TRUE)) {
-          showNotification("HR and CIs must be positive for log transformation. Please check input data.", type = "error", duration = 10)
-          return(NULL)
-        }
-        if (any(is.na(df$hr)) || any(is.na(df$ci_lower)) || any(is.na(df$ci_upper))) {
-          showNotification("Non-numeric HR or CI values detected after conversion. Please check input data.", type = "error", duration = 10)
-          return(NULL)
-        }
-
-        # Calculate loghr and se_loghr
-        loghr <- log(df$hr)
-        se_loghr <- (log(df$ci_upper) - log(df$ci_lower)) / (2 * qnorm(0.975))
-        df <- data.frame(study = df$study, loghr = loghr, se_loghr = se_loghr)
-
-      } else if (ncol(df) == 3) {
-        names(df) <- c("study", "loghr", "se_loghr")
-        df$loghr <- suppressWarnings(as.numeric(df$loghr))
-        df$se_loghr <- suppressWarnings(as.numeric(df$se_loghr))
-
-        if (any(is.na(df$loghr)) || any(is.na(df$se_loghr))) {
-          showNotification("Non-numeric logHR or SE_logHR values detected after conversion. Please check input data.", type = "error", duration = 10)
-          return(NULL)
-        }
-        # df is already in the desired format
-      } else {
-        showNotification("For HR data, please provide 3 columns (study, loghr, se_loghr) or 4 columns (study, hr, ci_lower, ci_upper).", type = "error", duration = 10)
+      # Important: na.omit removes rows based on ANY NA in that row.
+      # This means if a subgroup or covariate column has NAs, rows might be removed
+      # even if the main data columns (ie, it, smd, etc.) are complete for that row.
+      # This is standard behavior but users should be aware.
+      df_to_process <- na.omit(df_to_process)
+      if(nrow(df_to_process) == 0) {
+        showNotification("All rows removed after NA handling. Please check your data or 'Remove NA' option.", type="error", duration=10)
         return(NULL)
       }
     }
-    df
+
+    processed_df <- NULL
+    # Standardized column names for core data based on data_type
+    if (input$data_type == "binary" && ncol(df_to_process) >= 5) {
+      # Assume the first 5 columns are the core data if more columns exist (e.g. subgroup/covariates)
+      temp_df <- df_to_process[, 1:5, drop = FALSE]
+      names(temp_df) <- c("study", "ie", "it", "pe", "pt")
+      temp_df$ie <- as.numeric(temp_df$ie)
+      temp_df$it <- as.numeric(temp_df$it)
+      temp_df$pe <- as.numeric(temp_df$pe)
+      temp_df$pt <- as.numeric(temp_df$pt)
+      processed_df <- temp_df
+      # Now, add back any other original columns (subgroup, covariates) from df_to_process
+      # This ensures they underwent the same NA filtering if applied
+      other_cols <- names(df_to_process)[!names(df_to_process) %in% names(temp_df)[-1]] # exclude "study" to avoid dup
+      if(length(other_cols) > 0 && "study" %in% names(processed_df)) {
+         processed_df <- cbind(processed_df, df_to_process[, other_cols[other_cols != "study"], drop=FALSE])
+      } else if (length(other_cols) > 0) {
+         processed_df <- cbind(processed_df, df_to_process[, other_cols, drop=FALSE])
+      }
+
+
+    } else if (input$data_type == "smd" && ncol(df_to_process) >= 4) {
+      temp_df <- df_to_process[, 1:4, drop = FALSE]
+      names(temp_df) <- c("study", "smd", "ci_lower", "ci_upper")
+      temp_df$smd <- as.numeric(temp_df$smd)
+      temp_df$ci_lower <- as.numeric(temp_df$ci_lower)
+      temp_df$ci_upper <- as.numeric(temp_df$ci_upper)
+      processed_df <- temp_df
+      other_cols <- names(df_to_process)[!names(df_to_process) %in% names(temp_df)[-1]]
+       if(length(other_cols) > 0 && "study" %in% names(processed_df)) {
+         processed_df <- cbind(processed_df, df_to_process[, other_cols[other_cols != "study"], drop=FALSE])
+      } else if (length(other_cols) > 0) {
+         processed_df <- cbind(processed_df, df_to_process[, other_cols, drop=FALSE])
+      }
+
+    } else if (input$data_type == "hr") {
+      original_hr_names <- names(df_to_process) # Save original names before potential modification
+      if (ncol(df_to_process) >= 4 && all(c("hr", "ci_lower", "ci_upper") %in% original_hr_names)) {
+        temp_df_hr <- df_to_process[,c("study", "hr", "ci_lower", "ci_upper")]
+
+        temp_df_hr$hr <- suppressWarnings(as.numeric(temp_df_hr$hr))
+        temp_df_hr$ci_lower <- suppressWarnings(as.numeric(temp_df_hr$ci_lower))
+        temp_df_hr$ci_upper <- suppressWarnings(as.numeric(temp_df_hr$ci_upper))
+
+        if (any(temp_df_hr$hr <= 0, na.rm = TRUE) || any(temp_df_hr$ci_lower <= 0, na.rm = TRUE) || any(temp_df_hr$ci_upper <= 0, na.rm = TRUE) || any(temp_df_hr$ci_lower >= temp_df_hr$ci_upper, na.rm=TRUE)) {
+          showNotification("HR and CIs must be positive and CIs logical. Please check input data.", type = "error", duration = 10)
+          return(NULL)
+        }
+        if (any(is.na(temp_df_hr$hr)) || any(is.na(temp_df_hr$ci_lower)) || any(is.na(temp_df_hr$ci_upper))) {
+          showNotification("Non-numeric HR or CI values detected after conversion. Please check input data.", type = "error", duration = 10)
+          return(NULL)
+        }
+        loghr <- log(temp_df_hr$hr)
+        se_loghr <- (log(temp_df_hr$ci_upper) - log(temp_df_hr$ci_lower)) / (2 * qnorm(0.975))
+        processed_df <- data.frame(study = temp_df_hr$study, loghr = loghr, se_loghr = se_loghr)
+
+        # Add back other columns
+        other_cols_names <- original_hr_names[!original_hr_names %in% c("hr", "ci_lower", "ci_upper", "study")]
+        if(length(other_cols_names) > 0){
+            processed_df <- cbind(processed_df, df_to_process[, other_cols_names, drop=FALSE])
+        }
+
+      } else if (ncol(df_to_process) >= 3 && all(c("loghr", "se_loghr") %in% original_hr_names)) {
+        temp_df_loghr <- df_to_process[,c("study", "loghr", "se_loghr")]
+        temp_df_loghr$loghr <- suppressWarnings(as.numeric(temp_df_loghr$loghr))
+        temp_df_loghr$se_loghr <- suppressWarnings(as.numeric(temp_df_loghr$se_loghr))
+        if (any(is.na(temp_df_loghr$loghr)) || any(is.na(temp_df_loghr$se_loghr))) {
+          showNotification("Non-numeric logHR or SE_logHR values detected. Please check input data.", type = "error", duration = 10)
+          return(NULL)
+        }
+        processed_df <- temp_df_loghr
+        # Add back other columns
+        other_cols_names <- original_hr_names[!original_hr_names %in% c("loghr", "se_loghr", "study")]
+         if(length(other_cols_names) > 0){
+            processed_df <- cbind(processed_df, df_to_process[, other_cols_names, drop=FALSE])
+        }
+      } else {
+        showNotification("For HR data, column names must be 'study', 'hr', 'ci_lower', 'ci_upper' OR 'study', 'loghr', 'se_loghr'. Additional columns for subgroup/meta-regression are allowed.", type = "error", duration = 15)
+        return(NULL)
+      }
+    } else if (ncol(df_to_process) < 3) { # General check for too few columns
+        showNotification("Uploaded data has too few columns for the selected data type.", type = "error", duration = 10)
+        return(NULL)
+    } else { # Data type not binary, smd, or hr, but has enough columns, assume it might be for other types later
+        # Or, more likely, it's a mismatch with expected columns for selected type
+        showNotification("Data type and column structure mismatch. Please ensure first columns match expected format (e.g., study, ie, it, pe, pt for binary).", type = "warning", duration=10)
+        # Try to preserve original columns if no specific processing matched
+        # but this is risky as downstream functions expect specific names.
+        # For now, return NULL if no specific processing path was taken but data type was selected.
+        if(input$data_type %in% c("binary", "smd", "hr")) return(NULL)
+        processed_df <- df_to_process # Pass through if not a known type with specific processing
+    }
+
+    if (is.null(processed_df)) {
+      showNotification("Data processing failed. Please check data format and column names.", type = "error", duration = 10)
+      return(NULL)
+    }
+
+    # Ensure subgroup and meta-regression variables are correctly typed and appended
+    # These variables are taken from 'df_to_process' which has undergone na.omit if selected
+    # This ensures that the rows align with 'processed_df' if no rows were dropped during main data col processing
+    if (!is.null(input$subgroup_var) && input$subgroup_var != "" && input$subgroup_var %in% names(df_to_process)) {
+      if (nrow(processed_df) == nrow(df_to_process)) { # Check row alignment
+        processed_df[[input$subgroup_var]] <- df_to_process[[input$subgroup_var]]
+      } else {
+        showNotification(paste("Could not align subgroup variable '", input$subgroup_var, "' due to row changes during NA removal or data processing. Subgroup analysis may be affected."), type="warning", duration=10)
+      }
+    }
+
+    if (!is.null(input$metareg_vars) && length(input$metareg_vars) > 0) {
+      for (cov_name in input$metareg_vars) {
+        if (cov_name %in% names(df_to_process)) {
+          if (nrow(processed_df) == nrow(df_to_process)) { # Check row alignment
+            processed_df[[cov_name]] <- df_to_process[[cov_name]]
+          } else {
+             showNotification(paste("Could not align covariate '", cov_name, "' due to row changes. Meta-regression may be affected."), type="warning", duration=10)
+          }
+        }
+      }
+    }
+
+    return(processed_df)
   })
   
   # New download
@@ -330,6 +492,30 @@ server <- function(input, output, session) {
                 selected = "")
   })
 
+  # UI for meta-regression covariate selection
+  output$metareg_var_ui <- renderUI({
+    req(currentData()) # Ensure data is loaded
+    df_raw <- currentData()
+    original_col_names <- names(df_raw)
+
+    choices_for_metareg <- original_col_names[!original_col_names %in% c("study")]
+    choices_for_metareg <- choices_for_metareg[sapply(choices_for_metareg, function(col) !all(is.na(df_raw[[col]])))]
+
+    suitable_choices <- c()
+    if (length(choices_for_metareg) > 0) {
+        suitable_choices <- choices_for_metareg[sapply(choices_for_metareg, function(col_name) {
+            col_data <- df_raw[[col_name]]
+            is.numeric(col_data) || is.character(col_data) || is.factor(col_data)
+        })]
+    }
+
+    selectizeInput("metareg_vars",
+                   "Select Covariate(s) for Meta-Regression:",
+                   choices = suitable_choices,
+                   multiple = TRUE,
+                   options = list(placeholder = 'None (overall analysis only)'))
+  })
+
   # New observe events
   observeEvent(input$loadExampleData, {
     dataset_choice <- input$exampleDatasetChoice
@@ -393,161 +579,94 @@ server <- function(input, output, session) {
     stringsAsFactors = FALSE
   )
   
-  # Example dataset
-  # exampleData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
-#1,22,54,21,55
-#2,17,45,9,43
-#3,35,53,12,55
-#4,23,37,15,35
-#5,24,49,16,49
-#6,4,20,11,26
-#7,45,80,12,79
-#8,26,98,19,102
-#9,41,70,4,70
-#10,64,109,48,109
-#11,71,131,51,130
-#12,46,113,56,116
-#13,159,243,26,81
-#14,98,186,80,189
-#15,55,123,57,124
-#16,67,106,22,47
-#17,46,70,34,70
-#18,34,48,25,49")
-  
-  # Colditz et al. (1994) - BCG Vaccine Dataset
-  # colditzData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
-#1,4,123,11,139
-#2,6,306,29,303
-#3,3,231,11,220
-#4,62,13598,248,12867
-#5,33,5069,47,5808
-#6,180,1361,372,1079
-#7,8,2545,10,629
-#8,505,87886,499,87892
-#9,29,7470,45,7232
-#10,17,1699,65,1600
-#11,186,50634,141,27338
-#12,5,2493,3,2338
-#13,27,16886,29,17825")
-  
-  # Yusuf et al. (1985) - Beta-Blockers Dataset (from Table 6)
-  # yusufData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
-#1,14,56,15,58
-#2,18,66,19,64
-#3,15,100,12,95
-#4,10,52,12,47
-#5,21,226,24,228
-#6,3,38,6,31
-#7,2,20,3,20
-#8,19,76,15,67
-#9,15,106,9,114
-#10,5,62,4,57
-#11,0,9,0,8
-#12,8,133,11,127
-#13,3,48,3,49
-#14,0,16,0,13
-#15,1,42,1,46
-#16,0,25,3,25
-#17,14,221,15,228
-#18,0,11,0,11
-#19,8,259,7,129
-#20,6,157,4,158
-#21,3,177,2,136")
-  
   # Combined analysis
   combinedResults <- eventReactive(input$analyze, {
     req(data())
-    df <- data()
+    df <- data() # This now potentially includes the subgroup variable and covariates
+    subgroup_variable_name <- input$subgroup_var
     
-    if (input$data_type == "binary" && ncol(df) == 5) {
-      random_model <- metabin(event.e = df$ie, 
-                              n.e = df$it,
-                              event.c = df$pe,
-                              n.c = df$pt,
-                              studlab = df$study,
-                              sm = input$effect_measure, 
-                              method.tau = input$het_estimator,
-                              common = FALSE,
-                              random = TRUE)
-      
-      fixed_model <- metabin(event.e = df$ie, 
-                             n.e = df$it,
-                             event.c = df$pe,
-                             n.c = df$pt,
-                             studlab = df$study,
-                             sm = input$effect_measure, 
-                             common = TRUE,
-                             random = FALSE)
-      
-      bivariate_model <- metabiv(event.e = df$ie, 
-                                 n.e = df$it, 
-                                 event.c = df$pe, 
-                                 n.c = df$pt,
-                                 studlab = df$study,
-                                 sm = input$effect_measure)
-      
-    } else if (input$data_type == "smd" && ncol(df) == 4) {
-      
-      # Calculate SE and variance from CI
-      se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
-      var <- se^2
-      
-      random_model <- metagen(TE = df$smd,
-                              seTE = se,
-                              studlab = df$study,
-                              sm = "SMD",
-                              method.tau = input$het_estimator,
-                              common = FALSE,
-                              random = TRUE)
-      
-      fixed_model <- metagen(TE = df$smd,
-                             seTE = se,
-                             studlab = df$study,
-                             sm = "SMD",
-                             common = TRUE,
-                             random = FALSE)
-      
-      bivariate_model <- metabiv(studlab = df$study,
-                                 sm = "SMD",
-                                 y = df$smd,
-                                 sigma2 = var)
-    } else if (input$data_type == "hr" && ncol(df) == 3 && all(c("study", "loghr", "se_loghr") %in% names(df))) {
-      # Data should already be processed into loghr and se_loghr by the `data()` reactive
-      random_model <- metagen(TE = df$loghr,
-                              seTE = df$se_loghr,
-                              studlab = df$study,
-                              sm = "HR",
-                              method.tau = input$het_estimator,
-                              common = FALSE,
-                              random = TRUE)
+    random_model <- NULL
+    fixed_model <- NULL
+    bivariate_model <- NULL
 
-      fixed_model <- metagen(TE = df$loghr,
-                             seTE = df$se_loghr,
-                             studlab = df$study,
-                             sm = "HR",
-                             common = TRUE,
-                             random = FALSE)
+    perform_subgroup_analysis <- !is.null(subgroup_variable_name) && subgroup_variable_name != "" && subgroup_variable_name %in% names(df)
 
-      bivariate_model <- NULL # No bivariate model for HR data for now
+    if (perform_subgroup_analysis) {
+      print(paste("Performing subgroup analysis by:", subgroup_variable_name))
+      bivariate_model <- NULL
+      
+      if (input$data_type == "binary") {
+        req(df$study, df$ie, df$it, df$pe, df$pt, df[[subgroup_variable_name]])
+        random_model <- metabin(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+                                studlab = df$study, sm = input$effect_measure, method.tau = input$het_estimator,
+                                byvar = df[[subgroup_variable_name]], common = FALSE, random = TRUE)
+        fixed_model <- metabin(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+                               studlab = df$study, sm = input$effect_measure,
+                               byvar = df[[subgroup_variable_name]], common = TRUE, random = FALSE)
+      } else if (input$data_type == "smd") {
+        req(df$study, df$smd, df$ci_lower, df$ci_upper, df[[subgroup_variable_name]])
+        se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+        random_model <- metagen(TE = df$smd, seTE = se, studlab = df$study, sm = "SMD",
+                                method.tau = input$het_estimator, byvar = df[[subgroup_variable_name]],
+                                common = FALSE, random = TRUE)
+        fixed_model <- metagen(TE = df$smd, seTE = se, studlab = df$study, sm = "SMD",
+                               byvar = df[[subgroup_variable_name]], common = TRUE, random = FALSE)
+      } else if (input$data_type == "hr") {
+        req(df$study, df$loghr, df$se_loghr, df[[subgroup_variable_name]])
+        random_model <- metagen(TE = df$loghr, seTE = df$se_loghr, studlab = df$study, sm = "HR",
+                                method.tau = input$het_estimator, byvar = df[[subgroup_variable_name]],
+                                common = FALSE, random = TRUE)
+        fixed_model <- metagen(TE = df$loghr, seTE = df$se_loghr, studlab = df$study, sm = "HR",
+                               byvar = df[[subgroup_variable_name]], common = TRUE, random = FALSE)
+      } else {
+        showNotification("Subgroup analysis selected, but data type or columns are not as expected.", type = "error")
+        return(NULL)
+      }
+    } else { # Overall analysis
+      print("Performing overall analysis (no subgroup variable selected or found).")
+      if (input$data_type == "binary" && all(c("study", "ie", "it", "pe", "pt") %in% names(df))) {
+        random_model <- metabin(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+                                studlab = df$study, sm = input$effect_measure, method.tau = input$het_estimator,
+                                common = FALSE, random = TRUE)
+        fixed_model <- metabin(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+                               studlab = df$study, sm = input$effect_measure, common = TRUE, random = FALSE)
+        if(is.null(input$metareg_vars) || length(input$metareg_vars) == 0) { # Bivariate only if no metareg
+             bivariate_model <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+                                   studlab = df$study, sm = input$effect_measure)
+        }
+      } else if (input$data_type == "smd" && all(c("study", "smd", "ci_lower", "ci_upper") %in% names(df))) {
+        se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+        var <- se^2
+        random_model <- metagen(TE = df$smd, seTE = se, studlab = df$study, sm = "SMD",
+                                method.tau = input$het_estimator, common = FALSE, random = TRUE)
+        fixed_model <- metagen(TE = df$smd, seTE = se, studlab = df$study, sm = "SMD",
+                               common = TRUE, random = FALSE)
+        if(is.null(input$metareg_vars) || length(input$metareg_vars) == 0) { # Bivariate only if no metareg
+            bivariate_model <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var)
+        }
+      } else if (input$data_type == "hr" && all(c("study", "loghr", "se_loghr") %in% names(df))) {
+        random_model <- metagen(TE = df$loghr, seTE = df$se_loghr, studlab = df$study, sm = "HR",
+                                method.tau = input$het_estimator, common = FALSE, random = TRUE)
+        fixed_model <- metagen(TE = df$loghr, seTE = df$se_loghr, studlab = df$study, sm = "HR",
+                               common = TRUE, random = FALSE)
+        bivariate_model <- NULL
+      } else {
+        showNotification("Data columns do not match selected data type for overall analysis.", type = "warning")
+        return(NULL)
+      }
+    }
 
-    } else {
-      # Handle cases where data and type don't match, or HR data is not in the expected 3-column format here
-      showNotification("Data columns do not match selected data type or expected HR format (study, loghr, se_loghr).", type = "warning")
-      return(NULL)
+    if (is.null(random_model) || is.null(fixed_model)) {
+        if (!perform_subgroup_analysis || (is.null(bivariate_model) && input$data_type != "hr" && !perform_subgroup_analysis && (is.null(input$metareg_vars) || length(input$metareg_vars) == 0) )) {
+             showNotification("Meta-analysis model generation failed. Please check data and settings.", type = "error")
+             return(NULL)
+        }
     }
     
     list(random = random_model, fixed = fixed_model, bivariate = bivariate_model)
   })  
+  
   # Overall Results Tab
-  
-  # output$methodComparisonPlot <- renderPlot({
-  #   req(combinedResults())
-  #   method_comparison_plot(combinedResults()$random, 
-  #                          combinedResults()$fixed, 
-  #                          combinedResults()$bivariate)
-  # })
-  
-  
   output$overallSummaryTable <- renderTable({
     req(combinedResults())
     compare_models(combinedResults())
@@ -558,6 +677,204 @@ server <- function(input, output, session) {
     interpret_results(combinedResults())
   })
   
+  output$subgroup_test_output <- renderPrint({
+    req(combinedResults())
+
+    subgroup_var_selected <- input$subgroup_var
+    if (is.null(subgroup_var_selected) || subgroup_var_selected == "" || (!is.null(input$metareg_vars) && length(input$metareg_vars) > 0)) {
+      if (!is.null(input$metareg_vars) && length(input$metareg_vars) > 0 && !is.null(subgroup_var_selected) && subgroup_var_selected != "") {
+        return(cat("Subgroup test is not shown when meta-regression is active."))
+      }
+      return(cat("No subgroup analysis performed or subgroup variable not selected."))
+    }
+
+    model_random <- combinedResults()$random
+    model_fixed <- combinedResults()$fixed
+
+    if (!is.null(model_random) && !is.null(model_random$k.byvar) && length(model_random$k.byvar) > 0 && !is.null(model_random$Q.b)) {
+      cat("Test for Subgroup Differences (Random Effects Model):\n")
+      cat(sprintf("  Q_b (between groups) = %.2f, df = %d, p = %.4f\n", model_random$Q.b, model_random$df.Q.b, model_random$pval.Q.b))
+      if (!is.null(model_random$I2.b)) {
+        cat(sprintf("  I^2 (variation between subgroups) = %.1f%%\n", model_random$I2.b * 100))
+      }
+      cat("\nNote: A significant p-value (e.g., < 0.05) suggests that the effect differs significantly between subgroups.\n")
+    } else if (!is.null(model_fixed) && !is.null(model_fixed$k.byvar) && length(model_fixed$k.byvar) > 0 && !is.null(model_fixed$Q.b)) {
+      cat("Test for Subgroup Differences (Fixed Effects Model):\n")
+      cat(sprintf("  Q_b (between groups) = %.2f, df = %d, p = %.4f\n", model_fixed$Q.b, model_fixed$df.Q.b, model_fixed$pval.Q.b))
+      cat("\nNote: A significant p-value (e.g., < 0.05) suggests that the effect differs significantly between subgroups.\n")
+    } else {
+      cat("Subgroup analysis was selected ('", subgroup_var_selected, "'), but the test for subgroup differences could not be computed or is not applicable.\n",
+          "This can occur if:\n",
+          "- There is only one subgroup level with data.\n",
+          "- Studies are not sufficiently distributed across multiple subgroup levels.\n",
+          "- The subgroup variable resulted in no valid subgroups for comparison.\n",
+          "Please check the distribution of studies across the levels of your selected subgroup variable.\n")
+      if(!is.null(model_random) && !is.null(model_random$k.byvar) && length(model_random$k.byvar) > 0){
+        cat(paste("Number of studies per subgroup level (Random Effects Model):", paste(model_random$k.byvar, collapse=", "), "\n"))
+      }
+       if(!is.null(model_fixed) && !is.null(model_fixed$k.byvar) && length(model_fixed$k.byvar) > 0){
+        cat(paste("Number of studies per subgroup level (Fixed Effects Model):", paste(model_fixed$k.byvar, collapse=", "), "\n"))
+      }
+    }
+  })
+
+  # Meta-Regression Results Reactive
+  metaRegressionResults <- reactive({
+    req(input$analyze, combinedResults()$random, !is.null(input$metareg_vars) && length(input$metareg_vars) > 0)
+
+    if (!is.null(input$subgroup_var) && input$subgroup_var != "") {
+      return(NULL)
+    }
+
+    selected_covariates <- input$metareg_vars
+    if (is.null(selected_covariates) || length(selected_covariates) == 0) {
+      return(NULL)
+    }
+
+    model_for_metareg <- combinedResults()$random
+
+    df_for_metareg <- if (!is.null(model_for_metareg$data) && all(selected_covariates %in% names(model_for_metareg$data))) {
+                         model_for_metareg$data
+                       } else {
+                         data()
+                       }
+
+    if (is.null(df_for_metareg)) {
+         showNotification("Data for meta-regression is not available.", type="error", duration=10)
+         return(NULL)
+    }
+
+    missing_covariates <- setdiff(selected_covariates, names(df_for_metareg))
+    if (length(missing_covariates) > 0) {
+        showNotification(paste("Error: Covariate(s)", paste(missing_covariates, collapse=", "), "not found in the analysis data. Meta-regression cannot proceed."), type="error", duration=15)
+        return(NULL)
+    }
+
+    formula_str <- paste("TE ~", paste(selected_covariates, collapse = " + "))
+
+    meta_reg_model <- tryCatch({
+      meta::metareg(model_for_metareg, as.formula(formula_str), data = df_for_metareg)
+    }, error = function(e) {
+      showNotification(paste("Meta-regression error:", e$message), type = "error", duration = 10)
+      return(NULL)
+    })
+
+    return(meta_reg_model)
+  })
+
+  # Meta-Regression Tab Outputs
+  output$metareg_summary_output <- renderPrint({
+    model_results <- metaRegressionResults() # Store in a variable to avoid re-calling
+    if (is.null(model_results)) {
+      subgroup_active <- !is.null(input$subgroup_var) && input$subgroup_var != ""
+      covariates_selected <- !is.null(input$metareg_vars) && length(input$metareg_vars) > 0
+
+      if (subgroup_active && covariates_selected) {
+        cat("Meta-regression was not performed because subgroup analysis is active.\nPlease clear the subgroup selection if you wish to perform meta-regression.")
+      } else if (!covariates_selected) {
+        cat("No covariates selected for meta-regression. Please select one or more covariates from the sidebar.")
+      } else {
+        cat("Meta-regression results are not available. This might be due to an error during calculation or other conflicting settings.")
+      }
+      return()
+    }
+    req(model_results) # Ensure model_results is not NULL before proceeding
+
+    cat("Meta-Regression Model Summary\n")
+    cat("-----------------------------\n\n")
+
+    # Print the summary of the meta-regression model
+    print(summary(model_results))
+
+    cat("\n\nInterpretation Notes:\n")
+    cat("- 'estimate': Change in the effect size for a one-unit increase in the covariate.\n")
+    cat("- 'se': Standard error of the estimate.\n")
+    cat("- 'zval', 'pval': Z-value and p-value for testing if the estimate is significantly different from zero.\n")
+    cat("- 'ci.lb', 'ci.ub': Confidence interval for the estimate.\n")
+    cat("Test of Moderators:\n")
+    cat("- QM: Test statistic for the hypothesis that all coefficients (except intercept) are zero.\n")
+    cat("- df: Degrees of freedom for QM.\n")
+    cat("- p-value: P-value for the test of moderators. A small p-value suggests at least one covariate is significantly related to the effect size.\n")
+    cat("Variance Accounted For (R^2):\n")
+    cat("- R^2 (adj.): Proportion of between-study variance explained by the covariates, adjusted for the number of covariates.\n")
+
+    if (input$data_type == "hr") {
+        cat("\nNote: For Hazard Ratios (HR), the 'estimate' and its CI are on the log-HR scale.\n")
+        cat("To interpret on the HR scale, exponentiate these values (e.g., exp(estimate)).\n")
+    }
+  })
+
+  output$metareg_plot_output <- renderPlot({
+    model_results <- metaRegressionResults()
+    selected_covariates <- input$metareg_vars
+
+    if (is.null(model_results) || is.null(selected_covariates) || length(selected_covariates) == 0) {
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Meta-Regression Plot Not Available")
+      text(1, 1, "Please select at least one covariate and ensure meta-regression has run.", cex=1.2)
+      return()
+    }
+
+    # Try to find the first numeric covariate among those used in the model
+    # model_results$X contains the design matrix, intercept is first column
+    # model_results$model$data might be more reliable if it exists and contains original covariates
+
+    cov_to_plot <- NULL
+    cov_data_values <- NULL
+
+    # Check if model_results$data exists and contains the covariates
+    # The actual covariates used in metareg are named in model_results$X.names
+
+    if(!is.null(model_results$X.names) && length(model_results$X.names) > 0) {
+        # Exclude intercept if present
+        potential_covs <- model_results$X.names[model_results$X.names != "(Intercept)"]
+
+        # Find the first numeric one from the original data used by the model
+        # model_results$data should be the data frame used by metareg
+        df_for_plot <- model_results$data
+        if (is.null(df_for_plot)) { # Fallback to the main data() if model$data is not populated
+            df_for_plot <- data()
+        }
+
+        for(cov_name in potential_covs) {
+            if(cov_name %in% names(df_for_plot) && is.numeric(df_for_plot[[cov_name]])) {
+                cov_to_plot <- cov_name
+                cov_data_values <- df_for_plot[[cov_name]] # Get the actual data values
+                break
+            }
+        }
+    }
+
+    if (is.null(cov_to_plot)) {
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Meta-Regression Plot Not Available")
+      text(1, 1, "No suitable numeric covariate found for plotting.\nPlease select a numeric covariate.", cex=1.2)
+      return()
+    }
+
+    tryCatch({
+      # Determine xlab based on data type
+      effect_label_val <- effect_measure_label()
+      plot_xlab <- paste("Effect Size (", effect_label_val, ")")
+      if (input$data_type == "hr") {
+          plot_xlab <- "log(Hazard Ratio)" # TE is logHR for HR data
+      }
+
+      meta::bubble(model_results,
+                   xlab = plot_xlab,
+                   main = paste("Meta-Regression Bubble Plot for Covariate:", cov_to_plot),
+                   studlab = TRUE, # Show study labels
+                   col.line = "blue", # Color for the regression line
+                   regline = TRUE) # Ensure regression line is drawn
+
+      if (input$data_type == "hr") {
+          mtext("Note: Effect sizes (Y-axis) are on the log-HR scale.", side=1, line=4, adj=1, cex=0.8)
+      }
+
+    }, error = function(e) {
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Error in Generating Meta-Regression Plot")
+      text(1, 1, paste("Could not generate bubble plot:", e$message), cex=1.2)
+    })
+  })
+
   # Random Effects Analysis Tab
   
   # Helper to get effect measure label for plots
@@ -1017,7 +1334,7 @@ server <- function(input, output, session) {
                     mu = bivariate_result()$mu,
                     sigma_2_k = bivariate_result()$sigma.2.k,n_k=bivariate_result()$n_k,
                     tau_2 = bivariate_result()$tau^2,
-                    title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)")
+                    title = "Q-Q Plot of Raw Residuals")
   })
   
   # Q-Q Plot for τ
@@ -1848,10 +2165,16 @@ server <- function(input, output, session) {
         
         # Render the report
         output_file <- render_report(
-          random_results(), 
-          fixed_results(), 
-          bivariate_results(),
-          data()  # Add the data parameter
+          random_results = random_results(),
+          fixed_results = fixed_results(),
+          bivariate_results = bivariate_results(),
+          data = data(),
+          input_subgroup_var = input$subgroup_var,
+          # Add new parameters for meta-regression
+          input_metareg_results = metaRegressionResults(),
+          input_metareg_vars = input$metareg_vars,
+          input_effect_measure_label = effect_measure_label(),
+          input_data_type = input$data_type
         )
         
         # Increment the progress bar
@@ -1869,3 +2192,5 @@ server <- function(input, output, session) {
 }
 
 
+
+[end of R/server.R]
