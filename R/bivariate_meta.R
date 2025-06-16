@@ -233,8 +233,8 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
     tau.vec <- seq(0.01, 1, length.out = 150)  # Higher resolution for smoother contours
   } else {
     # For OR/RR, use traditional log scale range
-    mu.vec <- seq(-1, 1, length.out = 100)
-    tau.vec <- seq(0.01, 1, length.out = 100)
+  mu.vec <- seq(-1, 1, length.out = 100)
+  tau.vec <- seq(0.01, 1, length.out = 100)
   }
   
   # For all summary measures, use the standard chi-squared approximation.
@@ -425,7 +425,7 @@ comp.tau.mu.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst, sm, y.k.in 
   
   loglik.vec <- dnorm(y.mat.k.i, mean = mu.k.i, sd = sqrt(tau.k.i^2 + sigma.2.k.i), log = TRUE)
   loglik.mu.tau <- c(array(loglik.vec, dim = c(n.mu * n.tau, K)) %*% cbind(rep(1, K)))
-  dev.mat <- array(-2 * (loglik.mu.tau - max(loglik.mu.tau)), dim = c(n.mu, n.tau))
+  dev.mat <- array(-2*(loglik.mu.tau - max(loglik.mu.tau)), dim=c(n.mu, n.tau))
   dimnames(dev.mat) <- list(paste("mu = ", round(mu.vec.tst, 2)), paste("tau = ", round(tau.vec.tst, 3)))
   
   pval.mat <- array(1 - pchisq(dev.mat, 2), dim = c(n.mu, n.tau))
@@ -607,7 +607,17 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     # Safe approximation with error handling
     safe_approx <- function(x, y, xout) {
       tryCatch({
-        approx(x, y, xout = xout)$y
+        # Remove duplicate x values before interpolation
+        unique_indices <- !duplicated(x)
+        x_unique <- x[unique_indices]
+        y_unique <- y[unique_indices]
+        
+        # Ensure we have at least 2 unique points for interpolation
+        if (length(x_unique) < 2) {
+          return(rep(mean(y, na.rm = TRUE), length(xout)))
+        }
+        
+        approx(x_unique, y_unique, xout = xout)$y
       }, error = function(e) {
         rep(mean(y, na.rm = TRUE), length(xout))
       })
@@ -647,7 +657,7 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     
     # Create plot with ggplot2 - linear scale for SMD
     p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
-      geom_line(aes(y = y), size = 1) +
+      geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
       geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
       scale_x_continuous(breaks = seq(-3, 3, by = 0.5),
                         limits = c(-3, 3)) +
@@ -691,7 +701,17 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
   # Safe approximation with error handling
   safe_approx <- function(x, y, xout) {
     tryCatch({
-      approx(x, y, xout = xout)$y
+      # Remove duplicate x values before interpolation
+      unique_indices <- !duplicated(x)
+      x_unique <- x[unique_indices]
+      y_unique <- y[unique_indices]
+      
+      # Ensure we have at least 2 unique points for interpolation
+      if (length(x_unique) < 2) {
+        return(rep(mean(y, na.rm = TRUE), length(xout)))
+      }
+      
+      approx(x_unique, y_unique, xout = xout)$y
     }, error = function(e) {
       rep(mean(y, na.rm = TRUE), length(xout))
     })
@@ -736,7 +756,7 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
   
     # Create plot with ggplot2 - log scale for OR/RR
   p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
-    geom_line(aes(y = y), size = 1) +
+    geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
     scale_x_log10(breaks = c(0.1, 0.2, 0.5, 1, 2, 5, 10),
                   labels = c("0.1", "0.2", "0.5", "1", "2", "5", "10"),
@@ -1615,11 +1635,31 @@ calculate_iou <- function(contour1, contour2) {
     len2 <- length(contour2$x)
     if (len1 != len2) {
       if (len1 > len2) {
-        contour2$x <- approx(1:len2, contour2$x, n = len1)$y
-        contour2$y <- approx(1:len2, contour2$y, n = len1)$y
+        # Remove duplicate x values before interpolation
+        unique_indices2 <- !duplicated(contour2$x)
+        contour2$x <- contour2$x[unique_indices2]
+        contour2$y <- contour2$y[unique_indices2]
+        
+        # Check if we have enough unique points
+        if (length(contour2$x) < 2) {
+          return(0)
+        }
+        
+        contour2$x <- approx(1:length(contour2$x), contour2$x, n = len1)$y
+        contour2$y <- approx(1:length(contour2$y), contour2$y, n = len1)$y
       } else {
-        contour1$x <- approx(1:len1, contour1$x, n = len2)$y
-        contour1$y <- approx(1:len1, contour1$y, n = len2)$y
+        # Remove duplicate x values before interpolation
+        unique_indices1 <- !duplicated(contour1$x)
+        contour1$x <- contour1$x[unique_indices1]
+        contour1$y <- contour1$y[unique_indices1]
+        
+        # Check if we have enough unique points
+        if (length(contour1$x) < 2) {
+          return(0)
+        }
+        
+        contour1$x <- approx(1:length(contour1$x), contour1$x, n = len2)$y
+        contour1$y <- approx(1:length(contour1$y), contour1$y, n = len2)$y
       }
     }
     
