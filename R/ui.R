@@ -109,23 +109,23 @@ ui <- page_fillable(
                 DTOutput("dataPreview"),
                 helpText("This tab displays the uploaded data. Review your data here to ensure it has been correctly loaded and formatted.")
       ),
-      nav_panel("Overall Results",
-                tabsetPanel(
-                  tabPanel("Method Comparison", 
-                           actionButton("method_comparison_info", "", icon = icon("info-circle"), class = "help-text"),
-                           withSpinner(plotOutput("methodComparisonPlot")),
-                           p("Method comparison plot: Compares effect size estimates and confidence intervals from fixed effects, random effects, and bivariate meta-analysis models. Shows relative precision of each method.", class = "plot-explanation"),
-                           hr(),
-                           h4("Summary"),
-                           verbatimTextOutput("methodComparisonSummary")),
-                  tabPanel("Summary Table", 
-                           actionButton("summary_table_info", "", icon = icon("info-circle"), class = "help-text"),
-                           tableOutput("overallSummaryTable")),
-                  # tabPanel("Overall Interpretation", 
-                  #          actionButton("overall_interpretation_info", "", icon = icon("info-circle"), class = "help-text"),
-                  #          verbatimTextOutput("overallInterpretation"))
-                )
-      ),
+      # nav_panel("Overall Results",
+      #           tabsetPanel(
+      #             tabPanel("Method Comparison", 
+      #                      actionButton("method_comparison_info", "", icon = icon("info-circle"), class = "help-text"),
+      #                      withSpinner(plotOutput("methodComparisonPlot")),
+      #                      p("Method comparison plot: Compares effect size estimates and confidence intervals from fixed effects, random effects, and bivariate meta-analysis models. Shows relative precision of each method.", class = "plot-explanation"),
+      #                      hr(),
+      #                      h4("Summary"),
+      #                      verbatimTextOutput("methodComparisonSummary")),
+      #             tabPanel("Summary Table", 
+      #                      actionButton("summary_table_info", "", icon = icon("info-circle"), class = "help-text"),
+      #                      tableOutput("overallSummaryTable")),
+      #             # tabPanel("Overall Interpretation", 
+      #             #          actionButton("overall_interpretation_info", "", icon = icon("info-circle"), class = "help-text"),
+      #             #          verbatimTextOutput("overallInterpretation"))
+      #           )
+      # ),
       nav_panel("Random Effects Analysis",
                 tabsetPanel(
                   # tabPanel("Effect Size and Heterogeneity",
