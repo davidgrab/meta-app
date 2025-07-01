@@ -28,3 +28,39 @@ hr {
   right: 10px;
   font-size: 0.9em;
 }
+
+/* Model Diagnostics Section Styling */
+.section-explanation {
+  color: #666;
+  font-style: italic;
+  margin-bottom: 15px;
+  font-size: 0.95em;
+}
+
+.plot-explanation {
+  margin-top: 10px;
+  font-size: 0.9em;
+  line-height: 1.4;
+  padding: 8px;
+  background-color: #f8f9fa;
+  border-left: 3px solid #007bff;
+  border-radius: 3px;
+  color: #000;
+}
+
+.plot-explanation strong {
+  color: #000;
+}
+
+.plot-explanation em {
+  color: #000;
+  font-style: italic;
+}
+
+h4 {
+  margin-top: 25px;
+  margin-bottom: 15px;
+  color: #333;
+  border-bottom: 1px solid #e9ecef;
+  padding-bottom: 5px;
+}

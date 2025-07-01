@@ -46,7 +46,7 @@ server <- function(input, output, session) {
   # Initially hide all tabs except Data Preview
   observe({
     print("Hiding tabs")
-    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach"), function(tab) {
+    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach", "Meta-Regression"), function(tab) {
       hideTab(inputId = "main_tabs", target = tab)
     })
   })
@@ -54,7 +54,7 @@ server <- function(input, output, session) {
   # Show all tabs when Analyze button is clicked
   observeEvent(input$analyze, {
     print("Analyze button clicked")
-    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach"), function(tab) {
+    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach", "Meta-Regression"), function(tab) {
       showTab(inputId = "main_tabs", target = tab)
     })
   })
@@ -107,12 +107,16 @@ server <- function(input, output, session) {
     binary_instructions <- HTML(
       paste0(
         "<h4>Binary (2x2) Data</h4>",
-        "1. Prepare your CSV or Excel file with the following columns: <b>study, ie, it, pe, pt</b>.<br>",
+        "1. Prepare your CSV or Excel file with the following columns:<br>",
+        "<b>Required columns:</b> <b>study, ie, it, pe, pt</b><br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ie</b>: Intervention group events<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>it</b>: Intervention group total<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pe</b>: Placebo/control group events<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pt</b>: Placebo/control group total<br><br>",
+        "<b>Optional columns for subgroup analysis and meta-regression:</b><br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>subgroup</b>: Categorical variable for subgroup analysis<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>moderator1, moderator2, ...</b>: Continuous or categorical variables for meta-regression<br><br>",
         "2. Click 'Browse' to select your file.<br><br>",
         "3. The data will load and display in the 'Data Preview' tab."
       )
@@ -121,12 +125,16 @@ server <- function(input, output, session) {
     smd_instructions <- HTML(
       paste0(
         "<h4>Continuous (SMD) Data</h4>",
-        "1. Prepare your CSV or Excel file with the following columns: <b>study, smd, ci_lower, ci_upper</b>.<br>",
+        "1. Prepare your CSV or Excel file with the following columns:<br>",
+        "<b>Required columns:</b> <b>study, smd, ci_lower, ci_upper</b><br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>smd</b>: Standardized Mean Difference<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_lower</b>: Lower bound of the 95% confidence interval<br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_upper</b>: Upper bound of the 95% confidence interval<br>",
         "<br><b>Note:</b> The SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br><br>",
+        "<b>Optional columns for subgroup analysis and meta-regression:</b><br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>subgroup</b>: Categorical variable for subgroup analysis<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>moderator1, moderator2, ...</b>: Continuous or categorical variables for meta-regression<br><br>",
         "2. Click 'Browse' to select your file.<br><br>",
         "3. The app will calculate the standard error and variance for you."
       )
@@ -175,11 +183,19 @@ server <- function(input, output, session) {
       df <- na.omit(df)
     }
     
-    # Defensively check column count before assigning names
-    if (input$data_type == "binary" && ncol(df) == 5) {
-      names(df) <- c("study", "ie", "it", "pe", "pt")
-    } else if (input$data_type == "smd" && ncol(df) == 4) {
-      names(df) <- c("study", "smd", "ci_lower", "ci_upper")
+    # Handle variable column counts for subgroup and meta-regression data
+    if (input$data_type == "binary") {
+      if (ncol(df) >= 5) {
+        # Ensure basic columns have correct names
+        names(df)[1:5] <- c("study", "ie", "it", "pe", "pt")
+        # Keep additional columns for subgroup/meta-regression analysis
+      }
+    } else if (input$data_type == "smd") {
+      if (ncol(df) >= 4) {
+        # Ensure basic columns have correct names
+        names(df)[1:4] <- c("study", "smd", "ci_lower", "ci_upper")
+        # Keep additional columns for subgroup/meta-regression analysis
+      }
     }
     df
   })
@@ -259,19 +275,25 @@ server <- function(input, output, session) {
   
   # New data structures
   sampleDataStructure_binary <- data.frame(
-    study = c("Study 1", "Study 2"),
-    ie = c(12, 8),
-    it = c(100, 95),
-    pe = c(10, 7),
-    pt = c(98, 93),
+    study = c("Study 1", "Study 2", "Study 3"),
+    ie = c(12, 8, 15),
+    it = c(100, 95, 80),
+    pe = c(10, 7, 12),
+    pt = c(98, 93, 75),
+    subgroup = c("Group A", "Group B", "Group A"),
+    moderator1 = c(2.5, 3.1, 2.8),
+    moderator2 = c("High", "Low", "Medium"),
     stringsAsFactors = FALSE
   )
   
   sampleDataStructure_continuous <- data.frame(
-    study = c("Study 1", "Study 2"),
-    smd = c(0.45, -0.12),
-    ci_lower = c(0.10, -0.30),
-    ci_upper = c(0.80, 0.06),
+    study = c("Study 1", "Study 2", "Study 3"),
+    smd = c(0.45, -0.12, 0.28),
+    ci_lower = c(0.10, -0.30, 0.05),
+    ci_upper = c(0.80, 0.06, 0.51),
+    subgroup = c("Group A", "Group B", "Group A"),
+    moderator1 = c(2.5, 3.1, 2.8),
+    moderator2 = c("High", "Low", "Medium"),
     stringsAsFactors = FALSE
   )
   attr(sampleDataStructure_continuous, "note") <- "Note: The 'smd' column may also appear as 'CoNC' or 'HeadGrid-G'. All are interpreted as SMD for now."
@@ -342,7 +364,7 @@ server <- function(input, output, session) {
     req(data())
     df <- data()
     
-    if (input$data_type == "binary" && ncol(df) == 5) {
+    if (input$data_type == "binary" && ncol(df) >= 5) {
       random_model <- metabin(event.e = df$ie, 
                               n.e = df$it,
                               event.c = df$pe,
@@ -369,7 +391,7 @@ server <- function(input, output, session) {
                                  studlab = df$study,
                                  sm = input$effect_measure)
       
-    } else if (input$data_type == "smd" && ncol(df) == 4) {
+    } else if (input$data_type == "smd" && ncol(df) >= 4) {
       
       # Calculate SE and variance from CI
       se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
@@ -506,17 +528,13 @@ server <- function(input, output, session) {
     req(combinedResults())
     random_model <- combinedResults()$random
     
-    # Calculate standardized residuals
-    residuals <- calculate_random_residuals(random_model)
-    
-    # Check if we have valid residuals
-    if (!is.null(residuals) && !all(is.na(residuals))) {
-      qqnorm(residuals, main = "Q-Q Plot of Random Effects Standardized Residuals")
-      qqline(residuals, col = "red")
-    } else {
+    tryCatch({
+      # Use the new comprehensive normality diagnostic for BLUPs
+      qq_plot_random_blups(random_model, envelope = TRUE)
+    }, error = function(e) {
       plot(1, type = "n", xlab = "", ylab = "", main = "Q-Q Plot Unavailable")
-      text(1, 1, "Insufficient data for Q-Q plot", cex = 1.2)
-    }
+      text(1, 1, "Insufficient data for comprehensive Q-Q plot", cex = 1.2)
+    })
   })
   
   output$outlierDetectionPlot <- renderPlot({
@@ -631,17 +649,13 @@ server <- function(input, output, session) {
     req(combinedResults())
     fixed_model <- combinedResults()$fixed
     
-    # Calculate residuals
-    residuals <- calculate_residuals(fixed_model)
-    
-    # Check if we have valid residuals
-    if (!is.null(residuals) && !all(is.na(residuals))) {
-      qqnorm(residuals, main = "Q-Q Plot of Fixed Effects Residuals")
-      qqline(residuals, col = "red")
-    } else {
+    tryCatch({
+      # Use the new comprehensive normality diagnostic for fixed effects
+      qq_plot_fixed_residuals(fixed_model, envelope = TRUE)
+    }, error = function(e) {
       plot(1, type = "n", xlab = "", ylab = "", main = "Q-Q Plot Unavailable")
-      text(1, 1, "Insufficient data for Q-Q plot", cex = 1.2)
-    }
+      text(1, 1, "Insufficient data for comprehensive Q-Q plot", cex = 1.2)
+    })
   })
   
   output$fixedOutlierDetectionPlot <- renderPlot({
@@ -836,23 +850,34 @@ server <- function(input, output, session) {
   # Q-Q Plot for μ
   output$qqPlotMu <- renderPlot({
     req(bivariate_result())
-    # browser()
-    #qqnorm(bivariate_result()$y.k, main = "Q-Q Plot for μ")
-    #qqline(bivariate_result()$y.k, col = "red")
+    
+    tryCatch({
+      # Use the new comprehensive normality diagnostic for bivariate BLUPs
+      qq_plot_bivariate_blups(bivariate_result(), envelope = TRUE)
+    }, error = function(e) {
+      # Fallback to the old implementation
     qq_plot_with_ci(y_k = bivariate_result()$y.k, 
                     mu = bivariate_result()$mu,
                     sigma_2_k = bivariate_result()$sigma.2.k,
                     tau_2 = bivariate_result()$tau^2,
                     title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)")
+    })
   })
   
   output$qqPlotMuRaw <- renderPlot({
     req(bivariate_result())
+    
+    tryCatch({
+      # Use the new comprehensive normality diagnostic for bivariate deleted residuals
+      qq_plot_bivariate_deleted_residuals(bivariate_result(), data(), input, envelope = TRUE)
+    }, error = function(e) {
+      # Fallback to the old implementation
     qq_plot_with_ci_raw(y_k = bivariate_result()$y.k, 
                     mu = bivariate_result()$mu,
                     sigma_2_k = bivariate_result()$sigma.2.k,n_k=bivariate_result()$n_k,
                     tau_2 = bivariate_result()$tau^2,
-                    title = "Q-Q Plot for Standardized Residuals (Normal Random Effects)")
+                      title = "Q-Q Plot for Raw Residuals (Normal Random Effects)")
+    })
   })
   
   # Q-Q Plot for τ
@@ -1673,6 +1698,7 @@ server <- function(input, output, session) {
     combinedResults()$bivariate
   })
   # Add this new output for the download report button
+  if (FALSE) {
   output$downloadReport <- downloadHandler(
     filename = function() {
       paste("meta_analysis_report_", Sys.Date(), ".html", sep = "")
@@ -1701,7 +1727,799 @@ server <- function(input, output, session) {
       })
     }
   )
+  }
   
+  # ============================================================================
+  # COMPREHENSIVE NORMALITY DIAGNOSTICS OUTPUTS
+  # ============================================================================
+  
+
+
+  output$fixedNormalityTestSummary <- renderPrint({
+    req(combinedResults()$fixed)
+    tryCatch({
+      print_normality_summary(
+        run_all_normality_diagnostics("fixed", combinedResults()$fixed),
+        "fixed"
+      )
+    }, error = function(e) {
+      cat("Fixed Effects Normality Test Summary Unavailable\n")
+      cat("Error:", e$message, "\n")
+    })
+  })
+  
+  # ----------------------------------------------------------------------------
+  # RANDOM EFFECTS COMPREHENSIVE NORMALITY DIAGNOSTICS
+  # ----------------------------------------------------------------------------
+  
+
+
+  output$randomDeletedResidualsQQPlot <- renderPlot({
+    req(combinedResults()$random)
+    tryCatch({
+      qq_plot_random_deleted_residuals(combinedResults()$random, envelope = TRUE)
+    }, error = function(e) {
+      plot(1, type="n", main="Random Effects Deleted Residuals Q-Q Plot Unavailable", xlab="", ylab="")
+      text(1, 1, paste("Error:", e$message), cex=0.8)
+    })
+  })
+
+  output$randomNormalityTestSummary <- renderPrint({
+    req(combinedResults()$random)
+    tryCatch({
+      print_normality_summary(
+        run_all_normality_diagnostics("random", combinedResults()$random),
+        "random"
+      )
+    }, error = function(e) {
+      cat("Random Effects Normality Test Summary Unavailable\n")
+      cat("Error:", e$message, "\n")
+    })
+  })
+  
+  # ----------------------------------------------------------------------------
+  # BIVARIATE MLE COMPREHENSIVE NORMALITY DIAGNOSTICS
+  # ----------------------------------------------------------------------------
+  
+  
+  
+  output$bivariateNormalityTestSummary <- renderPrint({
+    req(bivariate_result())
+    tryCatch({
+      print_normality_summary(
+        run_all_normality_diagnostics("bivariate", bivariate_result(), data(), input),
+        "bivariate"
+      )
+    }, error = function(e) {
+      cat("Bivariate MLE Normality Test Summary Unavailable\n")
+      cat("Error:", e$message, "\n")
+    })
+  })
+  
+  # ============================================================================
+  # SUBGROUP ANALYSIS AND META-REGRESSION LOGIC
+  # ============================================================================
+  
+  # Detect available subgroup variables
+  output$hasSubgroupData <- reactive({
+    req(data())
+    df <- data()
+    # Check if we have additional columns beyond the required ones
+    min_cols <- if(input$data_type == "binary") 5 else 4
+    has_extra <- ncol(df) > min_cols
+    
+    if (has_extra) {
+      # Check if any additional columns are categorical/character
+      extra_cols <- df[, (min_cols + 1):ncol(df), drop = FALSE]
+      has_categorical <- any(sapply(extra_cols, function(x) is.character(x) || is.factor(x)))
+      return(has_categorical)
+    }
+    return(FALSE)
+  })
+  
+  outputOptions(output, "hasSubgroupData", suspendWhenHidden = FALSE)
+  
+  # Detect available moderator variables
+  output$hasModeratorData <- reactive({
+    req(data())
+    df <- data()
+    # Check if we have additional columns beyond the required ones
+    min_cols <- if(input$data_type == "binary") 5 else 4
+    return(ncol(df) > min_cols)
+  })
+  
+  outputOptions(output, "hasModeratorData", suspendWhenHidden = FALSE)
+  
+  # Update subgroup variable choices for all analysis types
+  observe({
+    req(data())
+    df <- data()
+    min_cols <- if(input$data_type == "binary") 5 else 4
+    
+    if (ncol(df) > min_cols) {
+      extra_cols <- names(df)[(min_cols + 1):ncol(df)]
+      # Filter for categorical variables
+      categorical_cols <- extra_cols[sapply(df[extra_cols], function(x) is.character(x) || is.factor(x))]
+      
+      # Update all subgroup variable selectors
+      updateSelectInput(session, "random_subgroup_variable", 
+                       choices = setNames(categorical_cols, categorical_cols))
+      updateSelectInput(session, "fixed_subgroup_variable", 
+                       choices = setNames(categorical_cols, categorical_cols))
+      updateSelectInput(session, "bivariate_subgroup_variable", 
+                       choices = setNames(categorical_cols, categorical_cols))
+    }
+  })
+  
+  # Update moderator variable choices
+  observe({
+    req(data())
+    df <- data()
+    min_cols <- if(input$data_type == "binary") 5 else 4
+    
+    if (ncol(df) > min_cols) {
+      extra_cols <- names(df)[(min_cols + 1):ncol(df)]
+      
+      updateSelectInput(session, "moderator_variable", 
+                       choices = setNames(extra_cols, extra_cols))
+    }
+  })
+  
+  # Random Effects Subgroup Analysis
+  random_subgroup_results <- eventReactive(input$run_random_subgroup, {
+    req(data(), input$random_subgroup_variable)
+    df <- data()
+    
+    if (input$data_type == "binary") {
+      res <- metabin(event.e = df$ie, 
+                     n.e = df$it,
+                     event.c = df$pe,
+                     n.c = df$pt,
+                     studlab = df$study,
+                     sm = input$effect_measure,
+                     method.tau = input$het_estimator,
+                     byvar = df[[input$random_subgroup_variable]],
+                     common = FALSE,
+                     random = TRUE,
+                     print.byvar = FALSE)
+    } else {
+      se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+      res <- metagen(TE = df$smd,
+                     seTE = se,
+                     studlab = df$study,
+                     sm = "SMD",
+                     method.tau = input$het_estimator,
+                     byvar = df[[input$random_subgroup_variable]],
+                     common = FALSE,
+                     random = TRUE,
+                     print.byvar = FALSE)
+    }
+    res
+  })
+  
+  output$randomSubgroupForestPlot <- renderPlot({
+    req(random_subgroup_results())
+    meta::forest(random_subgroup_results(),
+                 test.overall.random = TRUE,
+                 test.subgroup.random = TRUE,
+                 print.byvar = FALSE,
+                 fontsize = 10,
+                 xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+                 main = paste0("Random Effects Subgroup Analysis by ", input$random_subgroup_variable))
+  }, height = function() {
+    req(data())
+    400 + nrow(data()) * 25
+  })
+  
+  output$randomSubgroupTest <- renderPrint({
+    req(random_subgroup_results())
+    cat("Random Effects Subgroup Analysis Results\n")
+    cat("=========================================\n\n")
+    cat("Test for Subgroup Differences:\n")
+    cat("Q-statistic between groups:", random_subgroup_results()$Q.b.random, "\n")
+    cat("Degrees of freedom:", random_subgroup_results()$df.Q.b, "\n")
+    cat("P-value:", random_subgroup_results()$pval.Q.b.random, "\n\n")
+    
+    if (random_subgroup_results()$pval.Q.b.random < 0.05) {
+      cat("Interpretation: There is statistically significant evidence of subgroup differences (p < 0.05).\n")
+      cat("The effect size varies significantly between the subgroups using the random effects model.\n")
+    } else {
+      cat("Interpretation: There is no statistically significant evidence of subgroup differences (p ≥ 0.05).\n")
+      cat("The effect size does not vary significantly between the subgroups.\n")
+    }
+  })
+  
+  # Fixed Effects Subgroup Analysis
+  fixed_subgroup_results <- eventReactive(input$run_fixed_subgroup, {
+    req(data(), input$fixed_subgroup_variable)
+    df <- data()
+    
+    if (input$data_type == "binary") {
+      res <- metabin(event.e = df$ie, 
+                     n.e = df$it,
+                     event.c = df$pe,
+                     n.c = df$pt,
+                     studlab = df$study,
+                     sm = input$effect_measure,
+                     method.tau = input$het_estimator,
+                     byvar = df[[input$fixed_subgroup_variable]],
+                     common = TRUE,
+                     random = FALSE,
+                     print.byvar = FALSE)
+    } else {
+      se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+      res <- metagen(TE = df$smd,
+                     seTE = se,
+                     studlab = df$study,
+                     sm = "SMD",
+                     method.tau = input$het_estimator,
+                     byvar = df[[input$fixed_subgroup_variable]],
+                     common = TRUE,
+                     random = FALSE,
+                     print.byvar = FALSE)
+    }
+    res
+  })
+  
+  output$fixedSubgroupForestPlot <- renderPlot({
+    req(fixed_subgroup_results())
+    meta::forest(fixed_subgroup_results(),
+                 test.overall.common = TRUE,
+                 test.subgroup.common = TRUE,
+                 print.byvar = FALSE,
+                 fontsize = 10,
+                 xlab = paste0("Effect Size (", effect_measure_label(), ")"),
+                 main = paste0("Fixed Effects Subgroup Analysis by ", input$fixed_subgroup_variable))
+  }, height = function() {
+    req(data())
+    400 + nrow(data()) * 25
+  })
+  
+  output$fixedSubgroupTest <- renderPrint({
+    req(fixed_subgroup_results())
+    cat("Fixed Effects Subgroup Analysis Results\n")
+    cat("=======================================\n\n")
+    cat("Test for Subgroup Differences:\n")
+    cat("Q-statistic between groups:", fixed_subgroup_results()$Q.b.common, "\n")
+    cat("Degrees of freedom:", fixed_subgroup_results()$df.Q.b, "\n")
+    cat("P-value:", fixed_subgroup_results()$pval.Q.b.common, "\n\n")
+    
+    if (fixed_subgroup_results()$pval.Q.b.common < 0.05) {
+      cat("Interpretation: There is statistically significant evidence of subgroup differences (p < 0.05).\n")
+      cat("The effect size varies significantly between the subgroups using the fixed effects model.\n")
+    } else {
+      cat("Interpretation: There is no statistically significant evidence of subgroup differences (p ≥ 0.05).\n")
+      cat("The effect size does not vary significantly between the subgroups.\n")
+    }
+  })
+  
+  # Bivariate Subgroup Analysis
+  bivariate_subgroup_results <- eventReactive(input$run_bivariate_subgroup, {
+    req(data(), input$bivariate_subgroup_variable)
+    df <- data()
+    
+    # Get unique subgroup levels
+    subgroup_levels <- unique(df[[input$bivariate_subgroup_variable]])
+    results <- list()
+    
+    for (level in subgroup_levels) {
+      subset_data <- df[df[[input$bivariate_subgroup_variable]] == level, ]
+      
+      if (input$data_type == "binary") {
+        res <- metabiv(event.e = subset_data$ie, 
+                       n.e = subset_data$it, 
+                       event.c = subset_data$pe, 
+                       n.c = subset_data$pt,
+                       studlab = subset_data$study,
+                       sm = input$effect_measure)
+      } else {
+        se <- (subset_data$ci_upper - subset_data$ci_lower) / (2 * 1.96)
+        var <- se^2
+        res <- metabiv(studlab = subset_data$study,
+                       sm = "SMD",
+                       y = subset_data$smd,
+                       sigma2 = var)
+      }
+      results[[level]] <- res
+    }
+    
+    list(results = results, variable = input$bivariate_subgroup_variable, data = df)
+  })
+  
+  output$bivariateSubgroupForestPlot <- renderPlot({
+    req(bivariate_subgroup_results())
+    results <- bivariate_subgroup_results()$results
+    
+    # Create a combined forest plot
+    par(mfrow = c(length(results), 1), mar = c(4, 4, 2, 2))
+    
+    for (i in seq_along(results)) {
+      level_name <- names(results)[i]
+      result <- results[[i]]
+      
+      forest.metabiv(result,
+                     title = paste("Subgroup:", level_name),
+                     xlab = paste("Effect Size (", effect_measure_label(), ")"))
+    }
+    
+    par(mfrow = c(1, 1))
+  }, height = function() {
+    req(bivariate_subgroup_results())
+    length(bivariate_subgroup_results()$results) * 400
+  })
+  
+  output$bivariateSubgroupTest <- renderPrint({
+    req(bivariate_subgroup_results())
+    results <- bivariate_subgroup_results()$results
+    
+    cat("Bivariate Subgroup Analysis Results\n")
+    cat("===================================\n\n")
+    
+    for (i in seq_along(results)) {
+      level_name <- names(results)[i]
+      result <- results[[i]]
+      
+      cat("Subgroup:", level_name, "\n")
+      cat("Effect estimate (μ):", round(result$mu, 4), "\n")
+      cat("95% CI: [", round(result$lower, 4), ", ", round(result$upper, 4), "]\n")
+      cat("Heterogeneity (τ):", round(result$tau, 4), "\n")
+      cat("I²:", round(result$I2, 1), "%\n\n")
+    }
+    
+    cat("Note: Formal statistical test for subgroup differences is not implemented for bivariate approach.\n")
+    cat("Compare confidence intervals and effect estimates between subgroups.\n")
+  })
+  
+  # Meta-Regression Results
+  metaregression_results <- eventReactive(input$run_metaregression, {
+    req(data(), input$moderator_variable)
+    df <- data()
+    
+    # Remove rows with missing moderator data
+    complete_cases <- !is.na(df[[input$moderator_variable]])
+    df_complete <- df[complete_cases, ]
+    
+    if (nrow(df_complete) < 3) {
+      stop("Insufficient data for meta-regression. Need at least 3 studies with complete moderator data.")
+    }
+    
+    if (nrow(df_complete) < 10) {
+      showNotification("Warning: Fewer than 10 studies – meta-regression results (p-values, R²) may be unreliable.",
+                      type = "warning", duration = 8)
+    }
+    
+    if (input$data_type == "binary") {
+      base_model <- metabin(event.e = df_complete$ie, 
+                           n.e = df_complete$it,
+                           event.c = df_complete$pe,
+                           n.c = df_complete$pt,
+                           studlab = df_complete$study,
+                           sm = input$effect_measure,
+                           method.tau = input$het_estimator,
+                           common = FALSE,
+                           random = input$use_random_effects)
+      
+      # Extract effect sizes and standard errors for metareg
+      TE <- base_model$TE
+      seTE <- base_model$seTE
+    } else {
+      se <- (df_complete$ci_upper - df_complete$ci_lower) / (2 * 1.96)
+      TE <- df_complete$smd
+      seTE <- se
+    }
+    
+    # Prepare moderator variable
+    moderator_var <- df_complete[[input$moderator_variable]]
+    
+    # Handle categorical vs continuous
+    if (input$moderator_type == "categorical" || is.character(moderator_var) || is.factor(moderator_var)) {
+      # Convert to factor if not already
+      moderator_var <- as.factor(moderator_var)
+      
+      # Determine test statistic (Knapp-Hartung for random effects)
+      test_method <- if (input$use_random_effects) "knha" else "z"
+      # Map heterogeneity estimator choice to metafor::rma method argument
+      rma_method <- if (input$use_random_effects) switch(input$het_estimator,
+                                                         "DL" = "DL",
+                                                         "PM" = "PM",
+                                                         "REML" = "REML",
+                                                         "ML" = "ML",
+                                                         "DL") else "FE"
+      
+      # Run meta-regression with categorical moderator
+      metareg_result <- metafor::rma(yi = TE, sei = seTE, 
+                                    mods = ~ moderator_var, 
+                                    method = rma_method,
+                                    test  = test_method)
+    } else {
+      # Continuous moderator
+      moderator_var <- as.numeric(moderator_var)
+      
+      # Run meta-regression with continuous moderator
+      metareg_result <- metafor::rma(yi = TE, sei = seTE, 
+                                    mods = ~ moderator_var, 
+                                    method = if(input$use_random_effects) "REML" else "FE",
+                                    test  = test_method)
+    }
+    
+    # Optional permutation test for robust p-values
+    perm_result <- NULL
+    if (isTRUE(input$meta_perm_test)) {
+      perm_result <- tryCatch({
+        metafor::permutest(metareg_result, iter = 2000)
+      }, error = function(e) {
+        showNotification(paste("Permutation test failed:", e$message), type = "error")
+        NULL
+      })
+    }
+    
+    list(
+      model = metareg_result,
+      moderator_data = moderator_var,
+      moderator_name = input$moderator_variable,
+      moderator_type = input$moderator_type,
+      effect_sizes = TE,
+      standard_errors = seTE,
+      study_names = df_complete$study,
+      use_random_effects = input$use_random_effects,
+      perm_result = perm_result
+    )
+  })
+  
+  # Meta-Regression Plot
+  output$metaregressionPlot <- renderPlot({
+    req(metaregression_results())
+    results <- metaregression_results()
+    
+    if (results$moderator_type == "categorical" || is.factor(results$moderator_data)) {
+      # Categorical moderator - create a grouped plot
+      moderator_levels <- levels(as.factor(results$moderator_data))
+      
+      # Calculate means and SEs for each group
+      group_means <- tapply(results$effect_sizes, results$moderator_data, mean)
+      group_ses <- tapply(results$standard_errors, results$moderator_data, function(x) sqrt(mean(x^2)))
+      
+      # Create bar plot with error bars
+      bp <- barplot(group_means, 
+                   xlab = results$moderator_name,
+                   ylab = paste0("Effect Size (", effect_measure_label(), ")"),
+                   main = paste0("Meta-Regression: ", results$moderator_name, " (Categorical)"),
+                   col = "lightblue",
+                   ylim = c(min(group_means - 1.96 * group_ses), max(group_means + 1.96 * group_ses)))
+      
+      # Add error bars
+      arrows(bp, group_means - 1.96 * group_ses,
+             bp, group_means + 1.96 * group_ses,
+             length = 0.05, angle = 90, code = 3, col = "red", lwd = 2)
+      
+      # Add individual points
+      for (i in seq_along(moderator_levels)) {
+        level <- moderator_levels[i]
+        indices <- which(results$moderator_data == level)
+        jittered_x <- rep(bp[i], length(indices)) + runif(length(indices), -0.1, 0.1)
+        points(jittered_x, results$effect_sizes[indices], pch = 19, cex = 0.8)
+      }
+      
+    } else {
+      # Continuous moderator - scatter plot with regression line
+      plot(results$moderator_data, results$effect_sizes,
+           xlab = results$moderator_name,
+           ylab = paste0("Effect Size (", effect_measure_label(), ")"),
+           main = paste0("Meta-Regression: ", results$moderator_name, " (Continuous)"),
+           pch = 19, cex = 1.2)
+      
+      # Add study labels
+      text(results$moderator_data, results$effect_sizes, 
+           labels = results$study_names, pos = 3, cex = 0.7, col = "blue")
+      
+      # Add regression line and confidence band
+      mod_seq <- seq(min(results$moderator_data, na.rm = TRUE), 
+                     max(results$moderator_data, na.rm = TRUE), 
+                     length.out = 100)
+      pred_results <- predict(results$model, newmods = mod_seq)
+      lines(mod_seq, pred_results$pred, col = "red", lwd = 2)
+      
+      # Add confidence bands if available
+      if (!is.null(pred_results$se)) {
+        lines(mod_seq, pred_results$pred + 1.96 * pred_results$se, col = "red", lty = 2)
+        lines(mod_seq, pred_results$pred - 1.96 * pred_results$se, col = "red", lty = 2)
+      }
+      
+      # Add confidence intervals as error bars for individual studies
+      arrows(results$moderator_data, 
+             results$effect_sizes - 1.96 * results$standard_errors,
+             results$moderator_data, 
+             results$effect_sizes + 1.96 * results$standard_errors,
+             length = 0.05, angle = 90, code = 3, col = "gray50")
+    }
+  })
+  
+  # Meta-Regression Summary
+  output$metaregressionSummary <- renderPrint({
+    req(metaregression_results())
+    res <- metaregression_results()
+    print(summary(res$model))
+    if (!is.null(res$perm_result)) {
+      cat("\nPermutation Test (robust p-values):\n")
+      print(res$perm_result)
+    }
+  })
+  
+  # Meta-Regression Interpretation
+  output$metaregressionInterpretation <- renderPrint({
+    req(metaregression_results())
+    results <- metaregression_results()
+    model <- results$model
+    
+    cat("Meta-Regression Interpretation\n")
+    cat("==============================\n\n")
+    
+    cat("Model Type:", if(results$use_random_effects) "Random Effects" else "Fixed Effects", "\n")
+    cat("Moderator Variable:", results$moderator_name, "\n")
+    cat("Moderator Type:", results$moderator_type, "\n")
+    cat("Number of Studies:", length(results$effect_sizes), "\n\n")
+    
+    # Check for overall significance of moderator
+    moderator_significant <- any(model$pval[-1] < 0.05, na.rm = TRUE)
+    
+    if (moderator_significant) {
+      cat("SIGNIFICANT MODERATOR EFFECT DETECTED\n")
+      cat("=====================================\n")
+      cat("The moderator variable '", results$moderator_name, "' significantly explains heterogeneity (p < 0.05).\n\n")
+      
+      if (results$moderator_type == "continuous") {
+        slope <- model$beta[2]
+        cat("Regression Coefficient (slope):", round(slope, 4), "\n")
+        cat("Interpretation: For every 1-unit increase in ", results$moderator_name, 
+            ", the effect size changes by ", round(slope, 4), " units.\n\n")
+        
+        if (slope > 0) {
+          cat("Direction: Positive association - higher values of ", results$moderator_name, 
+              " are associated with larger effect sizes.\n")
+        } else {
+          cat("Direction: Negative association - higher values of ", results$moderator_name, 
+              " are associated with smaller effect sizes.\n")
+        }
+      } else {
+        cat("Categorical Moderator Effects:\n")
+        cat("Reference group: ", names(model$beta)[1], "\n")
+        for (i in 2:length(model$beta)) {
+          coef_name <- names(model$beta)[i]
+          coef_val <- model$beta[i]
+          p_val <- model$pval[i]
+          cat(coef_name, ": ", round(coef_val, 4), " (p = ", round(p_val, 3), ")\n")
+        }
+      }
+    } else {
+      cat("NO SIGNIFICANT MODERATOR EFFECT\n")
+      cat("===============================\n")
+      cat("The moderator variable '", results$moderator_name, "' does not significantly explain heterogeneity (p ≥ 0.05).\n")
+      cat("This suggests that ", results$moderator_name, " does not account for differences between studies.\n")
+    }
+    
+    cat("\nModel Fit Statistics:\n")
+    cat("--------------------\n")
+    if (!is.null(model$I2)) {
+      cat("Residual heterogeneity (I²):", round(model$I2, 1), "%\n")
+      if (moderator_significant) {
+        # Calculate explained variance (approximate)
+        cat("Approximate variance explained:", round(100 - model$I2, 1), "%\n")
+      }
+    }
+    
+    cat("tau² (residual heterogeneity):", round(model$tau2, 4), "\n")
+    cat("R² (proportion of variance explained):", if(!is.null(model$R2)) round(model$R2, 3) else "Not available", "\n")
+    
+    cat("\nModel Recommendation:\n")
+    cat("--------------------\n")
+    if (moderator_significant) {
+      cat("✓ The moderator provides valuable insight into study heterogeneity.\n")
+      cat("✓ Consider this variable when interpreting meta-analysis results.\n")
+      if (results$moderator_type == "continuous") {
+        cat("✓ Consider dose-response relationships in clinical application.\n")
+      } else {
+        cat("✓ Consider subgroup-specific recommendations.\n")
+      }
+    } else {
+      cat("• The moderator does not explain heterogeneity in this analysis.\n")
+      cat("• Consider other potential moderators or sources of heterogeneity.\n")
+      cat("• Results suggest the overall effect may be generalizable across ", results$moderator_name, " levels.\n")
+    }
+    
+    # Report omnibus test for moderators
+    if (!is.null(model$QM)) {
+      cat("Test of Moderator (QM):", round(model$QM,3), "on", model$df.QM, "df  (p =", sprintf("%.3f", model$pval.QM), ")\n")
+    }
+    if (!is.null(model$QE)) {
+      cat("Residual Heterogeneity (QE):", round(model$QE,3), "on", model$df.QE, "df  (p =", sprintf("%.3f", model$pval.QE), ")\n\n")
+    }
+  })
+  
+  # Bubble Plot
+  output$bubblePlot <- renderPlot({
+    req(metaregression_results())
+    results <- metaregression_results()
+    
+    # Calculate bubble sizes based on precision (inverse variance)
+    weights <- 1 / (results$standard_errors^2)
+    bubble_sizes <- sqrt(weights / max(weights)) * 3  # Scale for visibility
+    
+    if (results$moderator_type == "categorical" || is.factor(results$moderator_data)) {
+      # For categorical variables, use numeric positions
+      x_pos <- as.numeric(as.factor(results$moderator_data))
+      plot(x_pos, results$effect_sizes,
+           cex = bubble_sizes,
+           pch = 19, col = alpha("blue", 0.6),
+           xlab = results$moderator_name,
+           ylab = paste0("Effect Size (", effect_measure_label(), ")"),
+           main = paste0("Bubble Plot: ", results$moderator_name, " (Categorical)"),
+           xaxt = "n")
+      axis(1, at = unique(x_pos), labels = levels(as.factor(results$moderator_data)))
+    } else {
+      # Continuous variable
+      plot(results$moderator_data, results$effect_sizes,
+           cex = bubble_sizes,
+           pch = 19, col = alpha("blue", 0.6),
+           xlab = results$moderator_name,
+           ylab = paste0("Effect Size (", effect_measure_label(), ")"),
+           main = paste0("Bubble Plot: ", results$moderator_name, " (Continuous)"))
+      
+      # Add regression line
+      mod_seq <- seq(min(results$moderator_data, na.rm = TRUE), 
+                     max(results$moderator_data, na.rm = TRUE), 
+                     length.out = 100)
+      pred_results <- predict(results$model, newmods = mod_seq)
+      lines(mod_seq, pred_results$pred, col = "red", lwd = 2)
+    }
+    
+    # Add legend for bubble sizes
+    legend("topright", 
+           legend = c("Large studies", "Small studies"),
+           pch = 19, 
+           pt.cex = c(2, 0.5),
+           col = alpha("blue", 0.6),
+           title = "Study Precision")
+  })
+  
+  # Residual Plot for Meta-Regression
+  output$residualPlot <- renderPlot({
+    req(metaregression_results())
+    results <- metaregression_results()
+    
+    # Calculate residuals
+    fitted_values <- fitted(results$model)
+    residuals <- residuals(results$model)
+    
+    plot(fitted_values, residuals,
+         xlab = "Fitted Values",
+         ylab = "Residuals",
+         main = "Residual Plot for Meta-Regression",
+         pch = 19, cex = 1.2)
+    
+    # Add horizontal line at 0
+    abline(h = 0, col = "red", lty = 2, lwd = 2)
+    
+    # Add study labels for outliers (residuals > 2 SD)
+    residual_sd <- sd(residuals, na.rm = TRUE)
+    outliers <- abs(residuals) > 2 * residual_sd
+    if (any(outliers)) {
+      text(fitted_values[outliers], residuals[outliers], 
+           labels = results$study_names[outliers], 
+           pos = 3, cex = 0.8, col = "red")
+    }
+    
+    # Add smoother to detect patterns
+    if (length(fitted_values) > 3) {
+      smooth_line <- lowess(fitted_values, residuals)
+      lines(smooth_line, col = "blue", lwd = 2)
+    }
+    
+    # Add text explanation
+    mtext("Look for random scatter around zero. Patterns may indicate model issues.", 
+          side = 1, line = 4, cex = 0.8, col = "gray50")
+  })
+  
+  # Influence diagnostics for Meta-Regression
+  output$metaregInfluencePlot <- renderPlot({
+    req(metaregression_results())
+    tryCatch({
+      inf <- stats::influence(metaregression_results()$model)
+      plot(inf, label = TRUE)
+    }, error = function(e){
+      plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Influence diagnostics unavailable")
+      text(1,1, paste("Error:", e$message))
+    })
+  })
+  
+  output$metaregInfluenceSummary <- renderPrint({
+    req(metaregression_results())
+    tryCatch({
+      inf <- stats::influence(metaregression_results()$model)
+      print(inf)
+    }, error = function(e){
+      cat("Influence diagnostics unavailable:\n", e$message)
+    })
+  })
+  
+  # Combined forest plot for Bivariate subgroups
+  output$bivariateSubgroupForestPlot <- renderPlot({
+    req(bivariate_subgroup_results())
+    results <- bivariate_subgroup_results()$results
+    # Load grid packages
+    library(grid)
+    library(gridExtra)
+    plots <- lapply(names(results), function(nm){
+      grid::grid.grabExpr({
+        tryCatch({
+          forest.metabiv(results[[nm]], title = paste("Subgroup:", nm),
+                         xlab = paste("Effect Size (", effect_measure_label(), ")"))
+        }, error = function(e){
+          plot(1, type="n", main = paste("Plot unavailable (", nm, ")")); text(1,1,e$message)
+        })
+      })
+    })
+    do.call(gridExtra::grid.arrange, c(plots, ncol=1))
+  }, height = function(){
+    req(bivariate_subgroup_results())
+    length(bivariate_subgroup_results()$results)*400
+  })
+  
+  observeEvent(input$prepareReport, {
+    showModal(modalDialog(
+      title = "Generate Report",
+      checkboxInput("include_subgroup_report", "Include Subgroup Analysis Sections", value = FALSE),
+      conditionalPanel(
+        condition = "input.include_subgroup_report == true && output.hasSubgroupData",
+        helpText("Subgroup sections will be included if subgroup analyses have been run in the app.")
+      ),
+      checkboxInput("include_metareg_report", "Include Meta-Regression Section", value = FALSE),
+      conditionalPanel(
+        condition = "input.include_metareg_report == true && output.hasModeratorData",
+        helpText("Meta-regression section will be included if meta-regression has been run in the app.")
+      ),
+      footer = tagList(
+        modalButton("Cancel"),
+        downloadButton("downloadReportFile", "Generate Report", class = "btn-primary")
+      ),
+      easyClose = TRUE,
+      size = "l"
+    ))
+  })
+  
+  # New download handler that respects options chosen in the modal
+  output$downloadReportFile <- downloadHandler(
+    filename = function() {
+      paste("meta_analysis_report_", Sys.Date(), ".html", sep = "")
+    },
+    content = function(file) {
+      withProgress(message = 'Generating report...', value = 0, {
+        incProgress(0.3)
+        
+        # Prepare optional results
+        random_subgroup <- if (!is.null(input$include_subgroup_report) && input$include_subgroup_report && input$run_random_subgroup > 0) random_subgroup_results() else NULL
+        fixed_subgroup  <- if (!is.null(input$include_subgroup_report) && input$include_subgroup_report && input$run_fixed_subgroup > 0) fixed_subgroup_results() else NULL
+        bivariate_subgroup <- if (!is.null(input$include_subgroup_report) && input$include_subgroup_report && input$run_bivariate_subgroup > 0) bivariate_subgroup_results() else NULL
+        metareg_res <- if (!is.null(input$include_metareg_report) && input$include_metareg_report && input$run_metaregression > 0) metaregression_results() else NULL
+
+        output_file <- render_report(
+          random_results(),
+          fixed_results(),
+          bivariate_results(),
+          data(),
+          random_subgroup_results = random_subgroup,
+          fixed_subgroup_results  = fixed_subgroup,
+          bivariate_subgroup_results = bivariate_subgroup,
+          metaregression_results = metareg_res,
+          include_subgroup = isTRUE(input$include_subgroup_report),
+          include_metareg  = isTRUE(input$include_metareg_report)
+        )
+
+        incProgress(0.6)
+        file.copy(output_file, file)
+        incProgress(1)
+      })
+    }
+  )
 }
 
 
