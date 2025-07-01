@@ -64,3 +64,23 @@ h4 {
   border-bottom: 1px solid #e9ecef;
   padding-bottom: 5px;
 }
+
+[data-bs-theme="dark"] h4 {
+  color: #ffffff;
+  border-bottom: 1px solid #444;
+}
+
+[data-bs-theme="dark"] .section-explanation {
+  color: #cccccc;
+}
+
+[data-bs-theme="dark"] .plot-explanation {
+  background-color: #343a40;
+  border-left-color: #17a2b8;
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .plot-explanation strong,
+[data-bs-theme="dark"] .plot-explanation em {
+  color: #ffffff;
+}

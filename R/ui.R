@@ -54,7 +54,7 @@ ui <- page_fillable(
     column(4, 
            style = "text-align: right; margin-top: 5px;",
            actionButton("app_info", "App Info", icon = icon("info-circle"), style = "margin-right: 10px;"),
-           input_dark_mode(id = "dark_mode", mode = "dark", style="font-size: 0.8em; padding: 0; width: 20px; height: 20px; border-radius: 50%;")
+           input_dark_mode(id = "dark_mode", mode = "light", style="font-size: 0.8em; padding: 0; width: 20px; height: 20px; border-radius: 50%;")
     )
   ),
   hr(),
@@ -76,7 +76,10 @@ ui <- page_fillable(
       h4("Data Cleaning"),
       checkboxInput("remove_na", "Remove rows with NA values", value = TRUE),
       hr(),
+      conditionalPanel(
+        condition = "output.analysisReady == true",
       actionButton("prepareReport", "Download Report", icon = icon("file-pdf"))
+      )
     ),
     
     navset_card_tab(

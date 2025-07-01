@@ -2469,13 +2469,39 @@ server <- function(input, output, session) {
       title = "Generate Report",
       checkboxInput("include_subgroup_report", "Include Subgroup Analysis Sections", value = FALSE),
       conditionalPanel(
-        condition = "input.include_subgroup_report == true && output.hasSubgroupData",
-        helpText("Subgroup sections will be included if subgroup analyses have been run in the app.")
+        condition = "input.include_subgroup_report == true",
+        selectInput("report_subgroup_variable", "Subgroup Variable:", 
+                   choices = reactive({
+                     req(data())
+                     cols <- names(data())
+                     # Exclude standard columns based on data type
+                     if (input$data_type == "binary") {
+                       cols <- setdiff(cols, c("study", "ie", "it", "pe", "pt"))
+                     } else {
+                       cols <- setdiff(cols, c("study", "smd", "ci_lower", "ci_upper"))
+                     }
+                     cols
+                   })()),
+        helpText("Select the subgroup variable to use in the report.")
       ),
       checkboxInput("include_metareg_report", "Include Meta-Regression Section", value = FALSE),
       conditionalPanel(
-        condition = "input.include_metareg_report == true && output.hasModeratorData",
-        helpText("Meta-regression section will be included if meta-regression has been run in the app.")
+        condition = "input.include_metareg_report == true",
+        selectInput("report_mod_variable", "Moderator Variable:", 
+                   choices = reactive({
+                     req(data())
+                     cols <- names(data())
+                     # Exclude standard columns based on data type
+                     if (input$data_type == "binary") {
+                       cols <- setdiff(cols, c("study", "ie", "it", "pe", "pt"))
+                     } else {
+                       cols <- setdiff(cols, c("study", "smd", "ci_lower", "ci_upper"))
+                     }
+                     cols
+                   })()),
+        radioButtons("report_mod_type", "Variable Type:", choices = list("Continuous"="continuous","Categorical"="categorical"), inline=TRUE),
+        checkboxInput("report_use_random", "Use Random Effects Model", TRUE),
+        checkboxInput("report_perm_test", "Permutation Test (robust p-values)", FALSE)
       ),
       footer = tagList(
         modalButton("Cancel"),
@@ -2495,23 +2521,21 @@ server <- function(input, output, session) {
       withProgress(message = 'Generating report...', value = 0, {
         incProgress(0.3)
         
-        # Prepare optional results
-        random_subgroup <- if (!is.null(input$include_subgroup_report) && input$include_subgroup_report && input$run_random_subgroup > 0) random_subgroup_results() else NULL
-        fixed_subgroup  <- if (!is.null(input$include_subgroup_report) && input$include_subgroup_report && input$run_fixed_subgroup > 0) fixed_subgroup_results() else NULL
-        bivariate_subgroup <- if (!is.null(input$include_subgroup_report) && input$include_subgroup_report && input$run_bivariate_subgroup > 0) bivariate_subgroup_results() else NULL
-        metareg_res <- if (!is.null(input$include_metareg_report) && input$include_metareg_report && input$run_metaregression > 0) metaregression_results() else NULL
+        # Get the selected variables
+        subgroup_var <- if (isTRUE(input$include_subgroup_report)) input$report_subgroup_variable else NULL
+        moderator_var <- if (isTRUE(input$include_metareg_report)) input$report_mod_variable else NULL
+        moderator_type <- if (isTRUE(input$include_metareg_report)) input$report_mod_type else NULL
 
         output_file <- render_report(
           random_results(),
           fixed_results(),
           bivariate_results(),
           data(),
-          random_subgroup_results = random_subgroup,
-          fixed_subgroup_results  = fixed_subgroup,
-          bivariate_subgroup_results = bivariate_subgroup,
-          metaregression_results = metareg_res,
           include_subgroup = isTRUE(input$include_subgroup_report),
-          include_metareg  = isTRUE(input$include_metareg_report)
+          include_metareg = isTRUE(input$include_metareg_report),
+          subgroup_var = subgroup_var,
+          moderator_var = moderator_var,
+          moderator_type = moderator_type
         )
 
         incProgress(0.6)
@@ -2520,6 +2544,17 @@ server <- function(input, output, session) {
       })
     }
   )
+  
+  # ------------------------------------------------------------------
+  # Flag to indicate that data are loaded and Analyze was clicked
+  # This drives visibility of the "Download Report" button in the UI
+  # ------------------------------------------------------------------
+  output$analysisReady <- reactive({
+    req(input$analyze)        # ensure button was pressed at least once
+    d <- tryCatch(data(), error=function(e) NULL)
+    return(!is.null(d) && nrow(d) > 0)
+  })
+  outputOptions(output, "analysisReady", suspendWhenHidden = FALSE)
 }
 
 

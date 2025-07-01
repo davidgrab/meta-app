@@ -429,8 +429,19 @@ influence_analysis <- function(model) {
 }
 
 outlier_detection_plot <- function(model) {
-  # For metabin objects, we'll use standardized residuals
-  res <- (model$TE - model$TE.random) / sqrt(model$seTE^2 + model$tau2)
+  pooled <- if (!is.null(model$TE.random) && !all(is.na(model$TE.random))) {
+    model$TE.random
+  } else if (!is.null(model$TE.common)) {
+    model$TE.common
+  } else {
+    NA
+  }
+
+  tau2 <- if (!is.null(model$tau2) && !is.na(model$tau2)) model$tau2 else 0
+
+  # Calculate standardized residuals
+  res <- (model$TE - pooled) / sqrt(model$seTE^2 + tau2)
+
   ggplot(data.frame(studlab = model$studlab, resid = res), aes(x = studlab, y = resid)) +
     geom_point() +
     geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed", color = "red") +
@@ -439,9 +450,17 @@ outlier_detection_plot <- function(model) {
 }
 
 effect_distribution_plot <- function(model) {
+  pooled <- if (!is.null(model$TE.random) && !all(is.na(model$TE.random))) {
+    model$TE.random
+  } else if (!is.null(model$TE.common)) {
+    model$TE.common
+  } else {
+    NA
+  }
+
   ggplot(data.frame(effect = model$TE), aes(x = effect)) +
     geom_histogram(binwidth = 0.1, fill = "lightblue", color = "black") +
-    geom_vline(xintercept = model$TE.random, color = "red", linetype = "dashed") +
+    { if (!is.na(pooled)) geom_vline(xintercept = pooled, color = "red", linetype = "dashed") } +
     labs(title = "Distribution of Effect Sizes", x = "Effect Size", y = "Count")
 }
 
@@ -722,7 +741,10 @@ render_report <- function(random_results,
                          bivariate_subgroup_results = NULL,
                          metaregression_results = NULL,
                          include_subgroup = FALSE,
-                         include_metareg = FALSE) {
+                         include_metareg = FALSE,
+                         subgroup_var = NULL,  # New parameter
+                         moderator_var = NULL,  # New parameter
+                         moderator_type = NULL) {  # New parameter
   tryCatch({
     report_content <- generate_report_content()
     
@@ -736,6 +758,106 @@ render_report <- function(random_results,
     cat("- Fixed model class:", class(fixed_results), "\n")
     cat("- Bivariate model class:", class(bivariate_results), "\n")
     cat("- Data rows:", ifelse(is.null(data), "NULL", nrow(data)), "\n")
+    if (include_subgroup) cat("- Subgroup variable:", subgroup_var, "\n")
+    if (include_metareg) {
+      cat("- Moderator variable:", moderator_var, "\n")
+      cat("- Moderator type:", moderator_type, "\n")
+    }
+    
+    # If subgroup analysis is requested, generate it here
+    if (include_subgroup && !is.null(subgroup_var) && !is.null(data)) {
+      # For random effects model
+      if (inherits(random_results, "meta")) {
+        # Create a new meta-analysis with subgroup
+        random_subgroup_results <- metagen(
+          TE = random_results$TE,
+          seTE = random_results$seTE,
+          studlab = random_results$studlab,
+          data = data,
+          sm = random_results$sm,
+          subgroup = data[[subgroup_var]],
+          method.tau = random_results$method.tau,
+          method.random.ci = if (!is.null(random_results$method.random.ci)) random_results$method.random.ci else "hakn",
+          common = FALSE,
+          random = TRUE
+        )
+      }
+      
+      # For fixed effects model
+      if (inherits(fixed_results, "meta")) {
+        # Create a new meta-analysis with subgroup
+        fixed_subgroup_results <- metagen(
+          TE = fixed_results$TE,
+          seTE = fixed_results$seTE,
+          studlab = fixed_results$studlab,
+          data = data,
+          sm = fixed_results$sm,
+          subgroup = data[[subgroup_var]],
+          method.tau = fixed_results$method.tau,
+          method.random.ci = if (!is.null(fixed_results$method.random.ci)) fixed_results$method.random.ci else "hakn",
+          common = TRUE,
+          random = FALSE
+        )
+      }
+      
+      # For bivariate model
+      if (!is.null(bivariate_results)) {
+        # metabiv does not currently support subgroup argument directly.
+        bivariate_subgroup_results <- NULL
+      }
+    }
+    
+    # If meta-regression is requested, generate it here
+    if (include_metareg && !is.null(moderator_var) && !is.null(data)) {
+      # Build a formula of the form ~ moderator_var for use in meta::metareg / meta::bubble
+      mod_formula <- stats::as.formula(paste("~", moderator_var))
+
+      # Run meta-regression in a protected environment so that any problems
+      # (e.g., insufficient study numbers, singularities, etc.) do not abort
+      # the whole report rendering.  In case of error we simply skip the
+      # meta-regression section by setting the results to NULL.
+      metaregression_results <- tryCatch({
+        # Build complete-case dataset
+        df <- data
+        complete_cases <- !is.na(df[[moderator_var]])
+        df <- df[complete_cases, ]
+        if (nrow(df) < 3) stop("Insufficient data for meta-regression (need >=3 studies).")
+
+        # Extract effect sizes and SE from random_results (already corresponds to user-selected model)
+        TE   <- random_results$TE[complete_cases]
+        seTE <- random_results$seTE[complete_cases]
+
+        # Prepare moderator variable
+        mod_vec <- df[[moderator_var]]
+        if (moderator_type == "categorical" || is.character(mod_vec) || is.factor(mod_vec)) {
+          mod_vec <- as.factor(mod_vec)
+        } else {
+          mod_vec <- suppressWarnings(as.numeric(mod_vec))
+        }
+
+        # Choose estimation method (mirror UI: REML for random effects)
+        rma_method <- ifelse(is.null(random_results$method.tau) || random_results$method.tau == "FE", "FE", "REML")
+
+        # Run meta-regression with metafor::rma
+        metareg_model <- metafor::rma(yi = TE, sei = seTE, mods = ~ mod_vec, method = rma_method, test = "knha")
+
+        # Bubble plot via ggplot2
+        bubble_plot <- tryCatch({
+          df_plot <- data.frame(mod = mod_vec, TE = TE, se = seTE)
+          ggplot2::ggplot(df_plot, ggplot2::aes(x = mod, y = TE, size = 1/se)) +
+            ggplot2::geom_point(alpha = 0.6) +
+            ggplot2::scale_size_continuous(name = "Precision (1/SE)") +
+            ggplot2::labs(title = "Meta-Regression Bubble Plot", x = moderator_var, y = "Effect Size") +
+            ggplot2::theme_minimal()
+        }, error = function(e) NULL)
+
+        list(model = metareg_model, plot = bubble_plot, moderator_type = moderator_type, moderator_name = moderator_var,
+             moderator_data = mod_vec, effect_sizes = TE, standard_errors = seTE, study_names = df$study)
+      }, error = function(e) {
+        message("Meta-regression failed during report generation: ", e$message)
+        NULL
+      })
+    }
     
     # Render the report
     output_file <- tempfile(fileext = ".html")
@@ -753,7 +875,10 @@ render_report <- function(random_results,
         bivariate_subgroup_results = bivariate_subgroup_results,
         metaregression_results = metaregression_results,
         include_subgroup = include_subgroup,
-        include_metareg = include_metareg
+        include_metareg = include_metareg,
+        subgroup_var = subgroup_var,
+        moderator_var = moderator_var,
+        moderator_type = moderator_type
       ),
       quiet = TRUE
     )
@@ -1140,813 +1265,353 @@ params:
   include_subgroup: NA
   include_metareg: NA
   data: NA
+  subgroup_var: NA
+  moderator_var: NA
+  moderator_type: NA
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(ggplot2)
-library(knitr)
 library(meta)
 library(plotly)
+library(scales)
+library(grid)
+library(gridExtra)
 
-# Helper function to safely run code
 safe_run <- function(expr, fallback = NULL) {
-  tryCatch(
-    expr,
-    error = function(e) {
-      message("Error in report: ", conditionMessage(e))
-      return(fallback)
-    },
-    warning = function(w) {
-      message("Warning in report: ", conditionMessage(w))
-      return(expr)
-    }
-  )
+  tryCatch(expr, error = function(e) fallback)
 }
-```
-
-# Introduction
-
-This report presents the results of a comprehensive meta-analysis using various methodological approaches. The goal is to compare and contrast findings from random effects, fixed effects, and bivariate meta-analysis models.
-
-## Data Input
-
-Below is a preview of the uploaded dataset:
-
-```{r data-preview}
-safe_run(head(params$data))
-```
-
-## Variables Used
-
-- **study:** Study identifier
-- **ie:** Intervention events
-- **it:** Intervention total
-- **pe:** Placebo/control events
-- **pt:** Placebo/control total
-
-# Overall Results
-
-This section provides a high-level overview of results from all methods, allowing for easy comparison across different meta-analytic approaches.
-
-## Summary Table
-
-```{r summary-table, error=TRUE}
-safe_run({
-  summaryTable <- compare_models(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
-  kable(summaryTable)
-}, data.frame(Message = "Summary table unavailable"))
-```
-
-## Overall Interpretation
-
-```{r overall-interpretation, error=TRUE}
-safe_run({
-  interpretation <- interpret_results(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
-  cat(interpretation)
-}, cat("Interpretation unavailable"))
 ```
 
 # Random Effects Analysis
 
-## Effect Size and Heterogeneity
+## Effect Size & Heterogeneity
 
-```{r random-forest-plot, fig.width=12, fig.height=8, error=TRUE}
+```{r re-forest, fig.width=12, fig.height=8}
+safe_run(random_forest_plot(params$random_results))
+```
+
+```{r re-heterogeneity, fig.width=10, fig.height=6}
+safe_run(heterogeneity_plot(params$random_results))
+```
+
+```{r re-summary}
+safe_run(cat(capture.output(summary(params$random_results)), sep="\n"))
+```
+
+## Publication Bias
+
+```{r re-funnel, fig.width=10, fig.height=6}
+safe_run(random_funnel_plot(params$random_results))
+```
+
+```{r re-trimfill, fig.width=10, fig.height=6}
 safe_run({
-  # Try using built-in forest function if custom function fails
-  tryCatch(
-    {
-      randomForestPlot <- random_forest_plot(params$random_results)
-      print(randomForestPlot)
-    },
-    error = function(e) {
-      message("Using built-in forest function")
-      meta::forest(params$random_results)
-    }
-  )
-}, plot(1, type = "n", main = "Forest plot unavailable", xlab = "", ylab = ""))
+  tf <- trimfill(params$random_results)
+  funnel(tf, yaxis="se")
+})
 ```
 
-```{r random-overall-summary, error=TRUE}
-safe_run(
-  cat(capture.output(summary(params$random_results)), sep = "\n"),
-  cat("Random effects summary unavailable")
-)
-```
-
-```{r random-heterogeneity-summary, error=TRUE}
-safe_run(
-  cat(capture.output(print(params$random_results)), sep = "\n"),
-  cat("Random effects heterogeneity summary unavailable")
-)
-```
-
-## Model Diagnostics
-
-```{r random-qq-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run(
-  qq_plot_residuals(params$random_results),
-  plot(1, type = "n", main = "QQ plot unavailable", xlab = "", ylab = "")
-)
-```
-
-```{r random-outlier-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    print(outlier_detection_plot(params$random_results)),
-    error = function(e) {
-      # Create a simple residual plot
-      res <- (params$random_results$TE - params$random_results$TE.random) / sqrt(params$random_results$seTE^2 + params$random_results$tau2)
-      plot(res, main = "Residuals (Simplified)", ylab = "Standardized Residual", xlab = "Study Index")
-      abline(h = c(-1.96, 1.96), lty = 2, col = "red")
-    }
-  )
-}, plot(1, type = "n", main = "Outlier detection plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-effect-distribution, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch({
-    # Create histogram of effect sizes
-    hist(params$random_results$TE, 
-         main = "Distribution of Effect Sizes",
-         xlab = "Effect Size",
-         col = "lightblue",
-         breaks = 10)
-    abline(v = params$random_results$TE.random, col = "red", lwd = 2, lty = 2)
-    legend("topright", legend = "Random Effects Estimate", col = "red", lty = 2, lwd = 2)
-  }, error = function(e) {
-    plot(1, type = "n", main = "Effect distribution plot unavailable", xlab = "", ylab = "")
-  })
-}, plot(1, type = "n", main = "Effect distribution plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-funnel-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      randomFunnelPlot <- random_funnel_plot(params$random_results)
-      print(randomFunnelPlot)
-    },
-    error = function(e) {
-      funnel(params$random_results)
-    }
-  )
-}, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-trim-fill-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch({
-    tf <- trimfill(params$random_results)
-    funnel(tf, yaxis = "se")
-  }, error = function(e) {
-    plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = "")
-  })
-}, plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-egger-test, error=TRUE}
-safe_run(
-  cat(capture.output(metabias(params$random_results, method = "Egger")), sep = "\n"),
-  cat("Egger test unavailable")
-)
+```{r re-egger}
+safe_run(cat(capture.output(metabias(params$random_results, method="Egger")), sep="\n"))
 ```
 
 ## Sensitivity Analysis
 
-```{r random-leave-one-out, fig.width=10, fig.height=6, error=TRUE}
+```{r re-loo, fig.width=12, fig.height=8}
 safe_run({
-  tryCatch(
-    {
-      leaveOneOutPlot <- random_leave_one_out(params$random_results)
-      print(leaveOneOutPlot)
-    },
-    error = function(e) {
-      metainf_result <- metainf(params$random_results)
-      metainf_data <- data.frame(
-        study = metainf_result$studlab,
-        estimate = metainf_result$TE,
-        lower = metainf_result$lower,
-        upper = metainf_result$upper
-      )
-      ggplot(metainf_data, aes(x = estimate, y = study)) +
-        geom_point() +
-        geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
-        geom_vline(xintercept = params$random_results$TE.random, linetype = "dashed", color = "red") +
-        theme_minimal() +
-        labs(title = "Leave-One-Out Analysis", x = "Effect Size", y = "Study Omitted")
-    }
-  )
-}, plot(1, type = "n", main = "Leave-one-out plot unavailable", xlab = "", ylab = ""))
+  inf <- metainf(params$random_results)
+  inf_df <- data.frame(TE = inf$TE, seTE = inf$seTE, studlab = inf$studlab)
+  inf_df_clean <- subset(inf_df, is.finite(TE) & is.finite(seTE))
+  if (nrow(inf_df_clean) > 0) {
+    m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+    meta::forest(m_clean, leftlabs = c("Omitted Study"), main = "Leave-One-Out Analysis (Random Effects)")
+  }
+})
 ```
 
-```{r random-baujat-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run(
-  print(baujat(params$random_results)),
-  plot(1, type = "n", main = "Baujat plot unavailable", xlab = "", ylab = "")
-)
+```{r re-baujat, fig.width=10, fig.height=6}
+safe_run(baujat(params$random_results))
 ```
 
-```{r random-gosh-plot, fig.width=10, fig.height=6, error=TRUE}
+```{r re-influence}
+safe_run(influence_analysis(params$random_results))
+```
+
+## Model Diagnostics
+
+```{r re-qq-blups, fig.width=10, fig.height=6}
+safe_run(qq_plot_random_blups(params$random_results))
+```
+
+```{r re-qq-deleted, fig.width=10, fig.height=6}
+safe_run(qq_plot_random_deleted_residuals(params$random_results))
+```
+
+```{r re-outlier, fig.width=10, fig.height=6}
+safe_run(outlier_detection_plot(params$random_results))
+```
+
+```{r re-effect-dist, fig.width=10, fig.height=6}
+safe_run(effect_distribution_plot(params$random_results))
+```
+
+```{r re-normality}
 safe_run({
-  tryCatch(
-    print(gosh_plot(params$random_results)),
-    error = function(e) {
-      # Create a simple scatter plot as alternative
-      ggplot(data.frame(TE = params$random_results$TE, seTE = params$random_results$seTE), 
-             aes(x = seTE, y = TE)) +
-        geom_point() +
-        labs(title = "Effect Sizes vs. Standard Errors", 
-             x = "Standard Error", 
-             y = "Effect Size")
-    }
-  )
-}, plot(1, type = "n", main = "GOSH plot unavailable", xlab = "", ylab = ""))
+  diag_results <- run_all_normality_diagnostics("random", params$random_results)
+  print_normality_summary(diag_results, "random")
+})
 ```
 
-```{r random-influence-summary, error=TRUE}
-safe_run({
-  tryCatch(
-    cat(capture.output(influence_analysis(params$random_results)), sep = "\n"),
-    error = function(e) {
-      inf <- metainf(params$random_results)
-      print(inf)
-    }
-  )
-}, cat("Influence analysis unavailable"))
-```
+## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
 
-# Subgroup Analysis (Random Effects)
-
-```{r random-subgroup-analysis, fig.width=12, fig.height=8, error=TRUE}
+```{r re-subgroup, fig.width=12, fig.height=8}
 if (params$include_subgroup && !is.null(params$random_subgroup_results)) {
   safe_run({
-    tryCatch(
-      {
-        forest(params$random_subgroup_results)
-      }, error = function(e) {
-        meta::forest(params$random_subgroup_results)
-      }
-    )
-  }, plot(1, type = "n", main = "Subgroup analysis plot unavailable", xlab = "", ylab = ""))
-} else {
-  cat("Subgroup analysis not included or unavailable.")
-}
-```
-
-```{r random-subgroup-summary, error=TRUE}
-if (params$include_subgroup && !is.null(params$random_subgroup_results)) {
-  safe_run(
-    cat(capture.output(summary(params$random_subgroup_results)), sep = "\n"),
-    cat("Subgroup analysis summary unavailable")
-  )
+    forest(params$random_subgroup_results,
+           test.overall.random = TRUE,
+           test.subgroup.random = TRUE,
+           print.byvar = FALSE)
+    cat("\nSubgroup Analysis Results:\n")
+    cat("Q-statistic between groups:", params$random_subgroup_results$Q.b.random, "\n")
+    cat("P-value:", params$random_subgroup_results$pval.Q.b.random, "\n")
+  })
 }
 ```
 
 # Fixed Effects Analysis
 
-## Effect Size and Heterogeneity
+## Effect Size & Heterogeneity
 
-```{r fixed-forest-plot, fig.width=12, fig.height=8, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      fixedForestPlot <- fixed_forest_plot(params$fixed_results)
-      print(fixedForestPlot)
-    },
-    error = function(e) {
-      meta::forest(params$fixed_results)
-    }
-  )
-}, plot(1, type = "n", main = "Fixed effects forest plot unavailable", xlab = "", ylab = ""))
+```{r fe-forest, fig.width=12, fig.height=8}
+safe_run(fixed_forest_plot(params$fixed_results))
 ```
 
-```{r fixed-overall-summary, error=TRUE}
-safe_run(
-  cat(capture.output(summary(params$fixed_results)), sep = "\n"),
-  cat("Fixed effects summary unavailable")
-)
+```{r fe-radial, fig.width=10, fig.height=6}
+safe_run(radial(params$fixed_results))
 ```
 
-```{r fixed-model-fit, error=TRUE}
-safe_run(
-  cat(capture.output(print(params$fixed_results$I2)), sep = "\n"),
-  cat("Model fit statistics unavailable")
-)
+```{r fe-summary}
+safe_run(cat(capture.output(summary(params$fixed_results)), sep="\n"))
 ```
 
-## Model Diagnostics
-
-```{r fixed-model-fit-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      radial(params$fixed_results, main="Radial Plot for Fixed Effects Model")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Radial plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Radial plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r fixed-qq-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      # Create QQ plot for fixed effects model
-      res <- (params$fixed_results$TE - params$fixed_results$TE.common) / params$fixed_results$seTE
-      qqnorm(res, main = "Q-Q Plot for Fixed Effects Model")
-      qqline(res, col = "red")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "QQ plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "QQ plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r fixed-outlier-detection-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      # Create outlier detection plot for fixed effects
-      res <- (params$fixed_results$TE - params$fixed_results$TE.common) / params$fixed_results$seTE
-      plot(res, main = "Outlier Detection (Fixed Effects)",
-           ylab = "Standardized Residual", xlab = "Study Index")
-      abline(h = c(-1.96, 1.96), lty = 2, col = "red")
-      text(1:length(res), res, labels = params$fixed_results$studlab, pos = 4, cex = 0.7)
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Outlier detection plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Outlier detection plot unavailable", xlab = "", ylab = ""))
+```{r fe-fit-stats}
+safe_run(model_fit_statistics(params$fixed_results))
 ```
 
 ## Publication Bias
 
-```{r fixed-funnel-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      funnel(params$fixed_results, main="Funnel Plot (Fixed Effects)")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
+```{r fe-funnel, fig.width=10, fig.height=6}
+safe_run(funnel(params$fixed_results))
 ```
 
-```{r fixed-trim-fill-plot, fig.width=10, fig.height=6, error=TRUE}
+```{r fe-trimfill, fig.width=10, fig.height=6}
 safe_run({
-  tryCatch({
     tf <- trimfill(params$fixed_results)
-    funnel(tf, yaxis = "se", main="Trim and Fill Plot (Fixed Effects)")
-  }, error = function(e) {
-    plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = "")
-  })
-}, plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = ""))
+  funnel(tf, yaxis="se")
+})
 ```
 
-```{r fixed-egger-test, error=TRUE}
-safe_run(
-  cat(capture.output(metabias(params$fixed_results, method = "Egger")), sep = "\n"),
-  cat("Egger test unavailable")
-)
+```{r fe-egger}
+safe_run(cat(capture.output(metabias(params$fixed_results, method="Egger")), sep="\n"))
 ```
 
 ## Sensitivity Analysis
 
-```{r fixed-leave-one-out-plot, fig.width=10, fig.height=6, error=TRUE}
+```{r fe-loo, fig.width=12, fig.height=8}
 safe_run({
-  tryCatch(
-    {
-      metainf_result <- metainf(params$fixed_results)
-      metainf_data <- data.frame(
-        study = metainf_result$studlab,
-        estimate = metainf_result$TE,
-        lower = metainf_result$lower,
-        upper = metainf_result$upper
-      )
-      ggplot(metainf_data, aes(x = estimate, y = study)) +
-        geom_point() +
-        geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
-        geom_vline(xintercept = params$fixed_results$TE.common, linetype = "dashed", color = "red") +
-        theme_minimal() +
-        labs(title = "Leave-One-Out Analysis (Fixed Effects)", x = "Effect Size", y = "Study Omitted")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Leave-one-out plot unavailable", xlab = "", ylab = "")
+  inf <- metainf(params$fixed_results)
+  inf_df <- data.frame(TE = inf$TE, seTE = inf$seTE, studlab = inf$studlab)
+  inf_df_clean <- subset(inf_df, is.finite(TE) & is.finite(seTE))
+  if (nrow(inf_df_clean) > 0) {
+    m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+    meta::forest(m_clean, leftlabs = c("Omitted Study"), main = "Leave-One-Out Analysis (Fixed Effects)")
     }
-  )
-}, plot(1, type = "n", main = "Leave-one-out plot unavailable", xlab = "", ylab = ""))
+})
 ```
 
-```{r fixed-influence-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      baujat(params$fixed_results, main="Baujat Plot (Fixed Effects)")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Baujat plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Influence plot unavailable", xlab = "", ylab = ""))
+## Model Diagnostics
+
+```{r fe-qq, fig.width=10, fig.height=6}
+safe_run(qq_plot_fixed_residuals(params$fixed_results))
 ```
 
-```{r fixed-influence-summary, error=TRUE}
-safe_run({
-  cat("Influence Analysis (Fixed Effects Model):\n\n")
-  # Create a simple influence summary
-  metainf_result <- metainf(params$fixed_results)
-  studies <- metainf_result$studlab
-  estimates <- metainf_result$TE.random
-  influential <- which(abs(estimates - params$fixed_results$TE.common) > 1.96 * params$fixed_results$seTE.common)
-  
-  if(length(influential) > 0) {
-    cat("Potentially influential studies:\n")
-    for(i in influential) {
-      cat("- ", studies[i], ": Effect size when omitted = ", round(estimates[i], 4), "\n")
-    }
-  } else {
-    cat("No highly influential studies detected.\n")
-  }
-}, cat("Influence summary unavailable"))
+```{r fe-outlier, fig.width=10, fig.height=6}
+safe_run(outlier_detection_plot(params$fixed_results))
 ```
 
-# Subgroup Analysis (Fixed Effects)
+```{r fe-effect-dist, fig.width=10, fig.height=6}
+safe_run(effect_distribution_plot(params$fixed_results))
+```
 
-```{r fixed-subgroup-analysis, fig.width=12, fig.height=8, error=TRUE}
+```{r fe-normality}
+  safe_run({
+  diag_results <- run_all_normality_diagnostics("fixed", params$fixed_results)
+  print_normality_summary(diag_results, "fixed")
+})
+```
+
+## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
+
+```{r fe-subgroup, fig.width=12, fig.height=8}
 if (params$include_subgroup && !is.null(params$fixed_subgroup_results)) {
   safe_run({
-    tryCatch({
-      forest(params$fixed_subgroup_results)
-    }, error = function(e) {
-      meta::forest(params$fixed_subgroup_results)
-    })
-  }, plot(1, type = "n", main = "Subgroup analysis plot unavailable", xlab = "", ylab = ""))
-} else {
-  cat("Subgroup analysis not included or unavailable.")
-}
-```
-
-```{r fixed-subgroup-summary, error=TRUE}
-if (params$include_subgroup && !is.null(params$fixed_subgroup_results)) {
-  safe_run(
-    cat(capture.output(summary(params$fixed_subgroup_results)), sep = "\n"),
-    cat("Subgroup analysis summary unavailable")
-  )
+    forest(params$fixed_subgroup_results,
+           test.overall = TRUE,
+           test.subgroup = TRUE,
+           print.byvar = FALSE)
+    cat("\nSubgroup Analysis Results:\n")
+    cat("Q-statistic between groups:", params$fixed_subgroup_results$Q.b, "\n")
+    cat("P-value:", params$fixed_subgroup_results$pval.Q.b, "\n")
+  })
 }
 ```
 
 # Bivariate Approach
 
-## Effect Size and Heterogeneity
+## Effect Size & Heterogeneity
 
-```{r bivariate-effect-size, fig.width=10, fig.height=6, error=TRUE}
-# Create a 2-column layout similar to the UI
-par(mfrow = c(1, 2))
-
-# Column 1: Bivariate Forest Plot
-safe_run({
-  if(exists("forest.metabiv", mode = "function")) {
-    forest.metabiv(params$bivariate_results, 
-                  main = "Bivariate Forest Plot",
-                  xlab = "Effect Size")
-  } else {
-    # Fallback to a simple forest plot
-    plot(1, type = "n", main = "Bivariate forest plot unavailable\n(forest.metabiv function not found)", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Bivariate forest plot unavailable", xlab = "", ylab = ""))
-
-# Column 2: Confidence Region Plot
-safe_run({
-  if(exists("plot.mu.tau.CI", mode = "function") && 
-     !is.null(params$bivariate_results$dev_pvals) && 
-     length(params$bivariate_results$dev_pvals) >= 2) {
-    plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]], 
-                 params$bivariate_results$dev_pvals[[2]], 
-                 mlb = "Confidence Region for (μ, τ)")
-  } else {
-    plot(1, type = "n", main = "Confidence region plot unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Confidence region plot unavailable", xlab = "", ylab = ""))
-
-# Reset layout
-par(mfrow = c(1, 1))
+```{r biv-forest, fig.width=12, fig.height=8}
+safe_run(if(exists("forest.metabiv")) forest.metabiv(params$bivariate_results))
 ```
 
-```{r bivariate-efficacy-harm-plot, fig.width=10, fig.height=6, error=TRUE}
+```{r biv-efficacy-harm, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("efficacy_harm_plot", mode = "function")) {
-    efficacy_harm_plot(params$bivariate_results)
-  } else {
-    # Try to create a simple visualization
-    plot(1, type = "n", main = "Efficacy-harm plot unavailable", xlab = "", ylab = "")
+  if (!is.null(params$bivariate_results)) {
+    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals, sm = params$bivariate_results$sm)
+    comp.eff.harm.plot(CDF.ci.obj,
+                      efficacy.is.OR.le1 = (params$bivariate_results$sm == "OR"),
+                      mlb = "Efficacy/Harm Plot",
+                      xlb = paste("Effect Size (", params$bivariate_results$sm, ")"),
+                      sm = params$bivariate_results$sm)
   }
-}, plot(1, type = "n", main = "Efficacy-harm plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r bivariate-overall-summary, error=TRUE}
-safe_run({
-  if(!is.null(params$bivariate_results$mu) && !is.null(params$bivariate_results$tau)) {
-    cat("Bivariate Meta-Analysis Summary:\n\n")
-    cat("Pooled Effect Size (μ): ", exp(params$bivariate_results$mu), "\n")
-    cat("95% CI: (", exp(params$bivariate_results$mu - 1.96 * params$bivariate_results$tau), ", ", 
-        exp(params$bivariate_results$mu + 1.96 * params$bivariate_results$tau), ")\n")
-    cat("Between-study Variability (τ): ", params$bivariate_results$tau, "\n")
-    cat("Between-study Variance (τ²): ", params$bivariate_results$tau^2, "\n")
-  } else {
-    cat("Bivariate meta-analysis summary unavailable")
-  }
-}, cat("Bivariate meta-analysis summary unavailable"))
+})
 ```
 
 ## Model Diagnostics
 
-```{r bivariate-model-diagnostics, fig.width=10, fig.height=6, error=TRUE}
-# Create a 2-column layout similar to the UI
-par(mfrow = c(1, 2))
-
-# Column 1: QQ Plot for Standardized Residuals
-safe_run({
-  if(exists("qq_plot_bivariate", mode = "function")) {
-    qq_plot_bivariate(params$bivariate_results)
-  } else {
-    plot(1, type = "n", main = "QQ plot (standardized residuals) unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "QQ plot (standardized residuals) unavailable", xlab = "", ylab = ""))
-
-# Column 2: QQ Plot for Raw Residuals
-safe_run({
-  if(exists("qq_plot_with_ci_raw", mode = "function") && 
-     !is.null(params$bivariate_results$y.k) && 
-     !is.null(params$bivariate_results$mu) && 
-     !is.null(params$bivariate_results$sigma.2.k) && 
-     !is.null(params$bivariate_results$tau)) {
-    
-    y_k <- params$bivariate_results$y.k
-    mu <- params$bivariate_results$mu
-    sigma_2_k <- params$bivariate_results$sigma.2.k
-    tau_2 <- params$bivariate_results$tau^2
-    n_k <- params$bivariate_results$n.e + params$bivariate_results$n.c
-    
-    qq_plot_with_ci_raw(y_k, mu, sigma_2_k, tau_2, n_k, 
-                      log_odds = FALSE, 
-                      title = "Q-Q Plot for Raw Residuals")
-  } else {
-    plot(1, type = "n", main = "QQ plot (raw residuals) unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "QQ plot (raw residuals) unavailable", xlab = "", ylab = ""))
-
-# Reset layout
-par(mfrow = c(1, 1))
+```{r biv-qq-std, fig.width=10, fig.height=6}
+safe_run(qq_plot_bivariate_blups(params$bivariate_results))
 ```
 
-## Publication Bias
-
-```{r bivariate-publication-bias, fig.width=10, fig.height=6, error=TRUE}
+```{r biv-qq-deleted, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("funnel", mode = "function") && 
-     !is.null(params$bivariate_results$y.k) && 
-     !is.null(params$bivariate_results$sigma.2.k)) {
-    
-    # Create a more robust funnel plot for bivariate model
-    y.k <- params$bivariate_results$y.k
-    se.k <- sqrt(params$bivariate_results$sigma.2.k)
-    
-    # Try different approaches to ensure plot is visible
-    tryCatch({
-      # First attempt - create metagen object
-      meta_analysis <- metagen(TE = y.k, seTE = se.k, 
-                              common = TRUE, random = TRUE,
-                              sm = params$bivariate_results$sm)
-      funnel(meta_analysis, 
-             main = "Funnel Plot for Bivariate Model",
-             xlab = "Effect Size", 
-             ylab = "Standard Error")
-    }, error = function(e) {
-      tryCatch({
-        # Second attempt - simple scatter plot
-        plot(y.k, se.k, 
-             main = "Funnel Plot for Bivariate Model (Simple)",
-             xlab = "Effect Size (log scale)", 
-             ylab = "Standard Error",
-             pch = 19)
-        abline(v = params$bivariate_results$mu, col = "red", lty = 2)
-        # Funnel lines
-        tau <- params$bivariate_results$tau
-        mu <- params$bivariate_results$mu
-        se_range <- seq(0, max(se.k, na.rm = TRUE), length.out = 100)
-        lines(mu + 1.96 * sqrt(se_range^2 + tau^2), se_range, col = "blue", lty = 2)
-        lines(mu - 1.96 * sqrt(se_range^2 + tau^2), se_range, col = "blue", lty = 2)
-      }, error = function(e) {
-        plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
-      })
-    })
-  } else {
-    plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
+  if(exists("qq_plot_bivariate_deleted_residuals")) {
+    input_stub <- list(
+      data_type = ifelse(is.null(params$data), "binary", ifelse("smd" %in% names(params$data), "smd", "binary")),
+      effect_measure = params$bivariate_results$sm
+    )
+    qq_plot_bivariate_deleted_residuals(params$bivariate_results, params$data, input_stub)
   }
-}, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r bivariate-egger-test, error=TRUE}
-safe_run({
-  if(!is.null(params$bivariate_results$y.k) && !is.null(params$bivariate_results$sigma.2.k)) {
-    meta_analysis <- metagen(TE = params$bivariate_results$y.k, 
-                            seTE = sqrt(params$bivariate_results$sigma.2.k))
-    cat(capture.output(metabias(meta_analysis, method = "Egger")), sep = "\n")
-  } else {
-    cat("Egger test unavailable for bivariate model")
-  }
-}, cat("Egger test unavailable for bivariate model"))
+})
 ```
 
 ## Sensitivity Analysis
 
-```{r bivariate-sensitivity-analysis, fig.width=10, fig.height=6, error=TRUE}
-# Use the same interactive plot from the UI
+```{r biv-loo, fig.width=10, fig.height=6}
+safe_run(bivariate_leave_one_out(params$bivariate_results))
+```
+
+```{r biv-confidence, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("confidence_region_shift_plot", mode = "function")) {
-    # Try to use the interactive function first
+  if(exists("confidence_region_shift_plot")) {
     confidence_region_shift_plot(params$bivariate_results)
-  } else if(!is.null(params$bivariate_results$dev_pvals) && 
-           length(params$bivariate_results$dev_pvals) >= 2) {
-    
-    # Fallback: Create a static version of the confidence region shift plot
-    # Create a 2-column layout
-    par(mfrow = c(1, 2))
-    
-    # Left: Confidence Region Plot
-    plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]],
-                  params$bivariate_results$dev_pvals[[2]],
-                  mlb = "Confidence Region",
-                  mu_mle = params$bivariate_results$mu,
-                  tau_mle = params$bivariate_results$tau)
-    
-    # Right: Enhanced Baujat Plot (static version)
-    if(!is.null(params$bivariate_results$studlab) && 
-       !is.null(params$bivariate_results$y.k) && 
-       !is.null(params$bivariate_results$sigma.2.k) && 
-       !is.null(params$bivariate_results$mu) && 
-       !is.null(params$bivariate_results$tau)) {
-      
-      # Calculate influence metrics
-      influence <- sapply(1:length(params$bivariate_results$y.k), function(i) {
-        contribution <- (params$bivariate_results$y.k[i] - params$bivariate_results$mu)^2 / 
-                       (params$bivariate_results$sigma.2.k[i] + params$bivariate_results$tau^2)
-        influence <- abs(params$bivariate_results$y.k[i] - params$bivariate_results$mu) / 
-                    sqrt(params$bivariate_results$sigma.2.k[i] + params$bivariate_results$tau^2)
-        c(contribution, influence)
-      })
-      
-      # Create static plot
-      weights <- 1/(params$bivariate_results$sigma.2.k + params$bivariate_results$tau^2)
-      
-      plot(influence[1,], influence[2,], 
-           main = "Enhanced Baujat Plot",
-           xlab = "Contribution to heterogeneity", 
-           ylab = "Influence on overall result",
-           cex = sqrt(weights/mean(weights))*1.5,
-           pch = 19, col = "blue")
-      
-      # Add study labels
-      text(influence[1,], influence[2,], 
-           labels = params$bivariate_results$studlab, 
-           pos = 4, cex = 0.7)
-      
-      # Add reference lines
-      abline(h = median(influence[2,]), lty = 2, col = "gray")
-      abline(v = median(influence[1,]), lty = 2, col = "gray")
-    } else {
-      plot(1, type = "n", main = "Enhanced Baujat plot unavailable", xlab = "", ylab = "")
-    }
-    
-    # Reset layout
-    par(mfrow = c(1, 1))
-  } else {
-    plot(1, type = "n", main = "Sensitivity analysis plots unavailable", xlab = "", ylab = "")
   }
-}, plot(1, type = "n", main = "Sensitivity analysis plots unavailable", xlab = "", ylab = ""))
+})
 ```
 
-```{r bivariate-leave-one-out, fig.width=10, fig.height=6, error=TRUE}
+```{r biv-baujat, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("metainf", mode = "function") && 
-     !is.null(params$bivariate_results$y.k) && 
-     !is.null(params$bivariate_results$sigma.2.k)) {
-    
-    # Create a leave-one-out analysis for bivariate model by approximating with metagen
-    meta_analysis <- metagen(TE = params$bivariate_results$y.k, 
-                            seTE = sqrt(params$bivariate_results$sigma.2.k),
-                            studlab = params$bivariate_results$studlab)
-    
-    inf_result <- metainf(meta_analysis)
-    
-    # Create a plot similar to the one in the UI
-    inf_data <- data.frame(
-      study = inf_result$studlab,
-      estimate = inf_result$TE,
-      lower = inf_result$lower,
-      upper = inf_result$upper
-    )
-    
-    ggplot(inf_data, aes(x = estimate, y = study)) +
+  if(exists("enhanced_baujat_plot")) {
+    enhanced_baujat_plot(params$bivariate_results)
+  }
+})
+```
+
+## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
+
+```{r biv-subgroup, fig.width=12, fig.height=8}
+if (params$include_subgroup && !is.null(params$bivariate_subgroup_results)) {
+safe_run({
+    results <- params$bivariate_subgroup_results$results
+    plots <- lapply(names(results), function(nm) {
+      grid::grid.grabExpr({
+        forest.metabiv(results[[nm]], title = paste("Subgroup:", nm))
+      })
+    })
+    do.call(gridExtra::grid.arrange, c(plots, ncol=1))
+  })
+}
+```
+
+# Meta-Regression Analysis `r if(!params$include_metareg || is.null(params$metaregression_results)) "(skipped)" else ""`
+
+```{r metareg-bubble, fig.width=10, fig.height=6}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
+  safe_run(print(params$metaregression_results$plot))
+}
+```
+
+```{r metareg-residuals, fig.width=10, fig.height=6}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
+safe_run({
+    model <- params$metaregression_results$model
+    residuals <- resid(model)
+    fitted <- fitted(model)
+    ggplot(data.frame(fitted = fitted, residuals = residuals), aes(x = fitted, y = residuals)) +
       geom_point() +
-      geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
-      geom_vline(xintercept = params$bivariate_results$mu, linetype = "dashed", color = "red") +
-      theme_minimal() +
-      labs(title = "Leave-One-Out Analysis (Bivariate)", 
-           x = "Effect Size", 
-           y = "Study Omitted")
-  } else {
-    plot(1, type = "n", main = "Leave-one-out analysis unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Leave-one-out analysis unavailable", xlab = "", ylab = ""))
+      geom_smooth(method = "loess") +
+      labs(title = "Residual Plot", x = "Fitted Values", y = "Residuals")
+  })
+}
 ```
 
-# Subgroup Analysis (Bivariate)
-
-```{r bivariate-subgroup-analysis, fig.width=12, fig.height=8, error=TRUE}
-if (params$include_subgroup && !is.null(params$bivariate_subgroup_results)) {
+```{r metareg-influence, fig.width=10, fig.height=6}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
   safe_run({
-    # params$bivariate_subgroup_results is expected to be a list with separate results
-    res_list <- params$bivariate_subgroup_results$results
-    if (!is.null(res_list) && length(res_list) > 0) {
-      par(mfrow = c(length(res_list), 1))
-      for (nm in names(res_list)) {
-        tryCatch({
-          forest.metabiv(res_list[[nm]], title = paste("Subgroup:", nm), xlab = "Effect Size")
-        }, error = function(e) {
-          plot(1, type = "n", main = paste("Subgroup plot unavailable (", nm, ")"))
-        })
-      }
-      par(mfrow = c(1,1))
-    } else {
-      cat("No subgroup results available.")
-    }
-  }, plot(1, type = "n", main = "Subgroup analysis plot unavailable", xlab = "", ylab = ""))
-} else {
-  cat("Subgroup analysis not included or unavailable.")
+    model <- params$metaregression_results$model
+    inf <- influence(model)
+    plot(inf, which = "influence")
+  })
 }
 ```
 
-```{r bivariate-subgroup-summary, error=TRUE}
-if (params$include_subgroup && !is.null(params$bivariate_subgroup_results)) {
+```{r metareg-summary}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
   safe_run({
-    res_list <- params$bivariate_subgroup_results$results
-    for (nm in names(res_list)) {
-      cat("\nSubgroup:", nm, "\n")
-      cat(capture.output(summary(res_list[[nm]])), sep = "\n")
-    }
-  }, cat("Subgroup summary unavailable"))
-}
-```
-
-# Meta-Regression (Optional)
-
-`r if (params$include_metareg && !is.null(params$metaregression_results)) { "## Meta-Regression" }`
-
-```{r metareg-regression-plot, fig.width=10, fig.height=6, error=TRUE}
-if (params$include_metareg && !is.null(params$metaregression_results)) {
-  res <- params$metaregression_results
-  moderator_data <- res$moderator_data
-  if (is.factor(moderator_data)) {
-    # Categorical moderator plot
-    group_means <- tapply(res$effect_sizes, moderator_data, mean)
-    group_se <- tapply(res$standard_errors, moderator_data, function(x) sqrt(mean(x^2)))
-    bp <- barplot(group_means, ylim = range(group_means + c(-1,1)*1.96*group_se), col = "lightblue",
-                  xlab = res$moderator_name, ylab = "Effect Size", main = "Meta-Regression (Categorical Moderator)")
-    arrows(bp, group_means - 1.96*group_se, bp, group_means + 1.96*group_se,
-           angle = 90, code = 3, length = 0.05, col = "red")
+    cat("Meta-Regression Results\n")
+    cat("======================\n\n")
+    cat(capture.output(summary(params$metaregression_results$model)), sep="\n")
+    cat("\nInterpretation:\n")
+    cat("---------------\n")
+    results <- params$metaregression_results
+    model <- results$model
+    moderator_significant <- any(model$pval[-1] < 0.05, na.rm = TRUE)
+    
+    if (moderator_significant) {
+      cat("The moderator variable significantly explains heterogeneity (p < 0.05).\n")
   } else {
-    # Continuous moderator scatter
-    plot(moderator_data, res$effect_sizes, pch = 19, xlab = res$moderator_name, ylab = "Effect Size",
-         main = "Meta-Regression (Continuous Moderator)")
-    mod_seq <- seq(min(moderator_data, na.rm = TRUE), max(moderator_data, na.rm = TRUE), length.out = 100)
-    pred <- predict(res$model, newmods = mod_seq)
-    lines(mod_seq, pred$pred, col = "red", lwd = 2)
-  }
-} else {
-  cat("Meta-regression not included or unavailable.")
+      cat("The moderator does not significantly explain heterogeneity.\n")
+    }
+    
+    if (!is.null(model$QM)) {
+      cat("\nTest of Moderator (QM):", round(model$QM,3), 
+          "on", model$df.QM, "df (p =", sprintf("%.3f", model$pval.QM), ")\n")
+    }
+    if (!is.null(model$QE)) {
+      cat("Residual Heterogeneity (QE):", round(model$QE,3),
+          "on", model$df.QE, "df (p =", sprintf("%.3f", model$pval.QE), ")\n")
+    }
+  })
 }
 ```
 
-```{r metareg-summary, error=TRUE}
-if (params$include_metareg && !is.null(params$metaregression_results)) {
-  cat(capture.output(summary(params$metaregression_results$model)), sep = "\n")
-  if (!is.null(params$metaregression_results$perm_result)) {
-    cat("\nPermutation Test Results:\n")
-    print(params$metaregression_results$perm_result)
-  }
-}
-```
+# Session Information
 
-This comprehensive report provides a detailed overview of the meta-analysis results using multiple methodological approaches. By comparing results across different models and examining various diagnostic plots, we can gain a more nuanced understanding of the effect size, heterogeneity, and potential biases in the meta-analysis. This multi-faceted approach supports more informed decision-making in interpreting and applying the results of the meta-analysis.
+```{r session-info}
+safe_run(sessionInfo())
+```
 ')
 }
 
