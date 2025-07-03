@@ -2555,11 +2555,11 @@ qq_plot_bivariate_vs_fixed_deleted <- function(bivariate_results, fixed_results,
   bivariate_deleted <- calculate_bivariate_deleted_residuals(bivariate_results, data, input)
   fixed_deleted <- calculate_fixed_deleted_residuals(fixed_results)
   
-  # Create side-by-side plot
+  # Create side-by-side plot (Fixed Effects left, Bivariate MLE right)
   create_sidebyside_deleted_residuals_qq(
-    bivariate_deleted, fixed_deleted,
-    label1 = "Bivariate MLE",
-    label2 = "Fixed Effects",
+    fixed_deleted, bivariate_deleted,
+    label1 = "Fixed Effects",
+    label2 = "Bivariate MLE",
     main_title = "Deleted Residuals Comparison"
   )
 }

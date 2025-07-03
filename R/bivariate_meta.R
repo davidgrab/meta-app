@@ -655,6 +655,19 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
                           is.finite(plot_data$lower) & 
                           is.finite(plot_data$upper), ]
     
+    # --- NEW: Focus x-axis on region where probability > threshold ---
+    prob_thresh <- 0.005
+    nonzero_idx <- which(plot_data$y > prob_thresh)
+    if (length(nonzero_idx) > 0) {
+      x_focus <- range(plot_data$x[nonzero_idx], na.rm = TRUE)
+      x_margin <- diff(x_focus) * 0.05
+      x_lims <- c(x_focus[1] - x_margin, x_focus[2] + x_margin)
+      plot_data <- plot_data[plot_data$x >= x_lims[1] & plot_data$x <= x_lims[2], ]
+    } else {
+      x_lims <- range(plot_data$x, na.rm = TRUE)
+    }
+    # ---------------------------------------------------------------
+
     # Create plot with ggplot2 - linear scale for SMD with auto-scaled x-axis
     x_range <- range(plot_data$x, na.rm = TRUE)
     x_margin <- diff(x_range) * 0.1
@@ -662,8 +675,8 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
       geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
       geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-      scale_x_continuous(breaks = pretty(x_range, n = 8),
-                        limits = c(x_range[1] - x_margin, x_range[2] + x_margin)) +
+      scale_x_continuous(breaks = pretty(x_lims, n = 8),
+                        limits = x_lims) +
       scale_color_manual(values = c("le0" = le0.col, "gt0" = gt0.col)) +
       scale_fill_manual(values = c("le0" = le0.col, "gt0" = gt0.col)) +
       labs(title = mlb, x = xlb, y = "Probability") +
@@ -756,23 +769,36 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
                         is.finite(plot_data$y) & 
                         is.finite(plot_data$lower) & 
                         is.finite(plot_data$upper), ]
-  
-    # Create plot with ggplot2 - log scale for OR/RR with auto-scaled x-axis
-  x_range <- range(plot_data$x, na.rm = TRUE)
-  x_factor <- 1.2  # multiplicative margin for log scale
-  
+
+  # --- NEW: Focus x-axis on region where probability > threshold ---
+  prob_thresh <- 0.005
+  nonzero_idx <- which(plot_data$y > prob_thresh)
+  if (length(nonzero_idx) > 0) {
+    x_focus <- range(plot_data$x[nonzero_idx], na.rm = TRUE)
+    x_factor <- 1.05
+    x_lims <- c(x_focus[1] / x_factor, x_focus[2] * x_factor)
+    plot_data <- plot_data[plot_data$x >= x_lims[1] & plot_data$x <= x_lims[2], ]
+  } else {
+    x_lims <- range(plot_data$x, na.rm = TRUE)
+  }
+  # ---------------------------------------------------------------
+
   # Calculate nice breaks for log scale
-  log_range <- log10(x_range)
+  log_range <- log10(x_lims)
   log_breaks <- pretty(log_range, n = 6)
   x_breaks <- 10^log_breaks
-  x_breaks <- x_breaks[x_breaks >= x_range[1]/x_factor & x_breaks <= x_range[2]*x_factor]
+  x_breaks <- x_breaks[x_breaks >= x_lims[1] & x_breaks <= x_lims[2]]
+
+  # Create plot with ggplot2 - log scale for OR/RR with auto-scaled x-axis
+  x_range <- range(plot_data$x, na.rm = TRUE)
+  x_factor <- 1.2  # multiplicative margin for log scale
   
   p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
     geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
     scale_x_log10(breaks = x_breaks,
                   labels = format(x_breaks, digits = 2),
-                  limits = c(x_range[1] / x_factor, x_range[2] * x_factor)) +
+                  limits = x_lims) +
     scale_color_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
     scale_fill_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
     labs(title = mlb, x = xlb, y = "Probability") +
