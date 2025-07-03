@@ -429,8 +429,19 @@ influence_analysis <- function(model) {
 }
 
 outlier_detection_plot <- function(model) {
-  # For metabin objects, we'll use standardized residuals
-  res <- (model$TE - model$TE.random) / sqrt(model$seTE^2 + model$tau2)
+  pooled <- if (!is.null(model$TE.random) && !all(is.na(model$TE.random))) {
+    model$TE.random
+  } else if (!is.null(model$TE.common)) {
+    model$TE.common
+  } else {
+    NA
+  }
+
+  tau2 <- if (!is.null(model$tau2) && !is.na(model$tau2)) model$tau2 else 0
+
+  # Calculate standardized residuals
+  res <- (model$TE - pooled) / sqrt(model$seTE^2 + tau2)
+
   ggplot(data.frame(studlab = model$studlab, resid = res), aes(x = studlab, y = resid)) +
     geom_point() +
     geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed", color = "red") +
@@ -439,9 +450,17 @@ outlier_detection_plot <- function(model) {
 }
 
 effect_distribution_plot <- function(model) {
+  pooled <- if (!is.null(model$TE.random) && !all(is.na(model$TE.random))) {
+    model$TE.random
+  } else if (!is.null(model$TE.common)) {
+    model$TE.common
+  } else {
+    NA
+  }
+
   ggplot(data.frame(effect = model$TE), aes(x = effect)) +
     geom_histogram(binwidth = 0.1, fill = "lightblue", color = "black") +
-    geom_vline(xintercept = model$TE.random, color = "red", linetype = "dashed") +
+    { if (!is.na(pooled)) geom_vline(xintercept = pooled, color = "red", linetype = "dashed") } +
     labs(title = "Distribution of Effect Sizes", x = "Effect Size", y = "Count")
 }
 
@@ -713,7 +732,19 @@ calculate_random_residuals <- function(model) {
 # Add these new functions at the end of your existing functions.R file
 
 
-render_report <- function(random_results, fixed_results, bivariate_results, data = NULL) {
+render_report <- function(random_results,
+                         fixed_results,
+                         bivariate_results,
+                         data = NULL,
+                         random_subgroup_results = NULL,
+                         fixed_subgroup_results = NULL,
+                         bivariate_subgroup_results = NULL,
+                         metaregression_results = NULL,
+                         include_subgroup = FALSE,
+                         include_metareg = FALSE,
+                         subgroup_var = NULL,  # New parameter
+                         moderator_var = NULL,  # New parameter
+                         moderator_type = NULL) {  # New parameter
   tryCatch({
     report_content <- generate_report_content()
     
@@ -727,6 +758,106 @@ render_report <- function(random_results, fixed_results, bivariate_results, data
     cat("- Fixed model class:", class(fixed_results), "\n")
     cat("- Bivariate model class:", class(bivariate_results), "\n")
     cat("- Data rows:", ifelse(is.null(data), "NULL", nrow(data)), "\n")
+    if (include_subgroup) cat("- Subgroup variable:", subgroup_var, "\n")
+    if (include_metareg) {
+      cat("- Moderator variable:", moderator_var, "\n")
+      cat("- Moderator type:", moderator_type, "\n")
+    }
+    
+    # If subgroup analysis is requested, generate it here
+    if (include_subgroup && !is.null(subgroup_var) && !is.null(data)) {
+      # For random effects model
+      if (inherits(random_results, "meta")) {
+        # Create a new meta-analysis with subgroup
+        random_subgroup_results <- metagen(
+          TE = random_results$TE,
+          seTE = random_results$seTE,
+          studlab = random_results$studlab,
+          data = data,
+          sm = random_results$sm,
+          subgroup = data[[subgroup_var]],
+          method.tau = random_results$method.tau,
+          method.random.ci = if (!is.null(random_results$method.random.ci)) random_results$method.random.ci else "hakn",
+          common = FALSE,
+          random = TRUE
+        )
+      }
+      
+      # For fixed effects model
+      if (inherits(fixed_results, "meta")) {
+        # Create a new meta-analysis with subgroup
+        fixed_subgroup_results <- metagen(
+          TE = fixed_results$TE,
+          seTE = fixed_results$seTE,
+          studlab = fixed_results$studlab,
+          data = data,
+          sm = fixed_results$sm,
+          subgroup = data[[subgroup_var]],
+          method.tau = fixed_results$method.tau,
+          method.random.ci = if (!is.null(fixed_results$method.random.ci)) fixed_results$method.random.ci else "hakn",
+          common = TRUE,
+          random = FALSE
+        )
+      }
+      
+      # For bivariate model
+      if (!is.null(bivariate_results)) {
+        # metabiv does not currently support subgroup argument directly.
+        bivariate_subgroup_results <- NULL
+      }
+    }
+    
+    # If meta-regression is requested, generate it here
+    if (include_metareg && !is.null(moderator_var) && !is.null(data)) {
+      # Build a formula of the form ~ moderator_var for use in meta::metareg / meta::bubble
+      mod_formula <- stats::as.formula(paste("~", moderator_var))
+
+      # Run meta-regression in a protected environment so that any problems
+      # (e.g., insufficient study numbers, singularities, etc.) do not abort
+      # the whole report rendering.  In case of error we simply skip the
+      # meta-regression section by setting the results to NULL.
+      metaregression_results <- tryCatch({
+        # Build complete-case dataset
+        df <- data
+        complete_cases <- !is.na(df[[moderator_var]])
+        df <- df[complete_cases, ]
+        if (nrow(df) < 3) stop("Insufficient data for meta-regression (need >=3 studies).")
+
+        # Extract effect sizes and SE from random_results (already corresponds to user-selected model)
+        TE   <- random_results$TE[complete_cases]
+        seTE <- random_results$seTE[complete_cases]
+
+        # Prepare moderator variable
+        mod_vec <- df[[moderator_var]]
+        if (moderator_type == "categorical" || is.character(mod_vec) || is.factor(mod_vec)) {
+          mod_vec <- as.factor(mod_vec)
+        } else {
+          mod_vec <- suppressWarnings(as.numeric(mod_vec))
+        }
+
+        # Choose estimation method (mirror UI: REML for random effects)
+        rma_method <- ifelse(is.null(random_results$method.tau) || random_results$method.tau == "FE", "FE", "REML")
+
+        # Run meta-regression with metafor::rma
+        metareg_model <- metafor::rma(yi = TE, vi = seTE^2, mods = ~ mod_vec, method = rma_method, test = "knha")
+
+        # Bubble plot via ggplot2
+        bubble_plot <- tryCatch({
+          df_plot <- data.frame(mod = mod_vec, TE = TE, se = seTE)
+          ggplot2::ggplot(df_plot, ggplot2::aes(x = mod, y = TE, size = 1/se)) +
+            ggplot2::geom_point(alpha = 0.6) +
+            ggplot2::scale_size_continuous(name = "Precision (1/SE)") +
+            ggplot2::labs(title = "Meta-Regression Bubble Plot", x = moderator_var, y = "Effect Size") +
+            ggplot2::theme_minimal()
+        }, error = function(e) NULL)
+
+        list(model = metareg_model, plot = bubble_plot, moderator_type = moderator_type, moderator_name = moderator_var,
+             moderator_data = mod_vec, effect_sizes = TE, standard_errors = seTE, study_names = df$study)
+      }, error = function(e) {
+        message("Meta-regression failed during report generation: ", e$message)
+        NULL
+      })
+    }
     
     # Render the report
     output_file <- tempfile(fileext = ".html")
@@ -738,7 +869,16 @@ render_report <- function(random_results, fixed_results, bivariate_results, data
         random_results = random_results,
         fixed_results = fixed_results,
         bivariate_results = bivariate_results,
-        data = data
+        data = data,
+        random_subgroup_results = random_subgroup_results,
+        fixed_subgroup_results = fixed_subgroup_results,
+        bivariate_subgroup_results = bivariate_subgroup_results,
+        metaregression_results = metaregression_results,
+        include_subgroup = include_subgroup,
+        include_metareg = include_metareg,
+        subgroup_var = subgroup_var,
+        moderator_var = moderator_var,
+        moderator_type = moderator_type
       ),
       quiet = TRUE
     )
@@ -1118,685 +1258,360 @@ params:
   random_results: NA
   fixed_results: NA
   bivariate_results: NA
+  random_subgroup_results: NA
+  fixed_subgroup_results: NA
+  bivariate_subgroup_results: NA
+  metaregression_results: NA
+  include_subgroup: NA
+  include_metareg: NA
   data: NA
+  subgroup_var: NA
+  moderator_var: NA
+  moderator_type: NA
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(ggplot2)
-library(knitr)
 library(meta)
 library(plotly)
+library(scales)
+library(grid)
+library(gridExtra)
 
-# Helper function to safely run code
 safe_run <- function(expr, fallback = NULL) {
-  tryCatch(
-    expr,
-    error = function(e) {
-      message("Error in report: ", conditionMessage(e))
-      return(fallback)
-    },
-    warning = function(w) {
-      message("Warning in report: ", conditionMessage(w))
-      return(expr)
-    }
-  )
+  tryCatch(expr, error = function(e) fallback)
 }
-```
-
-# Introduction
-
-This report presents the results of a comprehensive meta-analysis using various methodological approaches. The goal is to compare and contrast findings from random effects, fixed effects, and bivariate meta-analysis models.
-
-## Data Input
-
-Below is a preview of the uploaded dataset:
-
-```{r data-preview}
-safe_run(head(params$data))
-```
-
-## Variables Used
-
-- **study:** Study identifier
-- **ie:** Intervention events
-- **it:** Intervention total
-- **pe:** Placebo/control events
-- **pt:** Placebo/control total
-
-# Overall Results
-
-This section provides a high-level overview of results from all methods, allowing for easy comparison across different meta-analytic approaches.
-
-## Summary Table
-
-```{r summary-table, error=TRUE}
-safe_run({
-  summaryTable <- compare_models(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
-  kable(summaryTable)
-}, data.frame(Message = "Summary table unavailable"))
-```
-
-## Overall Interpretation
-
-```{r overall-interpretation, error=TRUE}
-safe_run({
-  interpretation <- interpret_results(list(random = params$random_results, fixed = params$fixed_results, bivariate = params$bivariate_results))
-  cat(interpretation)
-}, cat("Interpretation unavailable"))
 ```
 
 # Random Effects Analysis
 
-## Effect Size and Heterogeneity
+## Effect Size & Heterogeneity
 
-```{r random-forest-plot, fig.width=12, fig.height=8, error=TRUE}
+```{r re-forest, fig.width=12, fig.height=8}
+safe_run(random_forest_plot(params$random_results))
+```
+
+```{r re-heterogeneity, fig.width=10, fig.height=6}
+safe_run(heterogeneity_plot(params$random_results))
+```
+
+```{r re-summary}
+safe_run(cat(capture.output(summary(params$random_results)), sep="\n"))
+```
+
+## Publication Bias
+
+```{r re-funnel, fig.width=10, fig.height=6}
+safe_run(random_funnel_plot(params$random_results))
+```
+
+```{r re-trimfill, fig.width=10, fig.height=6}
 safe_run({
-  # Try using built-in forest function if custom function fails
-  tryCatch(
-    {
-      randomForestPlot <- random_forest_plot(params$random_results)
-      print(randomForestPlot)
-    },
-    error = function(e) {
-      message("Using built-in forest function")
-      meta::forest(params$random_results)
-    }
-  )
-}, plot(1, type = "n", main = "Forest plot unavailable", xlab = "", ylab = ""))
+  tf <- trimfill(params$random_results)
+  funnel(tf, yaxis="se")
+})
 ```
 
-```{r random-overall-summary, error=TRUE}
-safe_run(
-  cat(capture.output(summary(params$random_results)), sep = "\n"),
-  cat("Random effects summary unavailable")
-)
-```
-
-```{r random-heterogeneity-summary, error=TRUE}
-safe_run(
-  cat(capture.output(print(params$random_results)), sep = "\n"),
-  cat("Random effects heterogeneity summary unavailable")
-)
-```
-
-## Model Diagnostics
-
-```{r random-qq-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run(
-  qq_plot_residuals(params$random_results),
-  plot(1, type = "n", main = "QQ plot unavailable", xlab = "", ylab = "")
-)
-```
-
-```{r random-outlier-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    print(outlier_detection_plot(params$random_results)),
-    error = function(e) {
-      # Create a simple residual plot
-      res <- (params$random_results$TE - params$random_results$TE.random) / sqrt(params$random_results$seTE^2 + params$random_results$tau2)
-      plot(res, main = "Residuals (Simplified)", ylab = "Standardized Residual", xlab = "Study Index")
-      abline(h = c(-1.96, 1.96), lty = 2, col = "red")
-    }
-  )
-}, plot(1, type = "n", main = "Outlier detection plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-effect-distribution, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch({
-    # Create histogram of effect sizes
-    hist(params$random_results$TE, 
-         main = "Distribution of Effect Sizes",
-         xlab = "Effect Size",
-         col = "lightblue",
-         breaks = 10)
-    abline(v = params$random_results$TE.random, col = "red", lwd = 2, lty = 2)
-    legend("topright", legend = "Random Effects Estimate", col = "red", lty = 2, lwd = 2)
-  }, error = function(e) {
-    plot(1, type = "n", main = "Effect distribution plot unavailable", xlab = "", ylab = "")
-  })
-}, plot(1, type = "n", main = "Effect distribution plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-funnel-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      randomFunnelPlot <- random_funnel_plot(params$random_results)
-      print(randomFunnelPlot)
-    },
-    error = function(e) {
-      funnel(params$random_results)
-    }
-  )
-}, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-trim-fill-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch({
-    tf <- trimfill(params$random_results)
-    funnel(tf, yaxis = "se")
-  }, error = function(e) {
-    plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = "")
-  })
-}, plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r random-egger-test, error=TRUE}
-safe_run(
-  cat(capture.output(metabias(params$random_results, method = "Egger")), sep = "\n"),
-  cat("Egger test unavailable")
-)
+```{r re-egger}
+safe_run(cat(capture.output(metabias(params$random_results, method="Egger")), sep="\n"))
 ```
 
 ## Sensitivity Analysis
 
-```{r random-leave-one-out, fig.width=10, fig.height=6, error=TRUE}
+```{r re-loo, fig.width=12, fig.height=8}
 safe_run({
-  tryCatch(
-    {
-      leaveOneOutPlot <- random_leave_one_out(params$random_results)
-      print(leaveOneOutPlot)
-    },
-    error = function(e) {
-      metainf_result <- metainf(params$random_results)
-      metainf_data <- data.frame(
-        study = metainf_result$studlab,
-        estimate = metainf_result$TE,
-        lower = metainf_result$lower,
-        upper = metainf_result$upper
-      )
-      ggplot(metainf_data, aes(x = estimate, y = study)) +
-        geom_point() +
-        geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
-        geom_vline(xintercept = params$random_results$TE.random, linetype = "dashed", color = "red") +
-        theme_minimal() +
-        labs(title = "Leave-One-Out Analysis", x = "Effect Size", y = "Study Omitted")
-    }
-  )
-}, plot(1, type = "n", main = "Leave-one-out plot unavailable", xlab = "", ylab = ""))
+  inf <- metainf(params$random_results)
+  inf_df <- data.frame(TE = inf$TE, seTE = inf$seTE, studlab = inf$studlab)
+  inf_df_clean <- subset(inf_df, is.finite(TE) & is.finite(seTE))
+  if (nrow(inf_df_clean) > 0) {
+    m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+    meta::forest(m_clean, leftlabs = c("Omitted Study"), main = "Leave-One-Out Analysis (Random Effects)")
+  }
+})
 ```
 
-```{r random-baujat-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run(
-  print(baujat(params$random_results)),
-  plot(1, type = "n", main = "Baujat plot unavailable", xlab = "", ylab = "")
-)
+```{r re-baujat, fig.width=10, fig.height=6}
+safe_run(baujat(params$random_results))
 ```
 
-```{r random-gosh-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    print(gosh_plot(params$random_results)),
-    error = function(e) {
-      # Create a simple scatter plot as alternative
-      ggplot(data.frame(TE = params$random_results$TE, seTE = params$random_results$seTE), 
-             aes(x = seTE, y = TE)) +
-        geom_point() +
-        labs(title = "Effect Sizes vs. Standard Errors", 
-             x = "Standard Error", 
-             y = "Effect Size")
-    }
-  )
-}, plot(1, type = "n", main = "GOSH plot unavailable", xlab = "", ylab = ""))
+```{r re-influence}
+safe_run(influence_analysis(params$random_results))
 ```
 
-```{r random-influence-summary, error=TRUE}
+## Model Diagnostics
+
+```{r re-qq-blups, fig.width=10, fig.height=6}
+safe_run(qq_plot_random_blups(params$random_results))
+```
+
+```{r re-qq-deleted, fig.width=10, fig.height=6}
+safe_run(qq_plot_random_deleted_residuals(params$random_results))
+```
+
+```{r re-outlier, fig.width=10, fig.height=6}
+safe_run(outlier_detection_plot(params$random_results))
+```
+
+```{r re-effect-dist, fig.width=10, fig.height=6}
+safe_run(effect_distribution_plot(params$random_results))
+```
+
+```{r re-normality}
 safe_run({
-  tryCatch(
-    cat(capture.output(influence_analysis(params$random_results)), sep = "\n"),
-    error = function(e) {
-      inf <- metainf(params$random_results)
-      print(inf)
-    }
-  )
-}, cat("Influence analysis unavailable"))
+  diag_results <- run_all_normality_diagnostics("random", params$random_results)
+  print_normality_summary(diag_results, "random")
+})
+```
+
+## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
+
+```{r re-subgroup, fig.width=12, fig.height=8}
+if (params$include_subgroup && !is.null(params$random_subgroup_results)) {
+  safe_run({
+    forest(params$random_subgroup_results,
+           test.overall.random = TRUE,
+           test.subgroup.random = TRUE,
+           print.byvar = FALSE)
+    cat("\nSubgroup Analysis Results:\n")
+    cat("Q-statistic between groups:", params$random_subgroup_results$Q.b.random, "\n")
+    cat("P-value:", params$random_subgroup_results$pval.Q.b.random, "\n")
+  })
+}
 ```
 
 # Fixed Effects Analysis
 
-## Effect Size and Heterogeneity
+## Effect Size & Heterogeneity
 
-```{r fixed-forest-plot, fig.width=12, fig.height=8, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      fixedForestPlot <- fixed_forest_plot(params$fixed_results)
-      print(fixedForestPlot)
-    },
-    error = function(e) {
-      meta::forest(params$fixed_results)
-    }
-  )
-}, plot(1, type = "n", main = "Fixed effects forest plot unavailable", xlab = "", ylab = ""))
+```{r fe-forest, fig.width=12, fig.height=8}
+safe_run(fixed_forest_plot(params$fixed_results))
 ```
 
-```{r fixed-overall-summary, error=TRUE}
-safe_run(
-  cat(capture.output(summary(params$fixed_results)), sep = "\n"),
-  cat("Fixed effects summary unavailable")
-)
+```{r fe-radial, fig.width=10, fig.height=6}
+safe_run(radial(params$fixed_results))
 ```
 
-```{r fixed-model-fit, error=TRUE}
-safe_run(
-  cat(capture.output(print(params$fixed_results$I2)), sep = "\n"),
-  cat("Model fit statistics unavailable")
-)
+```{r fe-summary}
+safe_run(cat(capture.output(summary(params$fixed_results)), sep="\n"))
 ```
 
-## Model Diagnostics
-
-```{r fixed-model-fit-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      radial(params$fixed_results, main="Radial Plot for Fixed Effects Model")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Radial plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Radial plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r fixed-qq-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      # Create QQ plot for fixed effects model
-      res <- (params$fixed_results$TE - params$fixed_results$TE.common) / params$fixed_results$seTE
-      qqnorm(res, main = "Q-Q Plot for Fixed Effects Model")
-      qqline(res, col = "red")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "QQ plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "QQ plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r fixed-outlier-detection-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      # Create outlier detection plot for fixed effects
-      res <- (params$fixed_results$TE - params$fixed_results$TE.common) / params$fixed_results$seTE
-      plot(res, main = "Outlier Detection (Fixed Effects)",
-           ylab = "Standardized Residual", xlab = "Study Index")
-      abline(h = c(-1.96, 1.96), lty = 2, col = "red")
-      text(1:length(res), res, labels = params$fixed_results$studlab, pos = 4, cex = 0.7)
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Outlier detection plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Outlier detection plot unavailable", xlab = "", ylab = ""))
+```{r fe-fit-stats}
+safe_run(model_fit_statistics(params$fixed_results))
 ```
 
 ## Publication Bias
 
-```{r fixed-funnel-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      funnel(params$fixed_results, main="Funnel Plot (Fixed Effects)")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
+```{r fe-funnel, fig.width=10, fig.height=6}
+safe_run(funnel(params$fixed_results))
 ```
 
-```{r fixed-trim-fill-plot, fig.width=10, fig.height=6, error=TRUE}
+```{r fe-trimfill, fig.width=10, fig.height=6}
 safe_run({
-  tryCatch({
     tf <- trimfill(params$fixed_results)
-    funnel(tf, yaxis = "se", main="Trim and Fill Plot (Fixed Effects)")
-  }, error = function(e) {
-    plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = "")
-  })
-}, plot(1, type = "n", main = "Trim and fill plot unavailable", xlab = "", ylab = ""))
+  funnel(tf, yaxis="se")
+})
 ```
 
-```{r fixed-egger-test, error=TRUE}
-safe_run(
-  cat(capture.output(metabias(params$fixed_results, method = "Egger")), sep = "\n"),
-  cat("Egger test unavailable")
-)
+```{r fe-egger}
+safe_run(cat(capture.output(metabias(params$fixed_results, method="Egger")), sep="\n"))
 ```
 
 ## Sensitivity Analysis
 
-```{r fixed-leave-one-out-plot, fig.width=10, fig.height=6, error=TRUE}
+```{r fe-loo, fig.width=12, fig.height=8}
 safe_run({
-  tryCatch(
-    {
-      metainf_result <- metainf(params$fixed_results)
-      metainf_data <- data.frame(
-        study = metainf_result$studlab,
-        estimate = metainf_result$TE,
-        lower = metainf_result$lower,
-        upper = metainf_result$upper
-      )
-      ggplot(metainf_data, aes(x = estimate, y = study)) +
-        geom_point() +
-        geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
-        geom_vline(xintercept = params$fixed_results$TE.common, linetype = "dashed", color = "red") +
-        theme_minimal() +
-        labs(title = "Leave-One-Out Analysis (Fixed Effects)", x = "Effect Size", y = "Study Omitted")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Leave-one-out plot unavailable", xlab = "", ylab = "")
+  inf <- metainf(params$fixed_results)
+  inf_df <- data.frame(TE = inf$TE, seTE = inf$seTE, studlab = inf$studlab)
+  inf_df_clean <- subset(inf_df, is.finite(TE) & is.finite(seTE))
+  if (nrow(inf_df_clean) > 0) {
+    m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+    meta::forest(m_clean, leftlabs = c("Omitted Study"), main = "Leave-One-Out Analysis (Fixed Effects)")
     }
-  )
-}, plot(1, type = "n", main = "Leave-one-out plot unavailable", xlab = "", ylab = ""))
+})
 ```
 
-```{r fixed-influence-plot, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  tryCatch(
-    {
-      baujat(params$fixed_results, main="Baujat Plot (Fixed Effects)")
-    },
-    error = function(e) {
-      plot(1, type = "n", main = "Baujat plot unavailable", xlab = "", ylab = "")
-    }
-  )
-}, plot(1, type = "n", main = "Influence plot unavailable", xlab = "", ylab = ""))
+## Model Diagnostics
+
+```{r fe-qq, fig.width=10, fig.height=6}
+safe_run(qq_plot_fixed_residuals(params$fixed_results))
 ```
 
-```{r fixed-influence-summary, error=TRUE}
-safe_run({
-  cat("Influence Analysis (Fixed Effects Model):\n\n")
-  # Create a simple influence summary
-  metainf_result <- metainf(params$fixed_results)
-  studies <- metainf_result$studlab
-  estimates <- metainf_result$TE.random
-  influential <- which(abs(estimates - params$fixed_results$TE.common) > 1.96 * params$fixed_results$seTE.common)
-  
-  if(length(influential) > 0) {
-    cat("Potentially influential studies:\n")
-    for(i in influential) {
-      cat("- ", studies[i], ": Effect size when omitted = ", round(estimates[i], 4), "\n")
-    }
-  } else {
-    cat("No highly influential studies detected.\n")
-  }
-}, cat("Influence summary unavailable"))
+```{r fe-outlier, fig.width=10, fig.height=6}
+safe_run(outlier_detection_plot(params$fixed_results))
+```
+
+```{r fe-effect-dist, fig.width=10, fig.height=6}
+safe_run(effect_distribution_plot(params$fixed_results))
+```
+
+```{r fe-normality}
+  safe_run({
+  diag_results <- run_all_normality_diagnostics("fixed", params$fixed_results)
+  print_normality_summary(diag_results, "fixed")
+})
+```
+
+## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
+
+```{r fe-subgroup, fig.width=12, fig.height=8}
+if (params$include_subgroup && !is.null(params$fixed_subgroup_results)) {
+  safe_run({
+    forest(params$fixed_subgroup_results,
+           test.overall = TRUE,
+           test.subgroup = TRUE,
+           print.byvar = FALSE)
+    cat("\nSubgroup Analysis Results:\n")
+    cat("Q-statistic between groups:", params$fixed_subgroup_results$Q.b, "\n")
+    cat("P-value:", params$fixed_subgroup_results$pval.Q.b, "\n")
+  })
+}
 ```
 
 # Bivariate Approach
 
-## Effect Size and Heterogeneity
+## Effect Size & Heterogeneity
 
-```{r bivariate-effect-size, fig.width=10, fig.height=6, error=TRUE}
-# Create a 2-column layout similar to the UI
-par(mfrow = c(1, 2))
-
-# Column 1: Bivariate Forest Plot
-safe_run({
-  if(exists("forest.metabiv", mode = "function")) {
-    forest.metabiv(params$bivariate_results, 
-                  main = "Bivariate Forest Plot",
-                  xlab = "Effect Size")
-  } else {
-    # Fallback to a simple forest plot
-    plot(1, type = "n", main = "Bivariate forest plot unavailable\n(forest.metabiv function not found)", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Bivariate forest plot unavailable", xlab = "", ylab = ""))
-
-# Column 2: Confidence Region Plot
-safe_run({
-  if(exists("plot.mu.tau.CI", mode = "function") && 
-     !is.null(params$bivariate_results$dev_pvals) && 
-     length(params$bivariate_results$dev_pvals) >= 2) {
-    plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]], 
-                 params$bivariate_results$dev_pvals[[2]], 
-                 mlb = "Confidence Region for (μ, τ)")
-  } else {
-    plot(1, type = "n", main = "Confidence region plot unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Confidence region plot unavailable", xlab = "", ylab = ""))
-
-# Reset layout
-par(mfrow = c(1, 1))
+```{r biv-forest, fig.width=12, fig.height=8}
+safe_run(if(exists("forest.metabiv")) forest.metabiv(params$bivariate_results))
 ```
 
-```{r bivariate-efficacy-harm-plot, fig.width=10, fig.height=6, error=TRUE}
+```{r biv-efficacy-harm, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("efficacy_harm_plot", mode = "function")) {
-    efficacy_harm_plot(params$bivariate_results)
-  } else {
-    # Try to create a simple visualization
-    plot(1, type = "n", main = "Efficacy-harm plot unavailable", xlab = "", ylab = "")
+  if (!is.null(params$bivariate_results)) {
+    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals, sm = params$bivariate_results$sm)
+    comp.eff.harm.plot(CDF.ci.obj,
+                      efficacy.is.OR.le1 = (params$bivariate_results$sm == "OR"),
+                      mlb = "Efficacy/Harm Plot",
+                      xlb = paste("Effect Size (", params$bivariate_results$sm, ")"),
+                      sm = params$bivariate_results$sm)
   }
-}, plot(1, type = "n", main = "Efficacy-harm plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r bivariate-overall-summary, error=TRUE}
-safe_run({
-  if(!is.null(params$bivariate_results$mu) && !is.null(params$bivariate_results$tau)) {
-    cat("Bivariate Meta-Analysis Summary:\n\n")
-    cat("Pooled Effect Size (μ): ", exp(params$bivariate_results$mu), "\n")
-    cat("95% CI: (", exp(params$bivariate_results$mu - 1.96 * params$bivariate_results$tau), ", ", 
-        exp(params$bivariate_results$mu + 1.96 * params$bivariate_results$tau), ")\n")
-    cat("Between-study Variability (τ): ", params$bivariate_results$tau, "\n")
-    cat("Between-study Variance (τ²): ", params$bivariate_results$tau^2, "\n")
-  } else {
-    cat("Bivariate meta-analysis summary unavailable")
-  }
-}, cat("Bivariate meta-analysis summary unavailable"))
+})
 ```
 
 ## Model Diagnostics
 
-```{r bivariate-model-diagnostics, fig.width=10, fig.height=6, error=TRUE}
-# Create a 2-column layout similar to the UI
-par(mfrow = c(1, 2))
-
-# Column 1: QQ Plot for Standardized Residuals
-safe_run({
-  if(exists("qq_plot_bivariate", mode = "function")) {
-    qq_plot_bivariate(params$bivariate_results)
-  } else {
-    plot(1, type = "n", main = "QQ plot (standardized residuals) unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "QQ plot (standardized residuals) unavailable", xlab = "", ylab = ""))
-
-# Column 2: QQ Plot for Raw Residuals
-safe_run({
-  if(exists("qq_plot_with_ci_raw", mode = "function") && 
-     !is.null(params$bivariate_results$y.k) && 
-     !is.null(params$bivariate_results$mu) && 
-     !is.null(params$bivariate_results$sigma.2.k) && 
-     !is.null(params$bivariate_results$tau)) {
-    
-    y_k <- params$bivariate_results$y.k
-    mu <- params$bivariate_results$mu
-    sigma_2_k <- params$bivariate_results$sigma.2.k
-    tau_2 <- params$bivariate_results$tau^2
-    n_k <- params$bivariate_results$n.e + params$bivariate_results$n.c
-    
-    qq_plot_with_ci_raw(y_k, mu, sigma_2_k, tau_2, n_k, 
-                      log_odds = FALSE, 
-                      title = "Q-Q Plot for Raw Residuals")
-  } else {
-    plot(1, type = "n", main = "QQ plot (raw residuals) unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "QQ plot (raw residuals) unavailable", xlab = "", ylab = ""))
-
-# Reset layout
-par(mfrow = c(1, 1))
+```{r biv-qq-std, fig.width=10, fig.height=6}
+safe_run(qq_plot_bivariate_blups(params$bivariate_results))
 ```
 
-## Publication Bias
-
-```{r bivariate-publication-bias, fig.width=10, fig.height=6, error=TRUE}
+```{r biv-qq-deleted, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("funnel", mode = "function") && 
-     !is.null(params$bivariate_results$y.k) && 
-     !is.null(params$bivariate_results$sigma.2.k)) {
-    
-    # Create a more robust funnel plot for bivariate model
-    y.k <- params$bivariate_results$y.k
-    se.k <- sqrt(params$bivariate_results$sigma.2.k)
-    
-    # Try different approaches to ensure plot is visible
-    tryCatch({
-      # First attempt - create metagen object
-      meta_analysis <- metagen(TE = y.k, seTE = se.k, 
-                              common = TRUE, random = TRUE,
-                              sm = params$bivariate_results$sm)
-      funnel(meta_analysis, 
-             main = "Funnel Plot for Bivariate Model",
-             xlab = "Effect Size", 
-             ylab = "Standard Error")
-    }, error = function(e) {
-      tryCatch({
-        # Second attempt - simple scatter plot
-        plot(y.k, se.k, 
-             main = "Funnel Plot for Bivariate Model (Simple)",
-             xlab = "Effect Size (log scale)", 
-             ylab = "Standard Error",
-             pch = 19)
-        abline(v = params$bivariate_results$mu, col = "red", lty = 2)
-        # Funnel lines
-        tau <- params$bivariate_results$tau
-        mu <- params$bivariate_results$mu
-        se_range <- seq(0, max(se.k, na.rm = TRUE), length.out = 100)
-        lines(mu + 1.96 * sqrt(se_range^2 + tau^2), se_range, col = "blue", lty = 2)
-        lines(mu - 1.96 * sqrt(se_range^2 + tau^2), se_range, col = "blue", lty = 2)
-      }, error = function(e) {
-        plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
-      })
-    })
-  } else {
-    plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = "")
+  if(exists("qq_plot_bivariate_deleted_residuals")) {
+    input_stub <- list(
+      data_type = ifelse(is.null(params$data), "binary", ifelse("smd" %in% names(params$data), "smd", "binary")),
+      effect_measure = params$bivariate_results$sm
+    )
+    qq_plot_bivariate_deleted_residuals(params$bivariate_results, params$data, input_stub)
   }
-}, plot(1, type = "n", main = "Funnel plot unavailable", xlab = "", ylab = ""))
-```
-
-```{r bivariate-egger-test, error=TRUE}
-safe_run({
-  if(!is.null(params$bivariate_results$y.k) && !is.null(params$bivariate_results$sigma.2.k)) {
-    meta_analysis <- metagen(TE = params$bivariate_results$y.k, 
-                            seTE = sqrt(params$bivariate_results$sigma.2.k))
-    cat(capture.output(metabias(meta_analysis, method = "Egger")), sep = "\n")
-  } else {
-    cat("Egger test unavailable for bivariate model")
-  }
-}, cat("Egger test unavailable for bivariate model"))
+})
 ```
 
 ## Sensitivity Analysis
 
-```{r bivariate-sensitivity-analysis, fig.width=10, fig.height=6, error=TRUE}
-# Use the same interactive plot from the UI
+```{r biv-loo, fig.width=10, fig.height=6}
+safe_run(bivariate_leave_one_out(params$bivariate_results))
+```
+
+```{r biv-confidence, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("confidence_region_shift_plot", mode = "function")) {
-    # Try to use the interactive function first
+  if(exists("confidence_region_shift_plot")) {
     confidence_region_shift_plot(params$bivariate_results)
-  } else if(!is.null(params$bivariate_results$dev_pvals) && 
-           length(params$bivariate_results$dev_pvals) >= 2) {
-    
-    # Fallback: Create a static version of the confidence region shift plot
-    # Create a 2-column layout
-    par(mfrow = c(1, 2))
-    
-    # Left: Confidence Region Plot
-    plot.mu.tau.CI(params$bivariate_results$dev_pvals[[1]],
-                  params$bivariate_results$dev_pvals[[2]],
-                  mlb = "Confidence Region",
-                  mu_mle = params$bivariate_results$mu,
-                  tau_mle = params$bivariate_results$tau)
-    
-    # Right: Enhanced Baujat Plot (static version)
-    if(!is.null(params$bivariate_results$studlab) && 
-       !is.null(params$bivariate_results$y.k) && 
-       !is.null(params$bivariate_results$sigma.2.k) && 
-       !is.null(params$bivariate_results$mu) && 
-       !is.null(params$bivariate_results$tau)) {
-      
-      # Calculate influence metrics
-      influence <- sapply(1:length(params$bivariate_results$y.k), function(i) {
-        contribution <- (params$bivariate_results$y.k[i] - params$bivariate_results$mu)^2 / 
-                       (params$bivariate_results$sigma.2.k[i] + params$bivariate_results$tau^2)
-        influence <- abs(params$bivariate_results$y.k[i] - params$bivariate_results$mu) / 
-                    sqrt(params$bivariate_results$sigma.2.k[i] + params$bivariate_results$tau^2)
-        c(contribution, influence)
+  }
+})
+```
+
+```{r biv-baujat, fig.width=10, fig.height=6}
+safe_run({
+  if(exists("enhanced_baujat_plot")) {
+    enhanced_baujat_plot(params$bivariate_results)
+  }
+})
+```
+
+## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
+
+```{r biv-subgroup, fig.width=12, fig.height=8}
+if (params$include_subgroup && !is.null(params$bivariate_subgroup_results)) {
+safe_run({
+    results <- params$bivariate_subgroup_results$results
+    plots <- lapply(names(results), function(nm) {
+      grid::grid.grabExpr({
+        forest.metabiv(results[[nm]], title = paste("Subgroup:", nm))
       })
-      
-      # Create static plot
-      weights <- 1/(params$bivariate_results$sigma.2.k + params$bivariate_results$tau^2)
-      
-      plot(influence[1,], influence[2,], 
-           main = "Enhanced Baujat Plot",
-           xlab = "Contribution to heterogeneity", 
-           ylab = "Influence on overall result",
-           cex = sqrt(weights/mean(weights))*1.5,
-           pch = 19, col = "blue")
-      
-      # Add study labels
-      text(influence[1,], influence[2,], 
-           labels = params$bivariate_results$studlab, 
-           pos = 4, cex = 0.7)
-      
-      # Add reference lines
-      abline(h = median(influence[2,]), lty = 2, col = "gray")
-      abline(v = median(influence[1,]), lty = 2, col = "gray")
-    } else {
-      plot(1, type = "n", main = "Enhanced Baujat plot unavailable", xlab = "", ylab = "")
+    })
+    do.call(gridExtra::grid.arrange, c(plots, ncol=1))
+  })
+}
+```
+
+# Meta-Regression Analysis `r if(!params$include_metareg || is.null(params$metaregression_results)) "(skipped)" else ""`
+
+```{r metareg-bubble, fig.width=10, fig.height=6}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
+  safe_run(print(params$metaregression_results$plot))
+}
+```
+
+```{r metareg-residuals, fig.width=10, fig.height=6}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
+safe_run({
+    model <- params$metaregression_results$model
+    residuals <- resid(model)
+    fitted <- fitted(model)
+    ggplot(data.frame(fitted = fitted, residuals = residuals), aes(x = fitted, y = residuals)) +
+      geom_point() +
+      geom_smooth(method = "loess") +
+      labs(title = "Residual Plot", x = "Fitted Values", y = "Residuals")
+  })
+}
+```
+
+```{r metareg-influence, fig.width=10, fig.height=6}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
+  safe_run({
+    model <- params$metaregression_results$model
+    inf <- influence(model)
+    plot(inf, which = "influence")
+  })
+}
+```
+
+```{r metareg-summary}
+if(params$include_metareg && !is.null(params$metaregression_results)) {
+  safe_run({
+    cat("Meta-Regression Results\n")
+    cat("======================\n\n")
+    cat(capture.output(summary(params$metaregression_results$model)), sep="\n")
+    cat("\nInterpretation:\n")
+    cat("---------------\n")
+    results <- params$metaregression_results
+    model <- results$model
+    moderator_significant <- any(model$pval[-1] < 0.05, na.rm = TRUE)
+    
+    if (moderator_significant) {
+      cat("The moderator variable significantly explains heterogeneity (p < 0.05).\n")
+  } else {
+      cat("The moderator does not significantly explain heterogeneity.\n")
     }
     
-    # Reset layout
-    par(mfrow = c(1, 1))
-  } else {
-    plot(1, type = "n", main = "Sensitivity analysis plots unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Sensitivity analysis plots unavailable", xlab = "", ylab = ""))
+    if (!is.null(model$QM)) {
+      cat("\nTest of Moderator (QM):", round(model$QM,3), 
+          "on", model$df.QM, "df (p =", sprintf("%.3f", model$pval.QM), ")\n")
+    }
+    if (!is.null(model$QE)) {
+      cat("Residual Heterogeneity (QE):", round(model$QE,3),
+          "on", model$df.QE, "df (p =", sprintf("%.3f", model$pval.QE), ")\n")
+    }
+  })
+}
 ```
 
-```{r bivariate-leave-one-out, fig.width=10, fig.height=6, error=TRUE}
-safe_run({
-  if(exists("metainf", mode = "function") && 
-     !is.null(params$bivariate_results$y.k) && 
-     !is.null(params$bivariate_results$sigma.2.k)) {
-    
-    # Create a leave-one-out analysis for bivariate model by approximating with metagen
-    meta_analysis <- metagen(TE = params$bivariate_results$y.k, 
-                            seTE = sqrt(params$bivariate_results$sigma.2.k),
-                            studlab = params$bivariate_results$studlab)
-    
-    inf_result <- metainf(meta_analysis)
-    
-    # Create a plot similar to the one in the UI
-    inf_data <- data.frame(
-      study = inf_result$studlab,
-      estimate = inf_result$TE,
-      lower = inf_result$lower,
-      upper = inf_result$upper
-    )
-    
-    ggplot(inf_data, aes(x = estimate, y = study)) +
-      geom_point() +
-      geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2) +
-      geom_vline(xintercept = params$bivariate_results$mu, linetype = "dashed", color = "red") +
-      theme_minimal() +
-      labs(title = "Leave-One-Out Analysis (Bivariate)", 
-           x = "Effect Size", 
-           y = "Study Omitted")
-  } else {
-    plot(1, type = "n", main = "Leave-one-out analysis unavailable", xlab = "", ylab = "")
-  }
-}, plot(1, type = "n", main = "Leave-one-out analysis unavailable", xlab = "", ylab = ""))
-```
+# Session Information
 
-This comprehensive report provides a detailed overview of the meta-analysis results using multiple methodological approaches. By comparing results across different models and examining various diagnostic plots, we can gain a more nuanced understanding of the effect size, heterogeneity, and potential biases in the meta-analysis. This multi-faceted approach supports more informed decision-making in interpreting and applying the results of the meta-analysis.
+```{r session-info}
+safe_run(sessionInfo())
+```
 ')
 }
 
@@ -1856,6 +1671,897 @@ enhanced_baujat_plot <- function(bivariate_model) {
            showlegend = FALSE)
   
   return(p)
+}
+
+# ============================================================================
+# COMPREHENSIVE NORMALITY DIAGNOSTICS FOR META-ANALYTIC MODELS
+# ============================================================================
+# Implementation of normality diagnostics for:
+# 1. Fixed-Effects Meta-Analysis
+# 2. Standard Random-Effects Meta-Analysis  
+# 3. Bivariate ("Exact" MLE) Meta-Analysis
+# Based on the unified overview provided by the user
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 1. FIXED-EFFECTS META-ANALYSIS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Q-Q Plot of Standardized Residuals for Fixed Effects Model
+#' @param fixed_results meta object from fixed effects analysis
+#' @param envelope logical, whether to include simulation envelope
+#' @return ggplot object
+qq_plot_fixed_residuals <- function(fixed_results, envelope = TRUE) {
+  # Calculate standardized residuals
+  theta_hat <- fixed_results$TE.common
+  residuals <- (fixed_results$TE - theta_hat) / fixed_results$seTE
+  
+  # Remove any infinite or NA values
+  valid_residuals <- residuals[is.finite(residuals)]
+  
+  if (length(valid_residuals) < 3) {
+    plot(1, type="n", axes=FALSE, xlab="", ylab="", 
+         main="Fixed Effects Q-Q Plot: Insufficient Data")
+    text(1, 1, "Not enough valid data for Q-Q plot")
+    return(invisible(NULL))
+  }
+  
+  # Create Q-Q plot data
+  n <- length(valid_residuals)
+  sorted_residuals <- sort(valid_residuals)
+  theoretical_quantiles <- qnorm((1:n - 0.5) / n)
+  
+  # Create basic plot
+  plot(theoretical_quantiles, sorted_residuals,
+       main = "Q-Q Plot: Fixed Effects Standardized Residuals",
+       xlab = "Theoretical Quantiles",
+       ylab = "Sample Quantiles",
+       pch = 19, col = "blue")
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add simulation envelope if requested
+  if (envelope && n >= 5) {
+    n_sim <- 1000
+    envelopes <- replicate(n_sim, {
+      sim_residuals <- rnorm(n)
+      sort(sim_residuals)
+    })
+    
+    lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
+    upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
+    
+    # Add envelope
+    polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+            c(lower_env, rev(upper_env)),
+            col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
+    
+    # Re-add points and line
+    points(theoretical_quantiles, sorted_residuals, pch = 19, col = "blue")
+    abline(0, 1, col = "red", lty = 2, lwd = 2)
+  }
+  
+  # Add legend
+  legend("topleft", 
+         legend = c("Observed", "Expected (N(0,1))", if(envelope) "95% Envelope"),
+         pch = c(19, NA, if(envelope) 15),
+         lty = c(NA, 2, NA),
+         col = c("blue", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
+         bg = "white")
+  
+  return(invisible(list(
+    residuals = valid_residuals,
+    theoretical_quantiles = theoretical_quantiles,
+    empirical_quantiles = sorted_residuals
+  )))
+}
+
+#' Shapiro-Wilk Test for Fixed Effects Residuals
+#' @param fixed_results meta object from fixed effects analysis
+#' @return list with test results
+shapiro_test_fixed <- function(fixed_results) {
+  # Calculate standardized residuals
+  theta_hat <- fixed_results$TE.common
+  residuals <- (fixed_results$TE - theta_hat) / fixed_results$seTE
+  
+  # Remove any infinite or NA values
+  valid_residuals <- residuals[is.finite(residuals)]
+  
+  if (length(valid_residuals) < 3 || length(valid_residuals) > 5000) {
+    return(list(
+      statistic = NA,
+      p.value = NA,
+      method = "Shapiro-Wilk normality test",
+      data.name = "fixed effects residuals",
+      note = if(length(valid_residuals) < 3) "Too few observations" else "Too many observations"
+    ))
+  }
+  
+  test_result <- shapiro.test(valid_residuals)
+  return(test_result)
+}
+
+# ----------------------------------------------------------------------------
+# 2. STANDARD RANDOM-EFFECTS META-ANALYSIS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate BLUPs (Best Linear Unbiased Predictors) for Random Effects Model
+#' @param random_results meta object from random effects analysis
+#' @return vector of BLUPs
+calculate_blups <- function(random_results) {
+  mu_hat <- random_results$TE.random
+  tau2_hat <- random_results$tau2
+  y_i <- random_results$TE
+  sigma2_i <- random_results$seTE^2
+  
+  # BLUP formula: μ̂ + (τ̂²/(τ̂² + σᵢ²)) * (Yᵢ - μ̂)
+  blups <- mu_hat + (tau2_hat / (tau2_hat + sigma2_i)) * (y_i - mu_hat)
+  
+  return(blups)
+}
+
+#' Q-Q Plot of BLUPs for Random Effects Model
+#' @param random_results meta object from random effects analysis
+#' @param envelope logical, whether to include simulation envelope
+#' @return ggplot object
+qq_plot_random_blups <- function(random_results, envelope = TRUE) {
+  # Calculate BLUPs
+  blups <- calculate_blups(random_results)
+  
+  # Standardize BLUPs
+  standardized_blups <- (blups - mean(blups, na.rm = TRUE)) / sd(blups, na.rm = TRUE)
+  
+  # Remove any infinite or NA values
+  valid_blups <- standardized_blups[is.finite(standardized_blups)]
+  
+  if (length(valid_blups) < 3) {
+    plot(1, type="n", axes=FALSE, xlab="", ylab="", 
+         main="Random Effects BLUPs Q-Q Plot: Insufficient Data")
+    text(1, 1, "Not enough valid data for Q-Q plot")
+    return(invisible(NULL))
+  }
+  
+  # Create Q-Q plot data
+  n <- length(valid_blups)
+  sorted_blups <- sort(valid_blups)
+  theoretical_quantiles <- qnorm((1:n - 0.5) / n)
+  
+  # Create basic plot
+  plot(theoretical_quantiles, sorted_blups,
+       main = "Q-Q Plot: Random Effects BLUPs",
+       xlab = "Theoretical Quantiles",
+       ylab = "Standardized BLUPs",
+       pch = 19, col = "darkgreen")
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add simulation envelope if requested
+  if (envelope && n >= 5) {
+    n_sim <- 1000
+    envelopes <- replicate(n_sim, {
+      sim_blups <- rnorm(n)
+      sort(sim_blups)
+    })
+    
+    lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
+    upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
+    
+    # Add envelope
+    polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+            c(lower_env, rev(upper_env)),
+            col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
+    
+    # Re-add points and line
+    points(theoretical_quantiles, sorted_blups, pch = 19, col = "darkgreen")
+    abline(0, 1, col = "red", lty = 2, lwd = 2)
+  }
+  
+  # Add legend
+  legend("topleft", 
+         legend = c("Standardized BLUPs", "Expected (N(0,1))", if(envelope) "95% Envelope"),
+         pch = c(19, NA, if(envelope) 15),
+         lty = c(NA, 2, NA),
+         col = c("darkgreen", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
+         bg = "white")
+  
+  return(invisible(list(
+    blups = valid_blups,
+    theoretical_quantiles = theoretical_quantiles,
+    empirical_quantiles = sorted_blups
+  )))
+}
+
+#' Calculate Standardized Deleted Residuals for Random Effects Model
+#' @param random_results meta object from random effects analysis
+#' @return vector of deleted residuals
+calculate_deleted_residuals_random <- function(random_results) {
+  y_i <- random_results$TE
+  sigma2_i <- random_results$seTE^2
+  n_studies <- length(y_i)
+  
+  deleted_residuals <- numeric(n_studies)
+  
+  for (i in 1:n_studies) {
+    # Remove study i
+    y_minus_i <- y_i[-i]
+    sigma2_minus_i <- sigma2_i[-i]
+    
+    # Re-estimate μ and τ² without study i
+    # Simple DerSimonian-Laird estimator
+    weights_minus_i <- 1 / sigma2_minus_i
+    mu_minus_i <- sum(weights_minus_i * y_minus_i) / sum(weights_minus_i)
+    
+    Q_minus_i <- sum(weights_minus_i * (y_minus_i - mu_minus_i)^2)
+    df_minus_i <- length(y_minus_i) - 1
+    tau2_minus_i <- max(0, (Q_minus_i - df_minus_i) / (sum(weights_minus_i) - sum(weights_minus_i^2) / sum(weights_minus_i)))
+    
+    # Calculate deleted residual
+    deleted_residuals[i] <- (y_i[i] - mu_minus_i) / sqrt(sigma2_i[i] + tau2_minus_i)
+  }
+  
+  return(deleted_residuals)
+}
+
+#' Q-Q Plot of Deleted Residuals for Random Effects Model
+#' @param random_results meta object from random effects analysis
+#' @param envelope logical, whether to include simulation envelope
+#' @return ggplot object
+qq_plot_random_deleted_residuals <- function(random_results, envelope = TRUE) {
+  # Calculate deleted residuals
+  deleted_residuals <- calculate_deleted_residuals_random(random_results)
+  
+  # Remove any infinite or NA values
+  valid_residuals <- deleted_residuals[is.finite(deleted_residuals)]
+  
+  if (length(valid_residuals) < 3) {
+    plot(1, type="n", axes=FALSE, xlab="", ylab="", 
+         main="Random Effects Deleted Residuals Q-Q Plot: Insufficient Data")
+    text(1, 1, "Not enough valid data for Q-Q plot")
+    return(invisible(NULL))
+  }
+  
+  # Create Q-Q plot data
+  n <- length(valid_residuals)
+  sorted_residuals <- sort(valid_residuals)
+  theoretical_quantiles <- qnorm((1:n - 0.5) / n)
+  
+  # Create basic plot
+  plot(theoretical_quantiles, sorted_residuals,
+       main = "Q-Q Plot: Random Effects Deleted Residuals",
+       xlab = "Theoretical Quantiles",
+       ylab = "Standardized Deleted Residuals",
+       pch = 19, col = "purple")
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add simulation envelope if requested
+  if (envelope && n >= 5) {
+    n_sim <- 1000
+    envelopes <- replicate(n_sim, {
+      sim_residuals <- rnorm(n)
+      sort(sim_residuals)
+    })
+    
+    lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
+    upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
+    
+    # Add envelope
+    polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+            c(lower_env, rev(upper_env)),
+            col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
+    
+    # Re-add points and line
+    points(theoretical_quantiles, sorted_residuals, pch = 19, col = "purple")
+    abline(0, 1, col = "red", lty = 2, lwd = 2)
+  }
+  
+  # Add legend
+  legend("topleft", 
+         legend = c("Deleted Residuals", "Expected (N(0,1))", if(envelope) "95% Envelope"),
+         pch = c(19, NA, if(envelope) 15),
+         lty = c(NA, 2, NA),
+         col = c("purple", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
+         bg = "white")
+  
+  return(invisible(list(
+    residuals = valid_residuals,
+    theoretical_quantiles = theoretical_quantiles,
+    empirical_quantiles = sorted_residuals
+  )))
+}
+
+#' Shapiro-Wilk Tests for Random Effects Model
+#' @param random_results meta object from random effects analysis
+#' @return list with test results for BLUPs and deleted residuals
+shapiro_test_random <- function(random_results) {
+  # Test BLUPs
+  blups <- calculate_blups(random_results)
+  standardized_blups <- (blups - mean(blups, na.rm = TRUE)) / sd(blups, na.rm = TRUE)
+  valid_blups <- standardized_blups[is.finite(standardized_blups)]
+  
+  blup_test <- if (length(valid_blups) >= 3 && length(valid_blups) <= 5000) {
+    shapiro.test(valid_blups)
+  } else {
+    list(statistic = NA, p.value = NA, method = "Shapiro-Wilk normality test", 
+         data.name = "BLUPs", note = "Sample size out of range")
+  }
+  
+  # Test deleted residuals
+  deleted_residuals <- calculate_deleted_residuals_random(random_results)
+  valid_deleted <- deleted_residuals[is.finite(deleted_residuals)]
+  
+  deleted_test <- if (length(valid_deleted) >= 3 && length(valid_deleted) <= 5000) {
+    shapiro.test(valid_deleted)
+  } else {
+    list(statistic = NA, p.value = NA, method = "Shapiro-Wilk normality test",
+         data.name = "deleted residuals", note = "Sample size out of range")
+  }
+  
+  return(list(
+    blup_test = blup_test,
+    deleted_residuals_test = deleted_test
+  ))
+}
+
+# ----------------------------------------------------------------------------
+# 3. BIVARIATE ("EXACT" MLE) META-ANALYSIS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate BLUPs for Bivariate MLE Model
+#' @param bivariate_results result object from metabiv function
+#' @return vector of BLUPs
+calculate_blups_bivariate <- function(bivariate_results) {
+  mu_hat <- bivariate_results$mu
+  tau2_hat <- bivariate_results$tau^2
+  y_k <- bivariate_results$y.k
+  sigma2_k <- bivariate_results$sigma.2.k
+  
+  # BLUP formula: μ̂ + (τ̂²/(τ̂² + σₖ²)) * (Yₖ - μ̂)
+  blups <- mu_hat + (tau2_hat / (tau2_hat + sigma2_k)) * (y_k - mu_hat)
+  
+  return(blups)
+}
+
+#' Q-Q Plot of BLUPs for Bivariate MLE Model
+#' @param bivariate_results result object from metabiv function
+#' @param envelope logical, whether to include simulation envelope
+#' @return ggplot object
+qq_plot_bivariate_blups <- function(bivariate_results, envelope = TRUE) {
+  # Calculate BLUPs
+  blups <- calculate_blups_bivariate(bivariate_results)
+  
+  # Standardize BLUPs
+  standardized_blups <- (blups - mean(blups, na.rm = TRUE)) / sd(blups, na.rm = TRUE)
+  
+  # Remove any infinite or NA values
+  valid_blups <- standardized_blups[is.finite(standardized_blups)]
+  
+  if (length(valid_blups) < 3) {
+    plot(1, type="n", axes=FALSE, xlab="", ylab="", 
+         main="Bivariate MLE BLUPs Q-Q Plot: Insufficient Data")
+    text(1, 1, "Not enough valid data for Q-Q plot")
+    return(invisible(NULL))
+  }
+  
+  # Create Q-Q plot data
+  n <- length(valid_blups)
+  sorted_blups <- sort(valid_blups)
+  theoretical_quantiles <- qnorm((1:n - 0.5) / n)
+  
+  # Create basic plot
+  plot(theoretical_quantiles, sorted_blups,
+       main = "Q-Q Plot: Bivariate MLE BLUPs",
+       xlab = "Theoretical Quantiles",
+       ylab = "Standardized BLUPs",
+       pch = 19, col = "orange")
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add simulation envelope if requested
+  if (envelope && n >= 5) {
+    n_sim <- 1000
+    mu_hat <- bivariate_results$mu
+    tau_hat <- bivariate_results$tau
+    sigma2_k <- bivariate_results$sigma.2.k
+    
+    envelopes <- replicate(n_sim, {
+      # Simulate new theta and Y values
+      theta_sim <- rnorm(n, mu_hat, tau_hat)
+      y_sim <- rnorm(n, theta_sim, sqrt(sigma2_k))
+      
+      # Refit model (simplified - just use true parameters for envelope)
+      blups_sim <- mu_hat + (tau_hat^2 / (tau_hat^2 + sigma2_k)) * (y_sim - mu_hat)
+      blups_sim_std <- (blups_sim - mean(blups_sim)) / sd(blups_sim)
+      
+      sort(blups_sim_std)
+    })
+    
+    lower_env <- apply(envelopes, 1, quantile, probs = 0.025, na.rm = TRUE)
+    upper_env <- apply(envelopes, 1, quantile, probs = 0.975, na.rm = TRUE)
+    
+    # Add envelope
+    polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+            c(lower_env, rev(upper_env)),
+            col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
+    
+    # Re-add points and line
+    points(theoretical_quantiles, sorted_blups, pch = 19, col = "orange")
+    abline(0, 1, col = "red", lty = 2, lwd = 2)
+  }
+  
+  # Add legend
+  legend("topleft", 
+         legend = c("Bivariate BLUPs", "Expected (N(0,1))", if(envelope) "95% Envelope"),
+         pch = c(19, NA, if(envelope) 15),
+         lty = c(NA, 2, NA),
+         col = c("orange", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
+         bg = "white")
+  
+  return(invisible(list(
+    blups = valid_blups,
+    theoretical_quantiles = theoretical_quantiles,
+    empirical_quantiles = sorted_blups
+  )))
+}
+
+#' Calculate Deleted Residuals for Bivariate MLE Model
+#' @param bivariate_results result object from metabiv function
+#' @param data original data used in the analysis
+#' @param input shiny input object with data_type and effect_measure
+#' @return vector of deleted residuals
+calculate_deleted_residuals_bivariate <- function(bivariate_results, data, input) {
+  y_k <- bivariate_results$y.k
+  sigma2_k <- bivariate_results$sigma.2.k
+  studlab <- bivariate_results$studlab
+  n_studies <- length(y_k)
+  
+  deleted_residuals <- numeric(n_studies)
+  
+  for (i in 1:n_studies) {
+    # Remove study i
+    data_minus_i <- data[data$study != studlab[i], ]
+    
+    # Refit bivariate model without study i
+    biv_minus_i <- tryCatch({
+      if (input$data_type == "smd") {
+        se_minus_i <- (data_minus_i$ci_upper - data_minus_i$ci_lower) / (2 * 1.96)
+        var_minus_i <- se_minus_i^2
+        metabiv(studlab = data_minus_i$study, sm = "SMD", 
+                y = data_minus_i$smd, sigma2 = var_minus_i, verbose = FALSE)
+      } else {
+        metabiv(event.e = data_minus_i$ie, n.e = data_minus_i$it, 
+                event.c = data_minus_i$pe, n.c = data_minus_i$pt,
+                studlab = data_minus_i$study, sm = input$effect_measure, verbose = FALSE)
+      }
+    }, error = function(e) {
+      # If refit fails, use original estimates
+      list(mu = bivariate_results$mu, tau = bivariate_results$tau)
+    })
+    
+    # Calculate deleted residual
+    mu_minus_i <- biv_minus_i$mu
+    tau2_minus_i <- biv_minus_i$tau^2
+    
+    deleted_residuals[i] <- (y_k[i] - mu_minus_i) / sqrt(sigma2_k[i] + tau2_minus_i)
+  }
+  
+  return(deleted_residuals)
+}
+
+#' Q-Q Plot of Deleted Residuals for Bivariate MLE Model
+#' @param bivariate_results result object from metabiv function
+#' @param data original data used in the analysis
+#' @param input shiny input object
+#' @param envelope logical, whether to include simulation envelope
+#' @return ggplot object
+qq_plot_bivariate_deleted_residuals <- function(bivariate_results, data, input, envelope = TRUE) {
+  # Calculate deleted residuals
+  deleted_residuals <- calculate_deleted_residuals_bivariate(bivariate_results, data, input)
+  
+  # Remove any infinite or NA values
+  valid_residuals <- deleted_residuals[is.finite(deleted_residuals)]
+  
+  if (length(valid_residuals) < 3) {
+    plot(1, type="n", axes=FALSE, xlab="", ylab="", 
+         main="Bivariate MLE Deleted Residuals Q-Q Plot: Insufficient Data")
+    text(1, 1, "Not enough valid data for Q-Q plot")
+    return(invisible(NULL))
+  }
+  
+  # Create Q-Q plot data
+  n <- length(valid_residuals)
+  sorted_residuals <- sort(valid_residuals)
+  theoretical_quantiles <- qnorm((1:n - 0.5) / n)
+  
+  # Create basic plot
+  plot(theoretical_quantiles, sorted_residuals,
+       main = "Q-Q Plot: Bivariate MLE Deleted Residuals",
+       xlab = "Theoretical Quantiles",
+       ylab = "Standardized Deleted Residuals",
+       pch = 19, col = "brown")
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add simulation envelope if requested (simplified version)
+  if (envelope && n >= 5) {
+    n_sim <- 1000
+    envelopes <- replicate(n_sim, {
+      sim_residuals <- rnorm(n)
+      sort(sim_residuals)
+    })
+    
+    lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
+    upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
+    
+    # Add envelope
+    polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+            c(lower_env, rev(upper_env)),
+            col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
+    
+    # Re-add points and line
+    points(theoretical_quantiles, sorted_residuals, pch = 19, col = "brown")
+    abline(0, 1, col = "red", lty = 2, lwd = 2)
+  }
+  
+  # Add legend
+  legend("topleft", 
+         legend = c("Bivariate Deleted Residuals", "Expected (N(0,1))", if(envelope) "95% Envelope"),
+         pch = c(19, NA, if(envelope) 15),
+         lty = c(NA, 2, NA),
+         col = c("brown", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
+         bg = "white")
+  
+  return(invisible(list(
+    residuals = valid_residuals,
+    theoretical_quantiles = theoretical_quantiles,
+    empirical_quantiles = sorted_residuals
+  )))
+}
+
+#' Shapiro-Wilk Tests for Bivariate MLE Model
+#' @param bivariate_results result object from metabiv function
+#' @param data original data used in the analysis
+#' @param input shiny input object
+#' @return list with test results for BLUPs and deleted residuals
+shapiro_test_bivariate <- function(bivariate_results, data, input) {
+  # Test BLUPs
+  blups <- calculate_blups_bivariate(bivariate_results)
+  standardized_blups <- (blups - mean(blups, na.rm = TRUE)) / sd(blups, na.rm = TRUE)
+  valid_blups <- standardized_blups[is.finite(standardized_blups)]
+  
+  blup_test <- if (length(valid_blups) >= 3 && length(valid_blups) <= 5000) {
+    shapiro.test(valid_blups)
+  } else {
+    list(statistic = NA, p.value = NA, method = "Shapiro-Wilk normality test", 
+         data.name = "bivariate BLUPs", note = "Sample size out of range")
+  }
+  
+  # Test deleted residuals
+  deleted_residuals <- calculate_deleted_residuals_bivariate(bivariate_results, data, input)
+  valid_deleted <- deleted_residuals[is.finite(deleted_residuals)]
+  
+  deleted_test <- if (length(valid_deleted) >= 3 && length(valid_deleted) <= 5000) {
+    shapiro.test(valid_deleted)
+  } else {
+    list(statistic = NA, p.value = NA, method = "Shapiro-Wilk normality test",
+         data.name = "bivariate deleted residuals", note = "Sample size out of range")
+  }
+  
+  return(list(
+    blup_test = blup_test,
+    deleted_residuals_test = deleted_test
+  ))
+}
+
+# ----------------------------------------------------------------------------
+# 4. COMPREHENSIVE DIAGNOSTIC SUMMARY FUNCTIONS
+# ----------------------------------------------------------------------------
+
+#' Run All Normality Diagnostics for a Given Model Type
+#' @param model_type character, one of "fixed", "random", "bivariate"
+#' @param results model results object
+#' @param data optional, original data (required for bivariate)
+#' @param input optional, shiny input object (required for bivariate)
+#' @param envelope logical, whether to include simulation envelopes
+#' @return list of diagnostic results
+run_all_normality_diagnostics <- function(model_type, results, data = NULL, input = NULL, envelope = TRUE) {
+  
+  diagnostics <- list()
+  
+  if (model_type == "fixed") {
+    # Fixed effects diagnostics
+    diagnostics$qq_residuals <- qq_plot_fixed_residuals(results, envelope)
+    diagnostics$shapiro_test <- shapiro_test_fixed(results)
+    
+  } else if (model_type == "random") {
+    # Random effects diagnostics
+    diagnostics$qq_blups <- qq_plot_random_blups(results, envelope)
+    diagnostics$qq_deleted_residuals <- qq_plot_random_deleted_residuals(results, envelope)
+    diagnostics$shapiro_tests <- shapiro_test_random(results)
+    
+  } else if (model_type == "bivariate") {
+    # Bivariate MLE diagnostics
+    if (is.null(data) || is.null(input)) {
+      stop("For bivariate diagnostics, both 'data' and 'input' arguments are required")
+    }
+    
+    diagnostics$qq_blups <- qq_plot_bivariate_blups(results, envelope)
+    diagnostics$qq_deleted_residuals <- qq_plot_bivariate_deleted_residuals(results, data, input, envelope)
+    diagnostics$shapiro_tests <- shapiro_test_bivariate(results, data, input)
+    
+  } else {
+    stop("model_type must be one of 'fixed', 'random', or 'bivariate'")
+  }
+  
+  return(diagnostics)
+}
+
+#' Print Summary of Normality Diagnostic Results
+#' @param diagnostics result from run_all_normality_diagnostics
+#' @param model_type character, model type for labeling
+print_normality_summary <- function(diagnostics, model_type) {
+  cat("=================================================\n")
+  cat("NORMALITY DIAGNOSTICS SUMMARY:", toupper(model_type), "EFFECTS MODEL\n")
+  cat("=================================================\n\n")
+  
+  if (model_type == "fixed") {
+    cat("Shapiro-Wilk Test for Standardized Residuals:\n")
+    if (!is.na(diagnostics$shapiro_test$p.value)) {
+      cat("  W =", round(diagnostics$shapiro_test$statistic, 4), 
+          ", p-value =", format.pval(diagnostics$shapiro_test$p.value), "\n")
+      cat("  Interpretation:", 
+          if(diagnostics$shapiro_test$p.value > 0.05) "No strong evidence against normality" else "Evidence against normality", "\n")
+    } else {
+      cat("  Test not available:", diagnostics$shapiro_test$note, "\n")
+    }
+    
+  } else {
+    cat("Shapiro-Wilk Test for BLUPs:\n")
+    if (!is.na(diagnostics$shapiro_tests$blup_test$p.value)) {
+      cat("  W =", round(diagnostics$shapiro_tests$blup_test$statistic, 4), 
+          ", p-value =", format.pval(diagnostics$shapiro_tests$blup_test$p.value), "\n")
+      cat("  Interpretation:", 
+          if(diagnostics$shapiro_tests$blup_test$p.value > 0.05) "No strong evidence against normality" else "Evidence against normality", "\n")
+    } else {
+      cat("  Test not available\n")
+    }
+    
+    cat("\nShapiro-Wilk Test for Deleted Residuals:\n")
+    if (!is.na(diagnostics$shapiro_tests$deleted_residuals_test$p.value)) {
+      cat("  W =", round(diagnostics$shapiro_tests$deleted_residuals_test$statistic, 4), 
+          ", p-value =", format.pval(diagnostics$shapiro_tests$deleted_residuals_test$p.value), "\n")
+      cat("  Interpretation:", 
+          if(diagnostics$shapiro_tests$deleted_residuals_test$p.value > 0.05) "No strong evidence against normality" else "Evidence against normality", "\n")
+    } else {
+      cat("  Test not available\n")
+    }
+  }
+  
+  cat("\n=================================================\n")
+  cat("Q-Q PLOT INTERPRETATION GUIDE:\n")
+  cat("• Points close to the red diagonal line = Normal distribution\n")
+  cat("• S-shaped pattern = Tail deviations (heavy/light tails)\n")
+  cat("• Systematic curvature = Skewness\n")
+  cat("• Points outside gray envelope = Potential outliers\n")
+  cat("• Low-powered formal tests should be interpreted with plots\n")
+  cat("=================================================\n\n")
+}
+
+# End of comprehensive normality diagnostics
+# ============================================================================
+
+# Add these new functions at the end of your existing functions.R file
+
+# 1. FIXED EFFECTS DELETED RESIDUALS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate Deleted Residuals for Fixed Effects Model
+#' @param fixed_results meta object from fixed effects analysis
+#' @return vector of deleted residuals
+calculate_fixed_deleted_residuals <- function(fixed_results) {
+  k <- length(fixed_results$TE)
+  deleted_residuals <- numeric(k)
+  
+  for (i in 1:k) {
+    # Create data without study i
+    TE_loo <- fixed_results$TE[-i]
+    seTE_loo <- fixed_results$seTE[-i]
+    
+    # Calculate fixed effect estimate without study i
+    w_loo <- 1 / seTE_loo^2
+    theta_loo <- sum(w_loo * TE_loo) / sum(w_loo)
+    
+    # Deleted residual for study i
+    deleted_residuals[i] <- (fixed_results$TE[i] - theta_loo) / fixed_results$seTE[i]
+  }
+  
+  return(deleted_residuals)
+}
+
+# 2. RANDOM EFFECTS DELETED RESIDUALS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate Deleted Residuals for Random Effects Model
+#' @param random_results meta object from random effects analysis
+#' @return vector of deleted residuals
+calculate_random_deleted_residuals <- function(random_results) {
+  k <- length(random_results$TE)
+  deleted_residuals <- numeric(k)
+  
+  # Use metainf once to get all leave-one-out estimates
+  inf <- metainf(random_results, pooled = "random")
+  
+  for (i in 1:k) {
+    # Get the pooled estimate when study i is removed
+    mu_loo <- inf$TE[i]
+    tau2_loo <- inf$tau2[i]
+    
+    # Deleted residual for study i using random effects parameters
+    deleted_residuals[i] <- (random_results$TE[i] - mu_loo) / sqrt(random_results$seTE[i]^2 + tau2_loo)
+  }
+  
+  return(deleted_residuals)
+}
+
+# 3. BIVARIATE MLE DELETED RESIDUALS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate Deleted Residuals for Bivariate Model
+#' @param bivariate_results metabiv object
+#' @param data Original data frame
+#' @param input Shiny input object with data type and effect measure
+#' @return vector of deleted residuals
+calculate_bivariate_deleted_residuals <- function(bivariate_results, data, input) {
+  k <- length(bivariate_results$y.k)
+  deleted_residuals <- numeric(k)
+  
+  for (i in 1:k) {
+    # Create data without study i
+    data_loo <- data[-i, ]
+    
+    # Refit bivariate model without study i
+    if (input$data_type == "smd") {
+      se_loo <- (data_loo$ci_upper - data_loo$ci_lower) / (2 * 1.96)
+      var_loo <- se_loo^2
+      res_loo <- metabiv(studlab = data_loo$study, sm = "SMD", y = data_loo$smd, sigma2 = var_loo, verbose = FALSE)
+    } else {
+      res_loo <- metabiv(event.e = data_loo$ie, n.e = data_loo$it, 
+                        event.c = data_loo$pe, n.c = data_loo$pt,
+                        studlab = data_loo$study, sm = input$effect_measure, verbose = FALSE)
+    }
+    
+    # Deleted residual for study i
+    deleted_residuals[i] <- (bivariate_results$y.k[i] - res_loo$mu) / 
+                           sqrt(bivariate_results$sigma.2.k[i] + res_loo$tau^2)
+  }
+  
+  return(deleted_residuals)
+}
+
+# 4. SIDE-BY-SIDE QQ PLOTS
+# ----------------------------------------------------------------------------
+
+#' Create Side-by-Side QQ Plot for Deleted Residuals
+#' @param residuals1 First set of residuals (left panel)
+#' @param residuals2 Second set of residuals (right panel)
+#' @param label1 Label for first panel
+#' @param label2 Label for second panel
+#' @param main_title Main title for the plot
+create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2, 
+                                                  label1 = "Model 1", 
+                                                  label2 = "Model 2",
+                                                  main_title = "Deleted Residuals Q-Q Plots") {
+  # Set up 2-panel plot
+  par(mfrow = c(1, 2), mar = c(5, 4, 4, 2) + 0.1)
+  
+  # Left panel
+  create_single_qq_panel(residuals1, paste(label1, "Deleted Residuals"))
+  
+  # Right panel
+  create_single_qq_panel(residuals2, paste(label2, "Deleted Residuals"))
+  
+  # Add main title
+  mtext(main_title, side = 3, line = -2, outer = TRUE, cex = 1.2, font = 2)
+  
+  # Reset par
+  par(mfrow = c(1, 1))
+}
+
+#' Create Single QQ Panel with Confidence Envelope
+#' @param residuals Vector of residuals
+#' @param title Panel title
+create_single_qq_panel <- function(residuals, title) {
+  # Remove NA values
+  residuals <- residuals[!is.na(residuals)]
+  n <- length(residuals)
+  
+  if (n < 3) {
+    plot(1, type = "n", xlab = "", ylab = "", main = title)
+    text(1, 1, "Insufficient data", cex = 1.2)
+    return()
+  }
+  
+  # Sort residuals
+  sorted_residuals <- sort(residuals)
+  
+  # Calculate theoretical quantiles
+  p <- (1:n - 0.5) / n
+  theoretical_quantiles <- qnorm(p)
+  
+  # Calculate confidence envelope
+  z_alpha <- qnorm(0.975)
+  se <- 1 / dnorm(theoretical_quantiles)
+  envelope_width <- z_alpha * se * sqrt(p * (1 - p) / n)
+  
+  # Create plot
+  plot(theoretical_quantiles, sorted_residuals,
+       main = title,
+       xlab = "Theoretical Quantiles",
+       ylab = "Sample Quantiles",
+       pch = 19,
+       col = "darkblue",
+       ylim = range(c(sorted_residuals - envelope_width, 
+                     sorted_residuals + envelope_width)))
+  
+  # Add confidence envelope
+  polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+          c(sorted_residuals - envelope_width, 
+            rev(sorted_residuals + envelope_width)),
+          col = rgb(0.8, 0.8, 0.8, 0.3),
+          border = NA)
+  
+  # Replot points
+  points(theoretical_quantiles, sorted_residuals, pch = 19, col = "darkblue")
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add grid
+  grid(col = "gray90")
+}
+
+# 5. WRAPPER FUNCTIONS FOR SHINY UI
+# ----------------------------------------------------------------------------
+
+#' Random Effects: Side-by-Side Deleted Residuals QQ Plot
+#' @param random_results Random effects model results
+#' @param fixed_results Fixed effects model results
+qq_plot_random_vs_fixed_deleted <- function(random_results, fixed_results) {
+  # Calculate deleted residuals
+  random_deleted <- calculate_random_deleted_residuals(random_results)
+  fixed_deleted <- calculate_fixed_deleted_residuals(fixed_results)
+  
+  # Create side-by-side plot
+  create_sidebyside_deleted_residuals_qq(
+    fixed_deleted, random_deleted,
+    label1 = "Fixed Effects",
+    label2 = "Random Effects",
+    main_title = "Deleted Residuals Comparison"
+  )
+}
+
+#' Bivariate: Side-by-Side Deleted Residuals QQ Plot
+#' @param bivariate_results Bivariate model results
+#' @param fixed_results Fixed effects model results
+#' @param data Original data
+#' @param input Shiny input object
+qq_plot_bivariate_vs_fixed_deleted <- function(bivariate_results, fixed_results, data, input) {
+  # Calculate deleted residuals
+  bivariate_deleted <- calculate_bivariate_deleted_residuals(bivariate_results, data, input)
+  fixed_deleted <- calculate_fixed_deleted_residuals(fixed_results)
+  
+  # Create side-by-side plot (Fixed Effects left, Bivariate MLE right)
+  create_sidebyside_deleted_residuals_qq(
+    fixed_deleted, bivariate_deleted,
+    label1 = "Fixed Effects",
+    label2 = "Bivariate MLE",
+    main_title = "Deleted Residuals Comparison"
+  )
 }
 
 

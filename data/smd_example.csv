@@ -1,24 +1,24 @@
-study,smd,ci_lower,ci_upper
-"Ashman, 2014",0.10,-0.47,0.66
-"Ayen, 2004",1.54,0.81,2.26
-"Azevedo, 2014",0.59,0.17,1.02
-"Barkham, 2021",-0.07,-0.26,0.12
-"Beutler, 1991",0.14,-0.34,0.62
-"Beutler, 2003",0.51,-0.18,1.20
-"Bodenmann, 2008",0.00,-0.51,0.51
-"Bowman, 1995",-0.16,-0.92,0.60
-"Bright, 1999 cbt (professional)",0.17,-0.37,0.71
-"Bright, 1999 cbt (paraprofessional)",-0.47,-1.14,0.19
-"Bruijniks, 2020 cbt (weekly)",-0.13,-0.44,0.18
-"Bruijniks, 2020 cbt (twice weekly)",0.06,-0.25,0.37
-"Carter, 2013",0.13,-0.21,0.47
-"Chan, 2012",0.57,-0.05,1.18
-"Cooper, 2003",0.03,-0.33,0.40
-"Covi, 1987",1.57,0.40,2.74
-"Delgadillo, 2015",0.26,-0.37,0.89
-"Dimidjian, 2006",-0.26,-0.69,0.17
-"Dos Santos, 2020",0.35,-0.28,0.97
-"Driessen, 2013",0.02,-0.24,0.29
+study,smd,ci_lower,ci_upper,subgroup,moderator1,moderator2
+"Ashman, 2014",0.10,-0.47,0.66,Individual,12.5,High
+"Ayen, 2004",1.54,0.81,2.26,Group,8.2,Low
+"Azevedo, 2014",0.59,0.17,1.02,Individual,15.3,Medium
+"Barkham, 2021",-0.07,-0.26,0.12,Group,10.1,High
+"Beutler, 1991",0.14,-0.34,0.62,Individual,14.7,Low
+"Beutler, 2003",0.51,-0.18,1.20,Group,9.8,Medium
+"Bodenmann, 2008",0.00,-0.51,0.51,Individual,11.2,High
+"Bowman, 1995",-0.16,-0.92,0.60,Group,13.6,Low
+"Bright, 1999 cbt (professional)",0.17,-0.37,0.71,Individual,16.4,Medium
+"Bright, 1999 cbt (paraprofessional)",-0.47,-1.14,0.19,Group,7.9,High
+"Bruijniks, 2020 cbt (weekly)",-0.13,-0.44,0.18,Individual,12.8,Low
+"Bruijniks, 2020 cbt (twice weekly)",0.06,-0.25,0.37,Group,14.2,Medium
+"Carter, 2013",0.13,-0.21,0.47,Individual,10.5,High
+"Chan, 2012",0.57,-0.05,1.18,Group,8.7,Low
+"Cooper, 2003",0.03,-0.33,0.40,Individual,13.1,Medium
+"Covi, 1987",1.57,0.40,2.74,Group,9.3,High
+"Delgadillo, 2015",0.26,-0.37,0.89,Individual,15.8,Low
+"Dimidjian, 2006",-0.26,-0.69,0.17,Group,11.9,Medium
+"Dos Santos, 2020",0.35,-0.28,0.97,Individual,12.3,High
+"Driessen, 2013",0.02,-0.24,0.29,Group,14.6,Low
 "Eddington, 2015",0.33,-0.22,0.88
 "Ekeblad, 2016",0.00,-0.57,0.57
 "Elkin, 1989",-0.12,-0.43,0.19
