@@ -839,7 +839,7 @@ render_report <- function(random_results,
         rma_method <- ifelse(is.null(random_results$method.tau) || random_results$method.tau == "FE", "FE", "REML")
 
         # Run meta-regression with metafor::rma
-        metareg_model <- metafor::rma(yi = TE, sei = seTE, mods = ~ mod_vec, method = rma_method, test = "knha")
+        metareg_model <- metafor::rma(yi = TE, vi = seTE^2, mods = ~ mod_vec, method = rma_method, test = "knha")
 
         # Bubble plot via ggplot2
         bubble_plot <- tryCatch({
@@ -2354,6 +2354,215 @@ print_normality_summary <- function(diagnostics, model_type) {
 
 # End of comprehensive normality diagnostics
 # ============================================================================
+
+# Add these new functions at the end of your existing functions.R file
+
+# 1. FIXED EFFECTS DELETED RESIDUALS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate Deleted Residuals for Fixed Effects Model
+#' @param fixed_results meta object from fixed effects analysis
+#' @return vector of deleted residuals
+calculate_fixed_deleted_residuals <- function(fixed_results) {
+  k <- length(fixed_results$TE)
+  deleted_residuals <- numeric(k)
+  
+  for (i in 1:k) {
+    # Create data without study i
+    TE_loo <- fixed_results$TE[-i]
+    seTE_loo <- fixed_results$seTE[-i]
+    
+    # Calculate fixed effect estimate without study i
+    w_loo <- 1 / seTE_loo^2
+    theta_loo <- sum(w_loo * TE_loo) / sum(w_loo)
+    
+    # Deleted residual for study i
+    deleted_residuals[i] <- (fixed_results$TE[i] - theta_loo) / fixed_results$seTE[i]
+  }
+  
+  return(deleted_residuals)
+}
+
+# 2. RANDOM EFFECTS DELETED RESIDUALS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate Deleted Residuals for Random Effects Model
+#' @param random_results meta object from random effects analysis
+#' @return vector of deleted residuals
+calculate_random_deleted_residuals <- function(random_results) {
+  k <- length(random_results$TE)
+  deleted_residuals <- numeric(k)
+  
+  # Use metainf once to get all leave-one-out estimates
+  inf <- metainf(random_results, pooled = "random")
+  
+  for (i in 1:k) {
+    # Get the pooled estimate when study i is removed
+    mu_loo <- inf$TE[i]
+    tau2_loo <- inf$tau2[i]
+    
+    # Deleted residual for study i using random effects parameters
+    deleted_residuals[i] <- (random_results$TE[i] - mu_loo) / sqrt(random_results$seTE[i]^2 + tau2_loo)
+  }
+  
+  return(deleted_residuals)
+}
+
+# 3. BIVARIATE MLE DELETED RESIDUALS DIAGNOSTICS
+# ----------------------------------------------------------------------------
+
+#' Calculate Deleted Residuals for Bivariate Model
+#' @param bivariate_results metabiv object
+#' @param data Original data frame
+#' @param input Shiny input object with data type and effect measure
+#' @return vector of deleted residuals
+calculate_bivariate_deleted_residuals <- function(bivariate_results, data, input) {
+  k <- length(bivariate_results$y.k)
+  deleted_residuals <- numeric(k)
+  
+  for (i in 1:k) {
+    # Create data without study i
+    data_loo <- data[-i, ]
+    
+    # Refit bivariate model without study i
+    if (input$data_type == "smd") {
+      se_loo <- (data_loo$ci_upper - data_loo$ci_lower) / (2 * 1.96)
+      var_loo <- se_loo^2
+      res_loo <- metabiv(studlab = data_loo$study, sm = "SMD", y = data_loo$smd, sigma2 = var_loo, verbose = FALSE)
+    } else {
+      res_loo <- metabiv(event.e = data_loo$ie, n.e = data_loo$it, 
+                        event.c = data_loo$pe, n.c = data_loo$pt,
+                        studlab = data_loo$study, sm = input$effect_measure, verbose = FALSE)
+    }
+    
+    # Deleted residual for study i
+    deleted_residuals[i] <- (bivariate_results$y.k[i] - res_loo$mu) / 
+                           sqrt(bivariate_results$sigma.2.k[i] + res_loo$tau^2)
+  }
+  
+  return(deleted_residuals)
+}
+
+# 4. SIDE-BY-SIDE QQ PLOTS
+# ----------------------------------------------------------------------------
+
+#' Create Side-by-Side QQ Plot for Deleted Residuals
+#' @param residuals1 First set of residuals (left panel)
+#' @param residuals2 Second set of residuals (right panel)
+#' @param label1 Label for first panel
+#' @param label2 Label for second panel
+#' @param main_title Main title for the plot
+create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2, 
+                                                  label1 = "Model 1", 
+                                                  label2 = "Model 2",
+                                                  main_title = "Deleted Residuals Q-Q Plots") {
+  # Set up 2-panel plot
+  par(mfrow = c(1, 2), mar = c(5, 4, 4, 2) + 0.1)
+  
+  # Left panel
+  create_single_qq_panel(residuals1, paste(label1, "Deleted Residuals"))
+  
+  # Right panel
+  create_single_qq_panel(residuals2, paste(label2, "Deleted Residuals"))
+  
+  # Add main title
+  mtext(main_title, side = 3, line = -2, outer = TRUE, cex = 1.2, font = 2)
+  
+  # Reset par
+  par(mfrow = c(1, 1))
+}
+
+#' Create Single QQ Panel with Confidence Envelope
+#' @param residuals Vector of residuals
+#' @param title Panel title
+create_single_qq_panel <- function(residuals, title) {
+  # Remove NA values
+  residuals <- residuals[!is.na(residuals)]
+  n <- length(residuals)
+  
+  if (n < 3) {
+    plot(1, type = "n", xlab = "", ylab = "", main = title)
+    text(1, 1, "Insufficient data", cex = 1.2)
+    return()
+  }
+  
+  # Sort residuals
+  sorted_residuals <- sort(residuals)
+  
+  # Calculate theoretical quantiles
+  p <- (1:n - 0.5) / n
+  theoretical_quantiles <- qnorm(p)
+  
+  # Calculate confidence envelope
+  z_alpha <- qnorm(0.975)
+  se <- 1 / dnorm(theoretical_quantiles)
+  envelope_width <- z_alpha * se * sqrt(p * (1 - p) / n)
+  
+  # Create plot
+  plot(theoretical_quantiles, sorted_residuals,
+       main = title,
+       xlab = "Theoretical Quantiles",
+       ylab = "Sample Quantiles",
+       pch = 19,
+       col = "darkblue",
+       ylim = range(c(sorted_residuals - envelope_width, 
+                     sorted_residuals + envelope_width)))
+  
+  # Add confidence envelope
+  polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
+          c(sorted_residuals - envelope_width, 
+            rev(sorted_residuals + envelope_width)),
+          col = rgb(0.8, 0.8, 0.8, 0.3),
+          border = NA)
+  
+  # Replot points
+  points(theoretical_quantiles, sorted_residuals, pch = 19, col = "darkblue")
+  
+  # Add reference line
+  abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add grid
+  grid(col = "gray90")
+}
+
+# 5. WRAPPER FUNCTIONS FOR SHINY UI
+# ----------------------------------------------------------------------------
+
+#' Random Effects: Side-by-Side Deleted Residuals QQ Plot
+#' @param random_results Random effects model results
+#' @param fixed_results Fixed effects model results
+qq_plot_random_vs_fixed_deleted <- function(random_results, fixed_results) {
+  # Calculate deleted residuals
+  random_deleted <- calculate_random_deleted_residuals(random_results)
+  fixed_deleted <- calculate_fixed_deleted_residuals(fixed_results)
+  
+  # Create side-by-side plot
+  create_sidebyside_deleted_residuals_qq(
+    fixed_deleted, random_deleted,
+    label1 = "Fixed Effects",
+    label2 = "Random Effects",
+    main_title = "Deleted Residuals Comparison"
+  )
+}
+
+#' Bivariate: Side-by-Side Deleted Residuals QQ Plot
+#' @param bivariate_results Bivariate model results
+#' @param fixed_results Fixed effects model results
+#' @param data Original data
+#' @param input Shiny input object
+qq_plot_bivariate_vs_fixed_deleted <- function(bivariate_results, fixed_results, data, input) {
+  # Calculate deleted residuals
+  bivariate_deleted <- calculate_bivariate_deleted_residuals(bivariate_results, data, input)
+  fixed_deleted <- calculate_fixed_deleted_residuals(fixed_results)
+  
+  # Create side-by-side plot
+  create_sidebyside_deleted_residuals_qq(
+    bivariate_deleted, fixed_deleted,
+    label1 = "Bivariate MLE",
+    label2 = "Fixed Effects",
+    main_title = "Deleted Residuals Comparison"
+  )
+}
 
 
 

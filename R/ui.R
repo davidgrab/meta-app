@@ -208,28 +208,30 @@ ui <- page_fillable(
                            actionButton("re_model_diagnostics_info", "", icon = icon("info-circle"), class = "help-text"),
                            h4("Normality Assessment"),
                            p("These plots assess whether the random effects model assumptions are met:", class = "section-explanation"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("randomQQPlot")),
-                                        p(HTML("<strong>Q-Q Plot of BLUPs (Best Linear Unbiased Predictors):</strong><br>
-                                               This plot tests whether the study-specific effect estimates follow a normal distribution. 
-                                               Points should lie along the red diagonal line if normality holds. The gray envelope shows 95% confidence bands.
-                                               <br><em>Interpretation:</em> S-shaped curves indicate tail deviations, systematic curvature suggests skewness, 
-                                               and points outside the envelope may indicate outliers or model misspecification."), class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("randomDeletedResidualsQQPlot")),
-                                        p(HTML("<strong>Q-Q Plot of Deleted Residuals:</strong><br>
-                                               This plot uses leave-one-out residuals for a more robust normality assessment. 
-                                               Each point represents a residual computed after removing that study from the analysis.
-                                               <br><em>Interpretation:</em> This provides a more robust test of combined normality assumptions. 
-                                               Deviations from the diagonal line suggest violations of model assumptions."), class = "plot-explanation")
-                                    )
-                             )
+                           
+                           # Side-by-side deleted residuals Q-Q plots (NEW - moved up)
+                           h5("Deleted Residuals Comparison"),
+                           div(class = "plot-container", style = "width: 100%;",
+                               withSpinner(plotOutput("randomDeletedResidualsComparisonPlot", height = "400px")),
+                               p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
+                                      <em>Left panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
+                                      <em>Right panel:</em> Random Effects deleted residuals - each point represents the residual when that study is removed and the random effects model is refitted.<br>
+                                      <br><em>Interpretation:</em> Compare tail behavior between models. If points deviate similarly from the diagonal in both panels, 
+                                      it suggests the deviations are due to the data rather than the choice of model. Different patterns suggest model-specific issues."), 
+                                 class = "plot-explanation")
                            ),
+                           
+                           # BLUPs Q-Q plot (moved down)
+                           h5("Best Linear Unbiased Predictors (BLUPs)"),
+                           div(class = "plot-container",
+                               withSpinner(plotOutput("randomQQPlot")),
+                               p(HTML("<strong>Q-Q Plot of BLUPs:</strong><br>
+                                      This plot tests whether the study-specific effect estimates follow a normal distribution under the random effects model. 
+                                      Points should lie along the red diagonal line if normality holds. The gray envelope shows 95% confidence bands.
+                                      <br><em>Interpretation:</em> S-shaped curves indicate tail deviations, systematic curvature suggests skewness, 
+                                      and points outside the envelope may indicate outliers or model misspecification."), class = "plot-explanation")
+                           ),
+                           
                            h4("Formal Statistical Tests"),
                            verbatimTextOutput("randomNormalityTestSummary"),
                            h4("Additional Diagnostics"),
@@ -517,28 +519,30 @@ ui <- page_fillable(
                            actionButton("biv_model_diagnostics_info", "", icon = icon("info-circle")),
                            h4("Normality Assessment"),
                            p("These plots assess whether the bivariate meta-analysis model assumptions are met using joint MLE estimation:", class = "section-explanation"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("qqPlotMu")),
-                                        p(HTML("<strong>Q-Q Plot of BLUPs (Bivariate MLE):</strong><br>
-                                               This plot tests normality of Best Linear Unbiased Predictors using jointly estimated μ̂<sub>MLE</sub> and τ̂<sub>MLE</sub> parameters. 
-                                               Points should follow the diagonal line if the random effects distribution is normal. The simulation envelope provides robust assessment.
-                                               <br><em>Interpretation:</em> The bivariate approach provides more precise estimates than standard random effects. 
-                                               Deviations suggest the random effects may not follow the assumed normal distribution."), class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("qqPlotMuRaw")),
-                                        p(HTML("<strong>Q-Q Plot of Deleted Residuals (Bivariate MLE):</strong><br>
-                                               This plot uses leave-one-out residuals where the entire bivariate model is refitted for each deleted study. 
-                                               This provides the most robust assessment of combined normality assumptions.
-                                               <br><em>Interpretation:</em> This is computationally intensive but provides the most reliable diagnostic. 
-                                               Points outside the envelope suggest model assumption violations that may affect inference."), class = "plot-explanation")
-                                    )
-                             )
+                           
+                           # Side-by-side deleted residuals Q-Q plots (NEW - moved up)
+                           h5("Deleted Residuals Comparison"),
+                           div(class = "plot-container", style = "width: 100%;",
+                               withSpinner(plotOutput("bivariateDeletedResidualsComparisonPlot", height = "400px")),
+                               p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
+                                      <em>Left panel:</em> Bivariate MLE deleted residuals - each point represents the residual when that study is removed and the bivariate model is refitted.<br>
+                                      <em>Right panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
+                                      <br><em>Interpretation:</em> Compare tail behavior between the bivariate MLE and fixed effects approaches. The bivariate model often shows better 
+                                      behavior in the tails due to its more flexible modeling of heterogeneity. Different patterns suggest model-specific strengths and weaknesses."), 
+                                 class = "plot-explanation")
                            ),
+                           
+                           # BLUPs Q-Q plot (moved down)
+                           h5("Best Linear Unbiased Predictors (BLUPs)"),
+                           div(class = "plot-container",
+                               withSpinner(plotOutput("qqPlotMu")),
+                               p(HTML("<strong>Q-Q Plot of BLUPs (Bivariate MLE):</strong><br>
+                                      This plot tests normality of Best Linear Unbiased Predictors using jointly estimated μ̂<sub>MLE</sub> and τ̂<sub>MLE</sub> parameters. 
+                                      Points should follow the diagonal line if the random effects distribution is normal. The simulation envelope provides robust assessment.
+                                      <br><em>Interpretation:</em> The bivariate approach provides more precise estimates than standard random effects. 
+                                      Deviations suggest the random effects may not follow the assumed normal distribution."), class = "plot-explanation")
+                           ),
+                           
                            h4("Formal Statistical Tests"),
                            verbatimTextOutput("bivariateNormalityTestSummary")
                   ),

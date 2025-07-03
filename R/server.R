@@ -864,19 +864,14 @@ server <- function(input, output, session) {
     })
   })
   
-  output$qqPlotMuRaw <- renderPlot({
-    req(bivariate_result())
-    
+  # Side-by-side deleted residuals comparison plot
+  output$bivariateDeletedResidualsComparisonPlot <- renderPlot({
+    req(bivariate_result(), combinedResults()$fixed, data())
     tryCatch({
-      # Use the new comprehensive normality diagnostic for bivariate deleted residuals
-      qq_plot_bivariate_deleted_residuals(bivariate_result(), data(), input, envelope = TRUE)
+      qq_plot_bivariate_vs_fixed_deleted(bivariate_result(), combinedResults()$fixed, data(), input)
     }, error = function(e) {
-      # Fallback to the old implementation
-    qq_plot_with_ci_raw(y_k = bivariate_result()$y.k, 
-                    mu = bivariate_result()$mu,
-                    sigma_2_k = bivariate_result()$sigma.2.k,n_k=bivariate_result()$n_k,
-                    tau_2 = bivariate_result()$tau^2,
-                      title = "Q-Q Plot for Raw Residuals (Normal Random Effects)")
+      plot(1, type="n", main="Deleted Residuals Comparison Unavailable", xlab="", ylab="")
+      text(1, 1, paste("Error:", e$message), cex=0.8)
     })
   })
   
@@ -1754,12 +1749,13 @@ server <- function(input, output, session) {
   
 
 
-  output$randomDeletedResidualsQQPlot <- renderPlot({
-    req(combinedResults()$random)
+  # Side-by-side deleted residuals comparison plot
+  output$randomDeletedResidualsComparisonPlot <- renderPlot({
+    req(combinedResults()$random, combinedResults()$fixed)
     tryCatch({
-      qq_plot_random_deleted_residuals(combinedResults()$random, envelope = TRUE)
+      qq_plot_random_vs_fixed_deleted(combinedResults()$random, combinedResults()$fixed)
     }, error = function(e) {
-      plot(1, type="n", main="Random Effects Deleted Residuals Q-Q Plot Unavailable", xlab="", ylab="")
+      plot(1, type="n", main="Deleted Residuals Comparison Unavailable", xlab="", ylab="")
       text(1, 1, paste("Error:", e$message), cex=0.8)
     })
   })
@@ -2127,7 +2123,7 @@ server <- function(input, output, session) {
                                                          "DL") else "FE"
       
       # Run meta-regression with categorical moderator
-      metareg_result <- metafor::rma(yi = TE, sei = seTE, 
+      metareg_result <- metafor::rma(yi = TE, vi = seTE^2, 
                                     mods = ~ moderator_var, 
                                     method = rma_method,
                                     test  = test_method)
@@ -2136,7 +2132,7 @@ server <- function(input, output, session) {
       moderator_var <- as.numeric(moderator_var)
       
       # Run meta-regression with continuous moderator
-      metareg_result <- metafor::rma(yi = TE, sei = seTE, 
+      metareg_result <- metafor::rma(yi = TE, vi = seTE^2, 
                                     mods = ~ moderator_var, 
                                     method = if(input$use_random_effects) "REML" else "FE",
                                     test  = test_method)

@@ -655,12 +655,15 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
                           is.finite(plot_data$lower) & 
                           is.finite(plot_data$upper), ]
     
-    # Create plot with ggplot2 - linear scale for SMD
+    # Create plot with ggplot2 - linear scale for SMD with auto-scaled x-axis
+    x_range <- range(plot_data$x, na.rm = TRUE)
+    x_margin <- diff(x_range) * 0.1
+    
     p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
       geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
       geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-      scale_x_continuous(breaks = seq(-3, 3, by = 0.5),
-                        limits = c(-3, 3)) +
+      scale_x_continuous(breaks = pretty(x_range, n = 8),
+                        limits = c(x_range[1] - x_margin, x_range[2] + x_margin)) +
       scale_color_manual(values = c("le0" = le0.col, "gt0" = gt0.col)) +
       scale_fill_manual(values = c("le0" = le0.col, "gt0" = gt0.col)) +
       labs(title = mlb, x = xlb, y = "Probability") +
@@ -754,18 +757,28 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
                         is.finite(plot_data$lower) & 
                         is.finite(plot_data$upper), ]
   
-    # Create plot with ggplot2 - log scale for OR/RR
+    # Create plot with ggplot2 - log scale for OR/RR with auto-scaled x-axis
+  x_range <- range(plot_data$x, na.rm = TRUE)
+  x_factor <- 1.2  # multiplicative margin for log scale
+  
+  # Calculate nice breaks for log scale
+  log_range <- log10(x_range)
+  log_breaks <- pretty(log_range, n = 6)
+  x_breaks <- 10^log_breaks
+  x_breaks <- x_breaks[x_breaks >= x_range[1]/x_factor & x_breaks <= x_range[2]*x_factor]
+  
   p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
     geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-    scale_x_log10(breaks = c(0.1, 0.2, 0.5, 1, 2, 5, 10),
-                  labels = c("0.1", "0.2", "0.5", "1", "2", "5", "10"),
-                  limits = c(min.OR, max.OR)) +
+    scale_x_log10(breaks = x_breaks,
+                  labels = format(x_breaks, digits = 2),
+                  limits = c(x_range[1] / x_factor, x_range[2] * x_factor)) +
     scale_color_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
     scale_fill_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
     labs(title = mlb, x = xlb, y = "Probability") +
     theme_minimal() +
-    theme(legend.position = "none")
+    theme(legend.position = "none") +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "gray50")
   }
   
   return(p)
@@ -1529,9 +1542,13 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
     contour_50 <- get_contours(pval.mat, 0.50)
     contour_95 <- get_contours(pval.mat, 0.05)
     
-    # Set up plot with linear scale
+    # Auto-scale x-axis to data range with small margin
+    mu_range <- range(c(contour_95[[1]]$x, mu_mle))
+    x_margin <- diff(mu_range) * 0.1
+    
+    # Set up plot with linear scale and auto-scaled x-axis
     plot(1, type = "n",
-         xlim = c(min(mu.pred.vec), max(mu.pred.vec)),
+         xlim = c(mu_range[1] - x_margin, mu_range[2] + x_margin),
          ylim = range(tau.pred.vec),
          xlab = xlab, 
          ylab = "τ",
@@ -1565,9 +1582,13 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
   contour_50 <- get_contours(pval.mat, 0.50)
   contour_95 <- get_contours(pval.mat, 0.05)
   
-    # Set up plot with log scale
+  # Auto-scale x-axis to data range with small margin
+  mu_range_exp <- range(c(exp(contour_95[[1]]$x), exp(mu_mle)))
+  x_factor <- 1.2  # multiplicative margin for log scale
+  
+    # Set up plot with log scale and auto-scaled x-axis
   plot(1, type = "n", log = "x",
-       xlim = c(min(mu.pred.vec), max(mu.pred.vec)),
+       xlim = c(mu_range_exp[1] / x_factor, mu_range_exp[2] * x_factor),
        ylim = range(tau.pred.vec),
        xlab = xlab, 
        ylab = "τ",
@@ -1593,8 +1614,10 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
   abline(v = 1, lty = 2, col = "gray")
   abline(v = exp(0), col = "blue", lty = 3)
   
-  # Custom x-axis
-  axis(1, at = c(0.5, 1.0, 2.0, 3.2))
+  # Custom x-axis with auto-scaled nice ticks
+  x_ticks <- pretty(mu_range_exp, n = 5)
+  x_ticks <- x_ticks[x_ticks > 0]  # ensure positive for log scale
+  axis(1, at = x_ticks, labels = format(x_ticks, digits = 2))
   }
   
   # Add legend
