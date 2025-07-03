@@ -16,7 +16,7 @@ Revolutionize your meta-analysis workflow with our cutting-edge Shiny app! 📊�
 
 ## 🌟 Live Demo
 
-Experience the future of meta-analysis: [Modern Meta-Analysis App](https://modern-meta-analysis.shinyapps.io/meta-app/)
+Experience the future of meta-analysis: [Modern Meta-Analysis App](https://davidgrab-meta-app.share.connect.posit.cloud/)
 
 ## 🎯 Key Features
 
