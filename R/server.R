@@ -898,6 +898,38 @@ server <- function(input, output, session) {
                        sm = bivariate_result()$sm)
   })
   
+  # Probability Table for Clinical Thresholds
+  output$efficacyHarmProbabilityTable <- renderTable({
+    req(bivariate_result())
+    
+    # Use the EXACT same CDF object as the Efficacy/Harm plot
+    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result()$dev_pvals, sm = bivariate_result()$sm)
+    
+    # Parse custom thresholds from input
+    custom_thresholds <- NULL
+    if (!is.null(input$custom_thresholds) && input$custom_thresholds != "") {
+      # Split by comma and convert to numeric
+      threshold_strings <- strsplit(input$custom_thresholds, ",")[[1]]
+      threshold_strings <- trimws(threshold_strings)  # Remove whitespace
+      custom_thresholds <- suppressWarnings(as.numeric(threshold_strings))
+      custom_thresholds <- custom_thresholds[!is.na(custom_thresholds)]
+    }
+    
+    # Calculate probability table using the exact same CDF data as the plot
+    prob_table <- calculate_threshold_probabilities_from_cdf(CDF.ci.obj, custom_thresholds, bivariate_result()$sm)
+    
+    # Format for display (simple numeric display)
+    prob_table$`P(θ ≥ T)` <- sprintf("%.3f", prob_table$Probability)
+    prob_table$`95% CI Lower` <- sprintf("%.3f", prob_table$CI_Lower)
+    prob_table$`95% CI Upper` <- sprintf("%.3f", prob_table$CI_Upper)
+    prob_table$`Threshold (T)` <- sprintf("%.3f", prob_table$Threshold)
+    
+    # Select and rename columns for display (just numbers, no descriptions)
+    display_table <- prob_table[, c("Threshold (T)", "P(θ ≥ T)", "95% CI Lower", "95% CI Upper")]
+    
+    return(display_table)
+  }, striped = TRUE, hover = TRUE, bordered = TRUE)
+  
   # Bivariate GOSH Plot
   output$bivariateGOSHPlot <- renderPlotly({
     req(bivariate_result())

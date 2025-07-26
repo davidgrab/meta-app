@@ -2564,6 +2564,209 @@ qq_plot_bivariate_vs_fixed_deleted <- function(bivariate_results, fixed_results,
   )
 }
 
+#' Calculate Probability Table for Clinical Thresholds
+#' @description Calculates P(θ ≥ T) and 95% CI for key clinical thresholds
+#' @param bivariate_result Result object from metabiv function
+#' @param custom_thresholds Optional vector of custom thresholds
+#' @return A data frame with threshold, probability, and confidence intervals
+#' @export
+calculate_threshold_probabilities <- function(bivariate_result, custom_thresholds = NULL) {
+  
+  # Extract parameters
+  mu <- bivariate_result$mu
+  tau <- bivariate_result$tau
+  sm <- bivariate_result$sm
+  conf_region <- bivariate_result$conf_region
+  
+  # Set default thresholds based on summary measure
+  if (sm == "SMD") {
+    default_thresholds <- c(-0.10, 0.00, 0.20, 0.50, 0.80)
+    threshold_labels <- c("–0.10 (potential harm)", "0.00 (any benefit)", 
+                         "0.20 (small benefit)", "0.50 (moderate benefit)", 
+                         "0.80 (large benefit)")
+  } else {
+    # For OR/RR, use log scale internally but display as original scale
+    default_thresholds <- log(c(0.9, 1.0, 1.1, 1.2, 1.5))
+    threshold_labels <- c("0.90 (potential benefit)", "1.00 (no effect)", 
+                         "1.10 (small harm)", "1.20 (moderate harm)", 
+                         "1.50 (large harm)")
+  }
+  
+  # Combine with custom thresholds if provided
+  all_thresholds <- default_thresholds
+  all_labels <- threshold_labels
+  
+  if (!is.null(custom_thresholds) && length(custom_thresholds) > 0) {
+    # Parse custom thresholds
+    custom_numeric <- suppressWarnings(as.numeric(custom_thresholds))
+    custom_numeric <- custom_numeric[!is.na(custom_numeric)]
+    
+    if (length(custom_numeric) > 0) {
+      # For OR/RR, convert to log scale
+      if (sm %in% c("OR", "RR")) {
+        custom_log <- log(pmax(custom_numeric, 0.01))  # Prevent log of negative/zero
+        custom_labels <- paste0(format(custom_numeric, digits = 3), " (custom)")
+      } else {
+        custom_log <- custom_numeric
+        custom_labels <- paste0(format(custom_numeric, digits = 3), " (custom)")
+      }
+      
+      all_thresholds <- c(all_thresholds, custom_log)
+      all_labels <- c(all_labels, custom_labels)
+    }
+  }
+  
+  # Remove duplicates and sort
+  unique_indices <- !duplicated(round(all_thresholds, 6))
+  all_thresholds <- all_thresholds[unique_indices]
+  all_labels <- all_labels[unique_indices]
+  sort_order <- order(all_thresholds)
+  all_thresholds <- all_thresholds[sort_order]
+  all_labels <- all_labels[sort_order]
+  
+  # Calculate probabilities
+  result_df <- data.frame(
+    Threshold = character(length(all_thresholds)),
+    Probability = numeric(length(all_thresholds)),
+    CI_Lower = numeric(length(all_thresholds)),
+    CI_Upper = numeric(length(all_thresholds)),
+    stringsAsFactors = FALSE
+  )
+  
+  for (i in seq_along(all_thresholds)) {
+    T_val <- all_thresholds[i]
+    
+    # Calculate P(θ ≥ T) using MLE estimates
+    prob_mle <- 1 - pnorm(T_val, mean = mu, sd = tau)
+    
+    # Calculate confidence interval using confidence region
+    if (!is.null(conf_region) && length(conf_region$mu) > 0 && length(conf_region$tau) > 0) {
+      # Calculate probability for each point in confidence region
+      conf_probs <- sapply(seq_along(conf_region$mu), function(j) {
+        mu_j <- conf_region$mu[j]
+        tau_j <- conf_region$tau[j]
+        1 - pnorm(T_val, mean = mu_j, sd = tau_j)
+      })
+      
+      ci_lower <- min(conf_probs, na.rm = TRUE)
+      ci_upper <- max(conf_probs, na.rm = TRUE)
+    } else {
+      # Fallback: use approximate SE-based CI
+      se_mu <- sqrt(1 / sum(1 / (bivariate_result$sigma.2.k + bivariate_result$tau^2)))
+      margin <- 1.96 * se_mu
+      
+      # Approximate CI bounds for mu
+      mu_lower <- mu - margin
+      mu_upper <- mu + margin
+      
+      # Calculate probabilities at bounds (using same tau)
+      prob_lower <- 1 - pnorm(T_val, mean = mu_lower, sd = tau)
+      prob_upper <- 1 - pnorm(T_val, mean = mu_upper, sd = tau)
+      
+      ci_lower <- min(prob_lower, prob_upper)
+      ci_upper <- max(prob_lower, prob_upper)
+    }
+    
+    # Ensure probabilities are in [0, 1]
+    prob_mle <- pmax(0, pmin(1, prob_mle))
+    ci_lower <- pmax(0, pmin(1, ci_lower))
+    ci_upper <- pmax(0, pmin(1, ci_upper))
+    
+    # Store results
+    result_df$Threshold[i] <- all_labels[i]
+    result_df$Probability[i] <- round(prob_mle, 3)
+    result_df$CI_Lower[i] <- round(ci_lower, 3)
+    result_df$CI_Upper[i] <- round(ci_upper, 3)
+  }
+  
+  return(result_df)
+}
+
+#' Calculate Probability Table from Efficacy/Harm Plot Data
+#' @description Calculates P(θ ≥ T) directly from the same CDF data used in the Efficacy/Harm plot
+#' @param CDF.ci.obj The same CDF object used to generate the Efficacy/Harm plot
+#' @param custom_thresholds Optional vector of custom thresholds
+#' @param sm Summary measure (for determining default thresholds)
+#' @return A data frame with threshold, probability, and confidence intervals
+#' @export
+calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresholds = NULL, sm = NULL) {
+  
+  # Extract CDF components (same as used in the plot)
+  CDF.vec <- CDF.ci.obj[[1]]        # Probability values (0.01 to 0.99)
+  MLE.CDF <- CDF.ci.obj[[2]]        # Effect size values at MLE
+  ci.CDF.ll <- CDF.ci.obj[[3]]      # Lower confidence bound effect sizes
+  ci.CDF.ul <- CDF.ci.obj[[4]]      # Upper confidence bound effect sizes
+  
+  # Set default thresholds based on summary measure
+  if (is.null(sm) || sm == "SMD") {
+    default_thresholds <- c(-0.10, 0.00, 0.20, 0.50, 0.80)
+  } else {
+    # For OR/RR, use log scale internally but display as original scale
+    default_thresholds <- log(c(0.9, 1.0, 1.1, 1.2, 1.5))
+  }
+  
+  # Combine with custom thresholds if provided
+  all_thresholds <- default_thresholds
+  
+  if (!is.null(custom_thresholds) && length(custom_thresholds) > 0) {
+    # Parse custom thresholds
+    custom_numeric <- suppressWarnings(as.numeric(custom_thresholds))
+    custom_numeric <- custom_numeric[!is.na(custom_numeric)]
+    
+    if (length(custom_numeric) > 0) {
+      # For OR/RR, convert to log scale
+      if (!is.null(sm) && sm %in% c("OR", "RR")) {
+        custom_log <- log(pmax(custom_numeric, 0.01))  # Prevent log of negative/zero
+      } else {
+        custom_log <- custom_numeric
+      }
+      all_thresholds <- c(all_thresholds, custom_log)
+    }
+  }
+  
+  # Remove duplicates and sort
+  all_thresholds <- sort(unique(round(all_thresholds, 6)))
+  
+  # Calculate probabilities for each threshold using the same CDF data as the plot
+  result_df <- data.frame(
+    Threshold = numeric(length(all_thresholds)),
+    Probability = numeric(length(all_thresholds)),
+    CI_Lower = numeric(length(all_thresholds)),
+    CI_Upper = numeric(length(all_thresholds)),
+    stringsAsFactors = FALSE
+  )
+  
+  for (i in seq_along(all_thresholds)) {
+    T_val <- all_thresholds[i]
+    
+    # Find P(θ ≥ T) by interpolating the CDF
+    # For MLE estimate
+    prob_mle <- 1 - approx(MLE.CDF, CDF.vec, xout = T_val, rule = 2)$y
+    
+    # For confidence bounds - find probabilities at the CI bounds
+    prob_lower <- 1 - approx(ci.CDF.ul, CDF.vec, xout = T_val, rule = 2)$y  # Note: ul gives lower prob
+    prob_upper <- 1 - approx(ci.CDF.ll, CDF.vec, xout = T_val, rule = 2)$y  # Note: ll gives upper prob
+    
+    # Ensure probabilities are in [0, 1]
+    prob_mle <- pmax(0, pmin(1, prob_mle))
+    prob_lower <- pmax(0, pmin(1, prob_lower))
+    prob_upper <- pmax(0, pmin(1, prob_upper))
+    
+    # Store results with proper threshold format
+    if (!is.null(sm) && sm %in% c("OR", "RR")) {
+      result_df$Threshold[i] <- round(exp(T_val), 3)
+    } else {
+      result_df$Threshold[i] <- round(T_val, 3)
+    }
+    
+    result_df$Probability[i] <- round(prob_mle, 3)
+    result_df$CI_Lower[i] <- round(prob_lower, 3)
+    result_df$CI_Upper[i] <- round(prob_upper, 3)
+  }
+  
+  return(result_df)
+}
+
 
 
 

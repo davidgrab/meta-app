@@ -41,6 +41,7 @@ The result is **Modern Meta-Analysis**: a shiny (literally) web app powered by b
 * Joint modeling of efficacy *and* harm
 * Confidence-region plots
 * Efficacy-vs-harm scatter (with quadrants)
+* **NEW: Probability Table for Clinical Thresholds** - Numerical values from the Efficacy/Harm plot showing P(θ ≥ T) with 95% confidence intervals for key clinical thresholds, plus support for custom threshold values
 
 ### 4. Meta-Regression
 * Continuous moderators

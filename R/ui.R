@@ -468,7 +468,24 @@ ui <- page_fillable(
                            div(class = "plot-container",
                                withSpinner(plotOutput("efficacyHarmPlot")),
                                p(HTML("<strong>What it is:</strong> The Efficacy-Harm plot shows the probability of observing a true effect size that is more extreme than a certain threshold. It plots the cumulative distribution function (CDF) for the treatment effect, showing probabilities for both benefit (efficacy) and harm.<br>
-                                          <strong>How to interpret:</strong> This plot helps in making clinical decisions. For example, you can use it to determine the probability that the true effect is greater than a minimal clinically important difference, or the probability that it falls into a range considered harmful. The steepness of the curve indicates the level of certainty."), class = "plot-explanation")
+                                          <strong>How to interpret:</strong> This plot helps in making clinical decisions. For example, you can use it to determine the probability that the true effect is greater than a minimal clinically important difference, or the probability that it falls into a range considered harmful. The steepness of the curve indicates the level of certainty."), class = "plot-explanation"),
+                               
+                               # Custom thresholds input
+                               br(),
+                               div(style = "margin: 15px 0;",
+                                   textInput("custom_thresholds", 
+                                            label = "Custom Thresholds (comma-separated):", 
+                                            value = "", 
+                                            placeholder = "e.g., 0.3, 0.7, 1.0",
+                                            width = "300px"),
+                                   helpText("Optional: Add custom threshold values for probability calculations")
+                               ),
+                               
+                               # Probability table
+                               h5("Probability Table for Key Clinical Thresholds"),
+                               tableOutput("efficacyHarmProbabilityTable"),
+                               p(HTML("<strong>What it shows:</strong> This table displays the exact same data as the Efficacy/Harm plot above. For each threshold value T, it shows the probability P(θ ≥ T) that the true effect size is greater than or equal to that threshold, along with 95% confidence intervals.<br>
+                                          <strong>How to use:</strong> These are the numerical values underlying the Efficacy/Harm plot. You can add custom threshold values above to see their exact probabilities from the curve."), class = "plot-explanation")
                            ),
                            verbatimTextOutput("bivariateOverallSummary")
                   ),
