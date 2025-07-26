@@ -2752,6 +2752,10 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
     prob_lower <- pmax(0, pmin(1, prob_lower))
     prob_upper <- pmax(0, pmin(1, prob_upper))
     
+    # FIXED: Swap the confidence intervals so lower is actually lower
+    ci_lower <- min(prob_lower, prob_upper)
+    ci_upper <- max(prob_lower, prob_upper)
+    
     # Store results with proper threshold format
     if (!is.null(sm) && sm %in% c("OR", "RR")) {
       result_df$Threshold[i] <- round(exp(T_val), 3)
@@ -2760,8 +2764,8 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
     }
     
     result_df$Probability[i] <- round(prob_mle, 3)
-    result_df$CI_Lower[i] <- round(prob_lower, 3)
-    result_df$CI_Upper[i] <- round(prob_upper, 3)
+    result_df$CI_Lower[i] <- round(ci_lower, 3)
+    result_df$CI_Upper[i] <- round(ci_upper, 3)
   }
   
   return(result_df)
