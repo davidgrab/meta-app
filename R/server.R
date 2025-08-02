@@ -243,9 +243,11 @@ server <- function(input, output, session) {
     
     if (dataset_choice == "colditz") {
       currentData(colditzData)
+      updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Colditz et al. (1994) BCG Vaccine Dataset", type = "message")
     } else if (dataset_choice == "yusuf") {
       currentData(yusufData)
+      updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Yusuf et al. (1985) Beta-Blockers Dataset", type = "message")
     } else if (dataset_choice == "smd") {
       currentData(smdData)
@@ -253,6 +255,7 @@ server <- function(input, output, session) {
       showNotification("Loaded CBT for Depression (SMD) Dataset", type = "message")
     } else {
       currentData(exampleData)
+      updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Default Example Dataset", type = "message")
     }
   })
@@ -261,10 +264,20 @@ server <- function(input, output, session) {
     req(input$datafile)
     ext <- tools::file_ext(input$datafile$name)
     df <- switch(ext,
-                 csv = read.csv(input$datafile$datapath, stringsAsFactors = FALSE),
+                 csv  = read.csv(input$datafile$datapath, stringsAsFactors = FALSE),
                  xlsx = read_excel(input$datafile$datapath),
-                 validate("Invalid file type. Please upload a .csv or .xlsx file.")
-    )
+                 validate("Invalid file type. Please upload a .csv or .xlsx file."))
+
+    # --- NEW: auto-select data type ------------------------------------------------
+    colnames_lower <- tolower(names(df))
+    if (all(c("ie", "it", "pe", "pt") %in% colnames_lower)) {
+      updateRadioButtons(session, "data_type", selected = "binary")
+    } else if ("smd" %in% colnames_lower &&
+               all(c("ci_lower", "ci_upper") %in% colnames_lower)) {
+      updateRadioButtons(session, "data_type", selected = "smd")
+    }
+    # ------------------------------------------------------------------------------
+
     currentData(df)
   })
   
@@ -1700,6 +1713,103 @@ server <- function(input, output, session) {
         "   - Summarizes the main findings of the meta-analysis<br>",
         "   - Considers effect size, heterogeneity, and quality of evidence<br>",
         "   - Provides context for clinical or practical significance of results"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  # Subgroup Analysis Information Buttons
+  observeEvent(input$re_subgroup_info, {
+    showModal(modalDialog(
+      title = "Random Effects: Subgroup Analysis",
+      HTML(paste0(
+        "This section performs subgroup analysis using the random effects model:<br><br>",
+        "1. Purpose:<br>",
+        "   - Investigates whether treatment effects differ between subgroups<br>",
+        "   - Helps explain sources of heterogeneity<br>",
+        "   - Identifies populations that may benefit more or less from treatment<br><br>",
+        "2. Forest Plot:<br>",
+        "   - Shows studies grouped by the selected categorical variable<br>",
+        "   - Displays separate pooled estimates for each subgroup<br>",
+        "   - Uses random effects model within each subgroup<br><br>",
+        "3. Statistical Test:<br>",
+        "   - Q-statistic tests for differences between subgroups<br>",
+        "   - Significant p-value (< 0.05) indicates subgroup differences<br>",
+        "   - Helps determine if subgroup-specific recommendations are warranted"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$fe_subgroup_info, {
+    showModal(modalDialog(
+      title = "Fixed Effects: Subgroup Analysis",
+      HTML(paste0(
+        "This section performs subgroup analysis using the fixed effects model:<br><br>",
+        "1. Purpose:<br>",
+        "   - Investigates whether treatment effects differ between subgroups<br>",
+        "   - Assumes a common true effect within each subgroup<br>",
+        "   - More appropriate when heterogeneity within subgroups is minimal<br><br>",
+        "2. Forest Plot:<br>",
+        "   - Shows studies grouped by the selected categorical variable<br>",
+        "   - Displays separate pooled estimates for each subgroup<br>",
+        "   - Uses fixed effects model within each subgroup<br><br>",
+        "3. Statistical Test:<br>",
+        "   - Q-statistic tests for differences between subgroups<br>",
+        "   - Significant p-value (< 0.05) indicates subgroup differences<br>",
+        "   - Results may be more precise but less generalizable than random effects"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$biv_subgroup_info, {
+    showModal(modalDialog(
+      title = "Bivariate: Subgroup Analysis",
+      HTML(paste0(
+        "This section performs subgroup analysis using the bivariate approach:<br><br>",
+        "1. Purpose:<br>",
+        "   - Investigates whether treatment effects differ between subgroups<br>",
+        "   - Uses bivariate meta-analysis for joint estimation within subgroups<br>",
+        "   - Particularly useful for diagnostic test accuracy or paired outcomes<br><br>",
+        "2. Forest Plot:<br>",
+        "   - Shows studies grouped by the selected categorical variable<br>",
+        "   - Displays separate bivariate estimates for each subgroup<br>",
+        "   - Provides joint confidence regions for paired parameters<br><br>",
+        "3. Comparison:<br>",
+        "   - Visual comparison of confidence intervals between subgroups<br>",
+        "   - Formal statistical test for subgroup differences not implemented<br>",
+        "   - Interpretation based on overlap of confidence regions"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$metaregression_info, {
+    showModal(modalDialog(
+      title = "Meta-Regression Analysis",
+      HTML(paste0(
+        "This section performs meta-regression to investigate sources of heterogeneity:<br><br>",
+        "1. Purpose:<br>",
+        "   - Examines how study characteristics (moderators) relate to effect sizes<br>",
+        "   - Helps explain between-study heterogeneity<br>",
+        "   - Identifies factors that influence treatment effectiveness<br><br>",
+        "2. Regression Plot:<br>",
+        "   - Scatter plot showing relationship between moderator and effect size<br>",
+        "   - Regression line indicates predicted relationship<br>",
+        "   - Bubble size represents study precision (inverse variance)<br><br>",
+        "3. Statistical Results:<br>",
+        "   - Slope coefficient indicates effect size change per unit moderator<br>",
+        "   - R² shows proportion of heterogeneity explained by moderator<br>",
+        "   - Permutation tests provide robust p-values for small samples<br><br>",
+        "4. Model Diagnostics:<br>",
+        "   - Residual plots assess model assumptions<br>",
+        "   - Influence diagnostics identify influential studies<br>",
+        "   - Cook's distance and hat values highlight potential outliers"
       )),
       easyClose = TRUE,
       footer = NULL

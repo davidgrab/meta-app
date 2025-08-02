@@ -1,35 +1,26 @@
-# 🚀 Modern Meta-Analysis Shiny App
+# Meta-Analysis App
 
-<p align="center">
-  <a href="https://app.circleci.com/pipelines/github/davidgrab/meta-app">
-    <img src="https://img.shields.io/circleci/build/github/davidgrab/meta-app/main" alt="CircleCI">
-  </a>
-  <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
-  </a>
-  <a href="https://cran.r-project.org/">
-    <img src="https://img.shields.io/badge/R-≥4.0.0-blue.svg" alt="R Version">
-  </a>
-</p>
+A comprehensive Shiny application for performing meta-analyses with advanced statistical methods, bivariate analysis, and interactive visualizations.
 
-Revolutionize your meta-analysis workflow with our cutting-edge Shiny app! 📊✨ Harness the power of advanced statistical methods and stunning visualizations to elevate your research.
+## Features
 
-## 🌟 Live Demo
+### Core Meta-Analysis Capabilities
+- **Multiple Effect Size Measures**: Support for risk ratios (RR), odds ratios (OR), standardized mean differences, and more
+- **Advanced Statistical Methods**: Fixed-effects, random-effects, and mixed-effects models
+- **Bivariate Meta-Analysis**: Full support for both RR and OR with MLE estimation
+- **Meta-Regression**: Advanced meta-regression with permutation tests for robust inference
 
-Experience the future of meta-analysis: [Modern Meta-Analysis App](https://davidgrab-meta-app.share.connect.posit.cloud/)
+### Statistical Enhancements
+- **Permutation Testing**: Non-parametric significance testing for meta-regression
+- **Comprehensive OR Support**: Complete odds ratio calculations with continuity corrections
+- **Zero-Cell Handling**: Robust methods for studies with zero events
+- **Influence Analysis**: Leave-one-out diagnostics and influence plots
 
-## 🎯 Key Features
-
-- 📤 Seamless data upload and preview
-- 🧮 Versatile analysis methods (Random Effects, Fixed Effects, Bivariate)
-- 📈 Eye-catching visualizations (forest plots, funnel plots, and more)
-- 🔍 In-depth heterogeneity assessment
-- 🔬 Robust sensitivity and influence analyses
-- 📚 Comprehensive publication bias evaluation
-- ⚖️ Rigorous quality assessment (GRADE)
-- 📄 One-click comprehensive report generation
-- **Supports both binary (2x2) and continuous (SMD) data structures**
-- **For continuous data, the SMD column may also appear as CoNC or HeadGrid-G (all interpreted as SMD for now)**
+### Visualization & Reporting
+- **Interactive Forest Plots**: Dynamic visualizations with confidence intervals
+- **Publication Bias Assessment**: Funnel plots, Egger's test, and trim-and-fill analysis
+- **Comprehensive Reports**: Downloadable analysis reports with statistical summaries
+- **Data Import/Export**: Support for CSV, Excel, and manual data entry
 
 ## 🚀 Quick Start
 

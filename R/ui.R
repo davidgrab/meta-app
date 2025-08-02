@@ -162,6 +162,7 @@ ui <- page_fillable(
                            verbatimTextOutput("randomHeterogeneitySummary")
                   ),
                   tabPanel("Subgroup Analysis",
+                           actionButton("re_subgroup_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(4,
                                     h4("Subgroup Configuration"),
@@ -321,6 +322,7 @@ ui <- page_fillable(
                            verbatimTextOutput("modelFitStatistics")
                   ),
                   tabPanel("Subgroup Analysis",
+                           actionButton("fe_subgroup_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(4,
                                     h4("Subgroup Configuration"),
@@ -448,7 +450,7 @@ ui <- page_fillable(
       nav_panel("Bivariate Approach",
                 tabsetPanel(
                   tabPanel("Effect Size and Heterogeneity", 
-                           actionButton("biv_effect_size_heterogeneity_info", "", icon = icon("info-circle")),
+                           actionButton("biv_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            
                            # Bivariate Forest Plot (full width)
                            div(class = "plot-container",
@@ -490,6 +492,7 @@ ui <- page_fillable(
                            verbatimTextOutput("bivariateOverallSummary")
                   ),
                   tabPanel("Subgroup Analysis",
+                           actionButton("biv_subgroup_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(4,
                                     h4("Subgroup Configuration"),
@@ -533,7 +536,7 @@ ui <- page_fillable(
                            )
                   ),
                   tabPanel("Model Diagnostics",
-                           actionButton("biv_model_diagnostics_info", "", icon = icon("info-circle")),
+                           actionButton("biv_model_diagnostics_info", "", icon = icon("info-circle"), class = "help-text"),
                            h4("Normality Assessment"),
                            p("These plots assess whether the bivariate meta-analysis model assumptions are met using joint MLE estimation:", class = "section-explanation"),
                            
@@ -573,7 +576,7 @@ ui <- page_fillable(
                            # verbatimTextOutput("bivariateBiasTestResults")
                   ),
                   tabPanel("Sensitivity Analysis",
-                           actionButton("sensitivity_analysis_info", "", icon = icon("info-circle")),
+                           actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
                                     div(class = "plot-container",
@@ -611,6 +614,7 @@ ui <- page_fillable(
                 )
       ),
       nav_panel("Meta-Regression",
+                actionButton("metaregression_info", "", icon = icon("info-circle"), class = "help-text"),
                 fluidRow(
                   column(4,
                          h4("Meta-Regression Configuration"),

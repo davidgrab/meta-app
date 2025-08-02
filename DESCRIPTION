@@ -1,9 +1,9 @@
 Package: meta-app
-Version: 0.1.0
-Title: Comprehensive Meta-Analysis App
+Version: 1.0.0
+Title: Comprehensive Meta-Analysis App with Bivariate Support
 Author: David Grabois
 Maintainer: David Grabois <david.grabois@gmail.com>
-Description: An interactive Shiny application for performing comprehensive meta-analyses, including fixed and random effects models, bivariate analysis, publication bias assessment, and sensitivity analysis.
+Description: An interactive Shiny application for performing comprehensive meta-analyses, including fixed and random effects models, bivariate analysis with full OR and RR support, meta-regression with permutation tests, publication bias assessment, and sensitivity analysis. Features comprehensive statistical testing, forest plots, and influence analysis.
 License: MIT
 Encoding: UTF-8
 Imports:
@@ -18,8 +18,13 @@ Imports:
     shinyjs,
     bsicons,
     shinycssloaders,
-    testthat (>= 3.0.0),
-    rsconnect
-Suggests:
+    dplyr,
+    readr,
+    openxlsx,
     knitr,
     rmarkdown
+Suggests:
+    testthat (>= 3.0.0),
+    rsconnect
+LazyData: true
+RoxygenNote: 7.2.3
