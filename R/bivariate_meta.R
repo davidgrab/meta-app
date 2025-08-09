@@ -653,9 +653,9 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
     cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
     
-    # Set colors (beneficial vs harmful for SMD)
-    le0.col <- 3  # Green for beneficial (SMD < 0 if lower is better, or SMD > 0 if higher is better)
-    gt0.col <- 2  # Red for harmful
+    # Set colors: for SMD, values > 0 are considered beneficial (green), < 0 harmful (red)
+    le0.col <- 2  # Red for x < 0
+    gt0.col <- 3  # Green for x > 0
     
     # Calculate values for plotting with SMD ranges
     le0.vec <- seq(-3, 0, length = 200)
@@ -763,14 +763,9 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
   cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
   cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
   
-  # Set colors based on efficacy definition
-  if(efficacy.is.OR.le1) {
-    le1.col <- 3 
-    mt1.col <- 2 
-  } else {
-    le1.col <- 2 
-    mt1.col <- 3 
-  }
+  # Set colors for RR/OR: values > 1 are considered beneficial (green), < 1 harmful (red)
+  le1.col <- 2   # Red for x < 1
+  mt1.col <- 3   # Green for x > 1
   
   # Calculate values for plotting with fixed ranges
   le1.vec <- exp(seq(log(min.OR), 0, length = 200))
