@@ -6,6 +6,7 @@ alwaysApply: false
 ## Tasks
 - [x] Set up project structure by creating `.cursor` directory and rule files. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: Initialize the project with the standard `.cursor` directory and rule files (`summary.mdc`, `plan.mdc`, `context.mdc`).
 - [x] Implement comprehensive normality diagnostics for all meta-analytic models. TaskCreationDate: 2024-12-19T14:00:00Z , TaskDescription: Complete implementation of normality diagnostics based on Saad et al. framework including Q-Q plots, simulation envelopes, and Shapiro-Wilk tests for Fixed Effects, Random Effects, and Bivariate MLE models.
+- [x] Add live app link to `README.md`. TaskCreationDate: 2025-08-09T00:00:00Z , TaskDescription: Add Posit Cloud URL to the top of the README so users can quickly access the current master version.
 - [ ] Review and enhance existing tests in `tests/testthat`. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: Examine the existing test suite, identify gaps in coverage, and add new tests for robustness.
 - [x] Populate `FUTURE_IMPROVEMENTS.md` with ideas from the codebase and README. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: The README mentions many features. We should document potential future work in `FUTURE_IMPROVEMENTS.md`.
 - [ ] Add session info to report. TaskCreationDate: 2024-07-29T10:00:00Z , TaskDescription: Add a section to the downloadable report that includes session information (`sessionInfo()`) for reproducibility.

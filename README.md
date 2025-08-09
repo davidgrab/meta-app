@@ -1,5 +1,12 @@
 # Meta-Analysis App
 
+
+## Live App
+
+Try the latest master build in your browser:
+
+- [Open the app on Posit Cloud](https://davidgrab-meta-app.share.connect.posit.cloud/)
+
 A comprehensive Shiny application for performing meta-analyses with advanced statistical methods, bivariate analysis, and interactive visualizations.
 
 ## Features
