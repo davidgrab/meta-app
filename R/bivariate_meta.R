@@ -72,6 +72,30 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
     if (is.null(studlab))
       studlab <- paste("Study", seq_len(k.All))
     
+    # Remove rows with missing values
+    complete_cases <- complete.cases(event.e, n.e, event.c, n.c)
+    if (sum(complete_cases) == 0) {
+      stop("No complete cases available for analysis")
+    }
+    
+    event.e <- event.e[complete_cases]
+    n.e <- n.e[complete_cases]
+    event.c <- event.c[complete_cases]
+    n.c <- n.c[complete_cases]
+    studlab <- studlab[complete_cases]
+    k.All <- length(event.e)  # Update k.All after filtering
+    
+    # Input validation for binary data
+    if (any(event.e < 0, na.rm = TRUE) || any(event.c < 0, na.rm = TRUE)) {
+      stop("Event counts cannot be negative")
+    }
+    if (any(n.e <= 0, na.rm = TRUE) || any(n.c <= 0, na.rm = TRUE)) {
+      stop("Sample sizes must be positive")
+    }
+    if (any(event.e > n.e, na.rm = TRUE) || any(event.c > n.c, na.rm = TRUE)) {
+      stop("Event counts cannot exceed sample sizes")
+    }
+    
     data.tbl <- data.frame(studlab, event.e, n.e, event.c, n.c)
     
     # Calculate effect sizes and variances for binary data
@@ -294,14 +318,15 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
     n.c = if(!is.null(y)) NULL else n.c,
     y.k = y.k,
     sigma.2.k = sigma.2.k,
+    var.k = sigma.2.k,
     sm = sm,
     level = level,
     level.ma = level.ma,
     mu = mu,
     tau = tau,
     tau2 = tau2,
-    lower = lower,
-    upper = upper,
+    lower.mu = lower,
+    upper.mu = upper,
     lower.k = lower.k,
     upper.k = upper.k,
     Q = Q,
@@ -628,9 +653,9 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
     cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
     
-    # Set colors (beneficial vs harmful for SMD)
-    le0.col <- 3  # Green for beneficial (SMD < 0 if lower is better, or SMD > 0 if higher is better)
-    gt0.col <- 2  # Red for harmful
+    # Set colors: for SMD, values > 0 are considered beneficial (green), < 0 harmful (red)
+    le0.col <- 2  # Red for x < 0
+    gt0.col <- 3  # Green for x > 0
     
     # Calculate values for plotting with SMD ranges
     le0.vec <- seq(-3, 0, length = 200)
@@ -738,14 +763,9 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
   cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
   cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
   
-  # Set colors based on efficacy definition
-  if(efficacy.is.OR.le1) {
-    le1.col <- 3 
-    mt1.col <- 2 
-  } else {
-    le1.col <- 2 
-    mt1.col <- 3 
-  }
+  # Set colors for RR/OR: values > 1 are considered beneficial (green), < 1 harmful (red)
+  le1.col <- 2   # Red for x < 1
+  mt1.col <- 3   # Green for x > 1
   
   # Calculate values for plotting with fixed ranges
   le1.vec <- exp(seq(log(min.OR), 0, length = 200))
@@ -1230,9 +1250,19 @@ forest.metabiv <- function(x, xlab = "Effect Size", title = "Forest Plot") {
   # 2. Manually overwrite the default random-effects results with our bivariate model's results.
   # This ensures the summary diamond and stats reflect our MLE calculation.
   m$TE.random <- x$mu
-  m$lower.random <- x$lower
-  m$upper.random <- x$upper
-  m$seTE.random <- (x$upper - x$lower) / (2 * qnorm((1 + x$level.ma) / 2))
+  
+  # Handle missing confidence intervals
+  if (is.numeric(x$lower.mu) && is.numeric(x$upper.mu) && 
+      is.finite(x$lower.mu) && is.finite(x$upper.mu)) {
+    m$lower.random <- x$lower.mu
+    m$upper.random <- x$upper.mu
+    m$seTE.random <- (x$upper.mu - x$lower.mu) / (2 * qnorm((1 + x$level.ma) / 2))
+  } else {
+    # Use fallback values if confidence intervals are not available
+    m$lower.random <- x$mu - 1.96 * sqrt(x$tau2)
+    m$upper.random <- x$mu + 1.96 * sqrt(x$tau2)
+    m$seTE.random <- sqrt(x$tau2)
+  }
   
   m$tau2 <- x$tau2
   m$I2 <- x$I2 / 100 # meta expects I2 as a proportion (0-1)
@@ -1338,7 +1368,11 @@ print.summary.metabiv <- function(x, ...) {
   cat("Random effects model:\n")
   cat("  μ estimate:", round(x$mu, 4), "\n")
   cat("  τ estimate:", round(x$tau, 4), "\n")
-  cat("  95% Confidence Interval for μ: [", round(x$ci_mu[1], 4), ", ", round(x$ci_mu[2], 4), "]\n")
+  if (is.numeric(x$lower.mu) && is.numeric(x$upper.mu)) {
+    cat("  95% Confidence Interval for μ: [", round(x$lower.mu, 4), ", ", round(x$upper.mu, 4), "]\n")
+  } else {
+    cat("  95% Confidence Interval for μ: [Not available]\n")
+  }
   cat("  95% Confidence Region:\n")
   cat("    μ range: [", round(min(x$conf_region$mu), 4), ", ", round(max(x$conf_region$mu), 4), "]\n")
   cat("    τ range: [", round(min(x$conf_region$tau), 4), ", ", round(max(x$conf_region$tau), 4), "]\n\n")

@@ -2771,6 +2771,270 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
   return(result_df)
 }
 
+# ============================================================================
+# META-REGRESSION WITH PERMUTATION TESTS
+# ============================================================================
+
+#' Run Meta-Regression with Permutation Tests
+#' @description Performs meta-regression using metafor::rma.mv with permutation tests
+#' for significance testing of moderators
+#' @param effect_sizes Vector of effect sizes
+#' @param variances Vector of variances
+#' @param moderators Data frame or matrix of moderator variables
+#' @param study_ids Vector of study identifiers
+#' @param method Estimation method ("REML", "ML", "FE")
+#' @param n_permutations Number of permutations for significance testing
+#' @param alpha Significance level for confidence intervals
+#' @return List containing model results and permutation test results
+#' @export
+run_meta_regression <- function(effect_sizes, variances, moderators, study_ids = NULL,
+                                method = "REML", n_permutations = 1000, alpha = 0.05) {
+  
+  # Input validation
+  if (length(effect_sizes) != length(variances)) {
+    stop("effect_sizes and variances must have the same length")
+  }
+  
+  if (is.null(study_ids)) {
+    study_ids <- paste0("Study_", seq_along(effect_sizes))
+  }
+  
+  if (length(effect_sizes) < 3) {
+    stop("Need at least 3 studies for meta-regression")
+  }
+  
+  # Prepare moderator matrix
+  if (is.vector(moderators)) {
+    moderators <- data.frame(mod1 = moderators)
+  }
+  
+  # Remove missing data
+  complete_cases <- complete.cases(effect_sizes, variances, moderators)
+  if (sum(complete_cases) < 3) {
+    stop("Insufficient complete cases for meta-regression")
+  }
+  
+  effect_sizes <- effect_sizes[complete_cases]
+  variances <- variances[complete_cases]
+  if (is.data.frame(moderators)) {
+    moderators <- moderators[complete_cases, , drop = FALSE]
+  } else {
+    moderators <- data.frame(mod1 = moderators[complete_cases])
+  }
+  study_ids <- study_ids[complete_cases]
+  
+  # Convert factors to dummy variables for metafor
+  if (any(sapply(moderators, is.factor) | sapply(moderators, is.character))) {
+    # Create model matrix to handle factors properly
+    moderators <- model.matrix(~ ., data = moderators)[, -1, drop = FALSE]  # Remove intercept
+  }
+  
+  # Fit the main model
+  tryCatch({
+    main_model <- metafor::rma.mv(yi = effect_sizes, 
+                                  V = variances,
+                                  mods = moderators,
+                                  method = method,
+                                  test = "t")
+    
+    # Extract test statistics for permutation
+    observed_stats <- main_model$QM  # Overall test of moderators
+    observed_coefs <- main_model$beta[-1]  # Exclude intercept
+    
+    # Permutation tests
+    perm_stats <- numeric(n_permutations)
+    perm_coefs <- matrix(NA, nrow = n_permutations, ncol = length(observed_coefs))
+    
+    for (i in seq_len(n_permutations)) {
+       # Permute moderators while keeping effect sizes fixed
+       if (is.matrix(moderators)) {
+         # For matrix (converted from factors), permute each column
+         perm_moderators <- moderators
+         for (j in seq_len(ncol(moderators))) {
+           perm_moderators[, j] <- sample(moderators[, j])
+         }
+       } else {
+         # For data frame with numeric variables
+         perm_moderators <- moderators
+         for (j in seq_len(ncol(moderators))) {
+           perm_moderators[, j] <- sample(moderators[, j])
+         }
+       }
+       
+       # Fit permuted model
+       perm_model <- tryCatch({
+         metafor::rma.mv(yi = effect_sizes, 
+                         V = variances,
+                         mods = perm_moderators,
+                         method = method,
+                         test = "t")
+       }, error = function(e) NULL)
+      
+      if (!is.null(perm_model)) {
+        perm_stats[i] <- perm_model$QM
+        perm_coefs[i, ] <- perm_model$beta[-1]
+      }
+    }
+    
+    # Calculate permutation p-values
+    perm_p_overall <- mean(perm_stats >= observed_stats, na.rm = TRUE)
+    perm_p_coefs <- sapply(seq_along(observed_coefs), function(j) {
+      mean(abs(perm_coefs[, j]) >= abs(observed_coefs[j]), na.rm = TRUE)
+    })
+    
+    # Prepare results
+    results <- list(
+      model = main_model,
+      observed_QM = observed_stats,
+      permutation_p_overall = perm_p_overall,
+      permutation_p_coefficients = perm_p_coefs,
+      n_permutations = n_permutations,
+      method = method,
+      moderator_names = colnames(moderators),
+      study_ids = study_ids,
+      effect_sizes = effect_sizes,
+      variances = variances,
+      moderators = moderators
+    )
+    
+    class(results) <- "meta_regression_perm"
+    return(results)
+    
+  }, error = function(e) {
+    stop(paste("Meta-regression failed:", e$message))
+  })
+}
+
+#' Print method for meta_regression_perm objects
+#' @param x A meta_regression_perm object
+#' @param ... Additional arguments
+#' @export
+print.meta_regression_perm <- function(x, ...) {
+  cat("Meta-Regression with Permutation Tests\n")
+  cat("======================================\n\n")
+  
+  cat("Model Summary:\n")
+  print(x$model)
+  
+  cat("\nPermutation Test Results:\n")
+  if (!is.null(x$perm)) {
+    cat("Overall test of moderators (QM):\n")
+    cat("  Observed QM:", round(x$perm$QM, 4), "\n")
+    cat("  Permutation p-value:", round(x$perm$pval, 4), "\n")
+  }
+  
+  cat("\nNumber of studies:", length(x$effect_sizes), "\n")
+  cat("Number of moderators:", length(x$moderators), "\n")
+  
+  cat("\nNumber of permutations:", x$n_permutations, "\n")
+}
+
+#' Summary method for meta_regression_perm objects
+#' @param object A meta_regression_perm object
+#' @param ... Additional arguments
+#' @export
+summary.meta_regression_perm <- function(object, ...) {
+  cat("Meta-Regression Analysis Summary\n")
+  cat("===============================\n\n")
+  
+  # Model fit statistics
+  cat("Model Fit:\n")
+  cat("  Method:", object$model$method, "\n")
+  cat("  Number of studies:", length(object$effect_sizes), "\n")
+  cat("  Number of moderators:", length(object$moderators), "\n")
+  if (!is.null(object$model$R2)) {
+    cat("  R-squared:", round(object$model$R2, 3), "\n")
+  }
+  if (!is.null(object$model$tau2)) {
+    cat("  Tau-squared:", round(object$model$tau2, 4), "\n")
+  }
+  cat("\n")
+  
+  # Model coefficients
+  cat("Coefficients:\n")
+  print(summary(object$model))
+  
+  cat("\nPermutation Test Results:\n")
+  if (!is.null(object$perm)) {
+    cat("  QM =", round(object$perm$QM, 4), "\n")
+    cat("  Classical p-value =", round(object$model$QMp, 4), "\n")
+    cat("  Permutation p-value =", round(object$perm$pval, 4), "\n")
+  }
+}
+
+#' Meta-Regression Analysis
+#'
+#' Performs meta-regression analysis with permutation testing
+#'
+#' @param data A data frame containing the meta-analysis data
+#' @param effect Column name for effect sizes
+#' @param effect_sizes Vector of effect sizes
+#' @param variances Vector of variances
+#' @param moderators Vector or matrix of moderator values
+#' @param n_permutations Number of permutations for testing
+#' @return A list containing the model results and permutation test
+#' @export
+run_meta_regression <- function(effect_sizes, variances, moderators, n_permutations = 1000) {
+  # Input validation
+  if (length(effect_sizes) < 3) {
+    stop("Meta-regression requires at least 3 studies")
+  }
+  
+  # Handle data frame moderators
+  if (is.data.frame(moderators)) {
+    n_mod <- nrow(moderators)
+  } else {
+    n_mod <- length(moderators)
+  }
+  
+  if (length(effect_sizes) != length(variances) || length(effect_sizes) != n_mod) {
+    stop("effect_sizes, variances, and moderators must have the same length")
+  }
+  
+  # Remove rows with missing values
+  complete_cases <- complete.cases(effect_sizes, variances, moderators)
+  
+  if (sum(complete_cases) < 3) {
+    stop("Insufficient complete cases for meta-regression")
+  }
+  
+  effect_clean <- effect_sizes[complete_cases]
+  var_clean <- variances[complete_cases]
+  if (is.data.frame(moderators)) {
+    mod_clean <- moderators[complete_cases, , drop = FALSE]
+  } else {
+    mod_clean <- moderators[complete_cases]
+  }
+  
+  # Fit meta-regression model
+  tryCatch({
+    res <- metafor::rma(
+      yi = effect_clean, 
+      vi = var_clean, 
+      mods = mod_clean,
+      method = "REML"
+    )
+    
+    # Permutation test
+    perm <- metafor::permutest(res, exact = FALSE, iter = n_permutations, progbar = FALSE)
+    
+    # Return results
+    result <- list(
+      model = res, 
+      perm = perm,
+      effect_sizes = effect_clean,
+      variances = var_clean,
+      moderators = mod_clean
+    )
+    
+    class(result) <- "meta_regression_perm"
+    return(result)
+    
+  }, error = function(e) {
+    stop(paste("Meta-regression failed:", e$message))
+  })
+}
+
 
 
 

@@ -39,7 +39,7 @@ server <- function(input, output, session) {
   exampleData <- read.csv("data/hypericum_depression_default.csv", stringsAsFactors = FALSE)
   colditzData <- read.csv("data/colditz_1994_bcg_vaccine.csv", stringsAsFactors = FALSE)
   yusufData <- read.csv("data/yusuf_1985_beta_blockers.csv", stringsAsFactors = FALSE)
-  smdData <- read.csv("data/smd_example.csv", stringsAsFactors = FALSE)
+  smdData <- as.data.frame(read_excel("data/CBT_versus_other_therapies_formatted.xlsx"))
 
   print("Functions sourced")
   
@@ -157,16 +157,20 @@ server <- function(input, output, session) {
       HTML(
         paste0(
           "<h4>Colditz et al. (1994) - BCG Vaccine Dataset</h4>",
-          "<p>This dataset contains results from 13 studies examining the effectiveness of the Bacillus Calmette-Guerin (BCG) vaccine against tuberculosis. It shows substantial heterogeneity between studies, potentially related to the geographic latitude where the studies were conducted.</p>",
+          "<p>This dataset contains results from ", nrow(colditzData), " studies examining the effectiveness of the Bacillus Calmette-Guerin (BCG) vaccine against tuberculosis. It shows substantial heterogeneity between studies, potentially related to the geographic latitude where the studies were conducted.</p>",
           "<p>Source: Available in the metadat R package as dat.colditz1994</p>",
           "<hr>",
           "<h4>Yusuf et al. (1985) - Beta-Blockers Dataset</h4>",
-          "<p>This dataset contains results from 22 studies on the effectiveness of beta blockers for reducing mortality after myocardial infarction. It is from Table 6 of the original publication and demonstrates clear treatment effects with studies of varying sizes.</p>",
+          "<p>This dataset contains results from ", nrow(yusufData), " studies on the effectiveness of beta blockers for reducing mortality after myocardial infarction. It is from Table 6 of the original publication and demonstrates clear treatment effects with studies of varying sizes.</p>",
           "<p>Source: Available in the metafor R package as dat.yusuf1985</p>",
           "<hr>",
           "<h4>Hypericum (St. John's Wort) - Depression Dataset</h4>",
-          "<p>This dataset comes from a Cochrane systematic review of randomized controlled trials comparing Hypericum extracts (St. John's Wort) to placebo in patients with major depressive disorder. It includes 18 RCTs with binary outcomes measuring response to treatment (responder vs. non-responder) reported as relative risk (RR).</p>",
-          "<p>Hypericum extracts are herbal remedies used for treating depression symptoms, and this dataset demonstrates the effectiveness comparison against placebo treatments.</p>"
+          "<p>This dataset comes from a Cochrane systematic review of randomized controlled trials comparing Hypericum extracts (St. John's Wort) to placebo in patients with major depressive disorder. It includes ", nrow(exampleData), " RCTs with binary outcomes measuring response to treatment (responder vs. non-responder) reported as relative risk (RR).</p>",
+          "<p>Hypericum extracts are herbal remedies used for treating depression symptoms, and this dataset demonstrates the effectiveness comparison against placebo treatments.</p>",
+          "<hr>",
+          "<h4>CBT for Depression (SMD) Dataset</h4>",
+          "<p>This dataset contains ", nrow(smdData), " studies comparing cognitive-behavioral therapy (CBT) to control conditions in depression, reported as standardized mean differences (SMD) with 95% confidence intervals.</p>",
+          "<p>Source: Included with the app as an Excel file (data/CBT_versus_other_therapies_formatted.xlsx).</p>"
         )
       ),
       easyClose = TRUE,
@@ -228,10 +232,10 @@ server <- function(input, output, session) {
     dataset_choice <- input$exampleDatasetChoice
     
     description <- switch(dataset_choice,
-      "colditz" = "13 studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude).",
-      "yusuf" = "22 studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes.",
-      "default" = "Cochrane review of 18 RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR).",
-      "smd" = "87 studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as Hedges' g standardized mean difference (SMD)."
+      "colditz" = paste(nrow(colditzData), "studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude)."),
+      "yusuf" = paste(nrow(yusufData), "studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes."),
+      "default" = paste("Cochrane review of", nrow(exampleData), "RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR)."),
+      "smd" = paste(nrow(smdData), "studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as Hedges' g standardized mean difference (SMD).")
     )
     
     HTML(paste("<div style='font-size: 0.85em; margin-bottom: 10px; color: #666;'>", description, "</div>"))
@@ -243,9 +247,11 @@ server <- function(input, output, session) {
     
     if (dataset_choice == "colditz") {
       currentData(colditzData)
+      updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Colditz et al. (1994) BCG Vaccine Dataset", type = "message")
     } else if (dataset_choice == "yusuf") {
       currentData(yusufData)
+      updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Yusuf et al. (1985) Beta-Blockers Dataset", type = "message")
     } else if (dataset_choice == "smd") {
       currentData(smdData)
@@ -253,6 +259,7 @@ server <- function(input, output, session) {
       showNotification("Loaded CBT for Depression (SMD) Dataset", type = "message")
     } else {
       currentData(exampleData)
+      updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Default Example Dataset", type = "message")
     }
   })
@@ -261,10 +268,20 @@ server <- function(input, output, session) {
     req(input$datafile)
     ext <- tools::file_ext(input$datafile$name)
     df <- switch(ext,
-                 csv = read.csv(input$datafile$datapath, stringsAsFactors = FALSE),
+                 csv  = read.csv(input$datafile$datapath, stringsAsFactors = FALSE),
                  xlsx = read_excel(input$datafile$datapath),
-                 validate("Invalid file type. Please upload a .csv or .xlsx file.")
-    )
+                 validate("Invalid file type. Please upload a .csv or .xlsx file."))
+
+    # --- NEW: auto-select data type ------------------------------------------------
+    colnames_lower <- tolower(names(df))
+    if (all(c("ie", "it", "pe", "pt") %in% colnames_lower)) {
+      updateRadioButtons(session, "data_type", selected = "binary")
+    } else if ("smd" %in% colnames_lower &&
+               all(c("ci_lower", "ci_upper") %in% colnames_lower)) {
+      updateRadioButtons(session, "data_type", selected = "smd")
+    }
+    # ------------------------------------------------------------------------------
+
     currentData(df)
   })
   
@@ -1700,6 +1717,103 @@ server <- function(input, output, session) {
         "   - Summarizes the main findings of the meta-analysis<br>",
         "   - Considers effect size, heterogeneity, and quality of evidence<br>",
         "   - Provides context for clinical or practical significance of results"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  # Subgroup Analysis Information Buttons
+  observeEvent(input$re_subgroup_info, {
+    showModal(modalDialog(
+      title = "Random Effects: Subgroup Analysis",
+      HTML(paste0(
+        "This section performs subgroup analysis using the random effects model:<br><br>",
+        "1. Purpose:<br>",
+        "   - Investigates whether treatment effects differ between subgroups<br>",
+        "   - Helps explain sources of heterogeneity<br>",
+        "   - Identifies populations that may benefit more or less from treatment<br><br>",
+        "2. Forest Plot:<br>",
+        "   - Shows studies grouped by the selected categorical variable<br>",
+        "   - Displays separate pooled estimates for each subgroup<br>",
+        "   - Uses random effects model within each subgroup<br><br>",
+        "3. Statistical Test:<br>",
+        "   - Q-statistic tests for differences between subgroups<br>",
+        "   - Significant p-value (< 0.05) indicates subgroup differences<br>",
+        "   - Helps determine if subgroup-specific recommendations are warranted"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$fe_subgroup_info, {
+    showModal(modalDialog(
+      title = "Fixed Effects: Subgroup Analysis",
+      HTML(paste0(
+        "This section performs subgroup analysis using the fixed effects model:<br><br>",
+        "1. Purpose:<br>",
+        "   - Investigates whether treatment effects differ between subgroups<br>",
+        "   - Assumes a common true effect within each subgroup<br>",
+        "   - More appropriate when heterogeneity within subgroups is minimal<br><br>",
+        "2. Forest Plot:<br>",
+        "   - Shows studies grouped by the selected categorical variable<br>",
+        "   - Displays separate pooled estimates for each subgroup<br>",
+        "   - Uses fixed effects model within each subgroup<br><br>",
+        "3. Statistical Test:<br>",
+        "   - Q-statistic tests for differences between subgroups<br>",
+        "   - Significant p-value (< 0.05) indicates subgroup differences<br>",
+        "   - Results may be more precise but less generalizable than random effects"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$biv_subgroup_info, {
+    showModal(modalDialog(
+      title = "Bivariate: Subgroup Analysis",
+      HTML(paste0(
+        "This section performs subgroup analysis using the bivariate approach:<br><br>",
+        "1. Purpose:<br>",
+        "   - Investigates whether treatment effects differ between subgroups<br>",
+        "   - Uses bivariate meta-analysis for joint estimation within subgroups<br>",
+        "   - Particularly useful for diagnostic test accuracy or paired outcomes<br><br>",
+        "2. Forest Plot:<br>",
+        "   - Shows studies grouped by the selected categorical variable<br>",
+        "   - Displays separate bivariate estimates for each subgroup<br>",
+        "   - Provides joint confidence regions for paired parameters<br><br>",
+        "3. Comparison:<br>",
+        "   - Visual comparison of confidence intervals between subgroups<br>",
+        "   - Formal statistical test for subgroup differences not implemented<br>",
+        "   - Interpretation based on overlap of confidence regions"
+      )),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$metaregression_info, {
+    showModal(modalDialog(
+      title = "Meta-Regression Analysis",
+      HTML(paste0(
+        "This section performs meta-regression to investigate sources of heterogeneity:<br><br>",
+        "1. Purpose:<br>",
+        "   - Examines how study characteristics (moderators) relate to effect sizes<br>",
+        "   - Helps explain between-study heterogeneity<br>",
+        "   - Identifies factors that influence treatment effectiveness<br><br>",
+        "2. Regression Plot:<br>",
+        "   - Scatter plot showing relationship between moderator and effect size<br>",
+        "   - Regression line indicates predicted relationship<br>",
+        "   - Bubble size represents study precision (inverse variance)<br><br>",
+        "3. Statistical Results:<br>",
+        "   - Slope coefficient indicates effect size change per unit moderator<br>",
+        "   - R² shows proportion of heterogeneity explained by moderator<br>",
+        "   - Permutation tests provide robust p-values for small samples<br><br>",
+        "4. Model Diagnostics:<br>",
+        "   - Residual plots assess model assumptions<br>",
+        "   - Influence diagnostics identify influential studies<br>",
+        "   - Cook's distance and hat values highlight potential outliers"
       )),
       easyClose = TRUE,
       footer = NULL
