@@ -39,7 +39,7 @@ server <- function(input, output, session) {
   exampleData <- read.csv("data/hypericum_depression_default.csv", stringsAsFactors = FALSE)
   colditzData <- read.csv("data/colditz_1994_bcg_vaccine.csv", stringsAsFactors = FALSE)
   yusufData <- read.csv("data/yusuf_1985_beta_blockers.csv", stringsAsFactors = FALSE)
-  smdData <- read.csv("data/smd_example.csv", stringsAsFactors = FALSE)
+  smdData <- as.data.frame(read_excel("data/CBT_versus_other_therapies_formatted.xlsx"))
 
   print("Functions sourced")
   
@@ -157,16 +157,20 @@ server <- function(input, output, session) {
       HTML(
         paste0(
           "<h4>Colditz et al. (1994) - BCG Vaccine Dataset</h4>",
-          "<p>This dataset contains results from 13 studies examining the effectiveness of the Bacillus Calmette-Guerin (BCG) vaccine against tuberculosis. It shows substantial heterogeneity between studies, potentially related to the geographic latitude where the studies were conducted.</p>",
+          "<p>This dataset contains results from ", nrow(colditzData), " studies examining the effectiveness of the Bacillus Calmette-Guerin (BCG) vaccine against tuberculosis. It shows substantial heterogeneity between studies, potentially related to the geographic latitude where the studies were conducted.</p>",
           "<p>Source: Available in the metadat R package as dat.colditz1994</p>",
           "<hr>",
           "<h4>Yusuf et al. (1985) - Beta-Blockers Dataset</h4>",
-          "<p>This dataset contains results from 22 studies on the effectiveness of beta blockers for reducing mortality after myocardial infarction. It is from Table 6 of the original publication and demonstrates clear treatment effects with studies of varying sizes.</p>",
+          "<p>This dataset contains results from ", nrow(yusufData), " studies on the effectiveness of beta blockers for reducing mortality after myocardial infarction. It is from Table 6 of the original publication and demonstrates clear treatment effects with studies of varying sizes.</p>",
           "<p>Source: Available in the metafor R package as dat.yusuf1985</p>",
           "<hr>",
           "<h4>Hypericum (St. John's Wort) - Depression Dataset</h4>",
-          "<p>This dataset comes from a Cochrane systematic review of randomized controlled trials comparing Hypericum extracts (St. John's Wort) to placebo in patients with major depressive disorder. It includes 18 RCTs with binary outcomes measuring response to treatment (responder vs. non-responder) reported as relative risk (RR).</p>",
-          "<p>Hypericum extracts are herbal remedies used for treating depression symptoms, and this dataset demonstrates the effectiveness comparison against placebo treatments.</p>"
+          "<p>This dataset comes from a Cochrane systematic review of randomized controlled trials comparing Hypericum extracts (St. John's Wort) to placebo in patients with major depressive disorder. It includes ", nrow(exampleData), " RCTs with binary outcomes measuring response to treatment (responder vs. non-responder) reported as relative risk (RR).</p>",
+          "<p>Hypericum extracts are herbal remedies used for treating depression symptoms, and this dataset demonstrates the effectiveness comparison against placebo treatments.</p>",
+          "<hr>",
+          "<h4>CBT for Depression (SMD) Dataset</h4>",
+          "<p>This dataset contains ", nrow(smdData), " studies comparing cognitive-behavioral therapy (CBT) to control conditions in depression, reported as standardized mean differences (SMD) with 95% confidence intervals.</p>",
+          "<p>Source: Included with the app as an Excel file (data/CBT_versus_other_therapies_formatted.xlsx).</p>"
         )
       ),
       easyClose = TRUE,
@@ -228,10 +232,10 @@ server <- function(input, output, session) {
     dataset_choice <- input$exampleDatasetChoice
     
     description <- switch(dataset_choice,
-      "colditz" = "13 studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude).",
-      "yusuf" = "22 studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes.",
-      "default" = "Cochrane review of 18 RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR).",
-      "smd" = "87 studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as Hedges' g standardized mean difference (SMD)."
+      "colditz" = paste(nrow(colditzData), "studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude)."),
+      "yusuf" = paste(nrow(yusufData), "studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes."),
+      "default" = paste("Cochrane review of", nrow(exampleData), "RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR)."),
+      "smd" = paste(nrow(smdData), "studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as Hedges' g standardized mean difference (SMD).")
     )
     
     HTML(paste("<div style='font-size: 0.85em; margin-bottom: 10px; color: #666;'>", description, "</div>"))
