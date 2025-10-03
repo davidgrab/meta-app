@@ -5,9 +5,9 @@ account: modern-meta-analysis
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 14900636
-bundleId: 10749733
+bundleId: 10987967
 url: https://modern-meta-analysis.shinyapps.io/main-app/
 version: 1
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: .circleci/config.yml|.cursor/rules/context.mdc|.cursor/rules/main-project-rule.mdc|.cursor/rules/plan.mdc|.cursor/rules/summary.mdc|.Rbuildignore|.RData|.Rprofile|CODE_OF_CONDUCT.md|CONTRIBUTING.md|deploy.R|DESCRIPTION|LICENSE|logs/app_test.log|logs/shiny_output.log|NAMESPACE|README.md|renv.lock|scripts/app_simpale_run.R|tests/local_functions_test.R|tests/testthat/test-biv-or.R|tests/testthat/test-bivariate_meta.R|tests/testthat/test-functions.R|tests/testthat/test-meta-regression.R|articales_and_code_this_application_is_based_upon|docs|jcrmeta
+ignoredFiles: .circleci/config.yml|.cursor/rules/context.mdc|.cursor/rules/main-project-rule.mdc|.cursor/rules/plan.mdc|.cursor/rules/summary.mdc|.Rbuildignore|.RData|.Rprofile|CODE_OF_CONDUCT.md|CONTRIBUTING.md|deploy.R|DESCRIPTION|LICENSE|logs/app_test.log|logs/shiny_output.log|NAMESPACE|README.md|renv.lock|scripts/app_simpale_run.R|tests/local_functions_test.R|tests/testthat/test-biv-or.R|tests/testthat/test-bivariate_meta.R|tests/testthat/test-functions.R|tests/testthat/test-meta-regression.R|www/styles.css|articales_and_code_this_application_is_based_upon|docs|jcrmeta
