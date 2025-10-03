@@ -1,10 +1,11 @@
-#' Bivariate Meta-Analysis for Binary Outcomes
+#' Joint Confidence Region (JCR) Meta-Analysis
 #'
 #' This package implements the methodology described in Saad et al. (2019)
-#' for conducting bivariate meta-analysis in the presence of unexplained heterogeneity.
+#' for conducting Joint Confidence Region (JCR) meta-analysis with joint MLE estimation
+#' of the overall effect (μ) and between-study heterogeneity (τ).
 #'
-#' @title Bivariate Meta-Analysis
-#' @description Performs a bivariate meta-analysis for binary outcomes
+#' @title Joint Confidence Region (JCR) Meta-Analysis
+#' @description Performs JCR meta-analysis using joint maximum likelihood estimation
 #' @param event.e A numeric vector of event counts in the experimental group
 #' @param n.e A numeric vector of sample sizes in the experimental group
 #' @param event.c A numeric vector of event counts in the control group
@@ -17,7 +18,7 @@
 #' @param level Confidence level for individual studies
 #' @param level.ma Confidence level for meta-analysis
 #' @param verbose Logical, whether to print verbose output
-#' @return A list with class "metabiv" containing the results of the bivariate meta-analysis
+#' @return A list with class "metabiv" containing the results of the JCR meta-analysis
 #' @examples
 #' # Example with binary data
 #' event.e <- c(10, 15, 20)

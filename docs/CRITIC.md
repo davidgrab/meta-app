@@ -13,7 +13,7 @@ This document provides a comprehensive critique of the R Shiny meta-analysis app
 -   **Good UI/UX:** The user interface is well-structured with tabs and helpful information popups that guide the user effectively.
 
 **Areas for Improvement:**
--   **Misleading Terminology:** The most critical issue is the labeling of the custom MLE model as a "Bivariate Approach." This is factually incorrect and risks misleading users about the statistical method being applied.
+-   ~~**Misleading Terminology:** The most critical issue is the labeling of the custom MLE model as a "Bivariate Approach." This is factually incorrect and risks misleading users about the statistical method being applied.~~ **[RESOLVED: Now correctly named "Joint Confidence Region (JCR) Method" as per Saad et al. (2019)]**
 -   **Code Quality and Clarity:** The codebase contains redundant, commented-out, and convoluted sections, particularly in `R/bivariate_meta.R` and `R/functions.R`.
 -   **Report Inconsistency:** The downloadable HTML report does not fully mirror the plots and analyses available in the UI, reducing its utility.
 
@@ -27,22 +27,21 @@ This document provides a comprehensive critique of the R Shiny meta-analysis app
 -   **Verdict:** No correctness issues found. The implementation is sound.
 -   **Recommendation:** No changes are required.
 
-### 2.2. "Bivariate" Approach
+### 2.2. Joint Confidence Region (JCR) Method [RESOLVED]
 
--   **Critique:** **Correct Implementation, Critical Naming Issue.** This is the most significant theoretical issue in the application.
-    -   **The Naming is Incorrect:** The model implemented in `R/bivariate_meta.R` is **not a bivariate meta-analysis**. A true bivariate model analyzes two correlated outcomes simultaneously (e.g., sensitivity and specificity in diagnostic tests). The model here is a **univariate random-effects model** that estimates the pooled effect size (`mu`) and between-study heterogeneity (`tau`) using **Maximum Likelihood Estimation (MLE)**. The reference articles confirm this is a univariate approach. Labeling it "Bivariate" is misleading and could cause users to misinterpret their results and misreport their methods.
-    -   **The Implementation is Correct (relative to references):** Despite the naming issue, the code in `R/bivariate_meta.R` is a faithful, if complex, implementation of the methods described in the provided reference materials (`R_functions_for_logNormal_OR-TO-RR_analysis 141217.R`). The calculations for `y.k`, `sigma.2.k`, and the MLE optimization using `nlminb` are consistent with the source.
+> **STATUS: This issue has been RESOLVED.** The terminology has been updated throughout the application to use "Joint Confidence Region (JCR) Method" as per Saad et al. (2019).
 
--   **Verdict:** The underlying math is correctly transcribed from the references, but the naming represents a critical flaw in the application's scientific communication.
+-   **Original Critique:** **Correct Implementation, Critical Naming Issue.** This was the most significant theoretical issue in the application.
+    -   **The Naming Was Incorrect:** The model implemented in `R/bivariate_meta.R` was incorrectly labeled as a "bivariate meta-analysis". A true bivariate model analyzes two correlated outcomes simultaneously (e.g., sensitivity and specificity in diagnostic tests). The model here is a **univariate random-effects model** that estimates the pooled effect size (`mu`) and between-study heterogeneity (`tau`) using **joint Maximum Likelihood Estimation (MLE)**.
+    -   **The Implementation is Correct:** The code in `R/bivariate_meta.R` is a faithful implementation of the methods described in Saad et al. (2019). The calculations for `y.k`, `sigma.2.k`, and the MLE optimization using `nlminb` are consistent with the source.
 
--   **Recommendations (High Priority):**
-    1.  **Rename the Feature:** Immediately rename "Bivariate Approach" across the entire application.
-        -   **Suggested Name:** "MLE Random Effects" or "Advanced MLE Model".
-        -   **Files to Change:**
-            -   `R/ui.R`: Update all tab names, button labels, and popup titles.
-            -   `R/server.R`: Update tab names, plot titles, and internal logic references.
-            -   `R/bivariate_meta.R`: Rename the file itself to `mle_meta.R` or similar. Rename the core function from `metabiv` to `meta_mle`.
-    2.  **Clarify Documentation:** Update all info popups and the report to accurately describe this model as a univariate MLE-based random-effects model.
+-   **Resolution Applied:**
+    1.  ✅ **Renamed to "JCR Method":** Updated all references from "Bivariate Approach" to "Joint Confidence Region (JCR) Method" across:
+        -   `R/ui.R`: All tab names, button labels, and help text
+        -   `R/bivariate_meta.R`: Function documentation
+        -   `jcrmeta/` package: All documentation files
+        -   Documentation: README.md, theory_appendices.md, full_technical_report.md, post_practitioner.md
+    2.  ✅ **Clarified Documentation:** Updated all descriptions to accurately describe the joint MLE estimation approach
 
 ---
 

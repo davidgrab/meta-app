@@ -117,7 +117,7 @@ ui <- page_fillable(
       #             tabPanel("Method Comparison", 
       #                      actionButton("method_comparison_info", "", icon = icon("info-circle"), class = "help-text"),
       #                      withSpinner(plotOutput("methodComparisonPlot")),
-      #                      p("Method comparison plot: Compares effect size estimates and confidence intervals from fixed effects, random effects, and bivariate meta-analysis models. Shows relative precision of each method.", class = "plot-explanation"),
+      #                      p("Method comparison plot: Compares effect size estimates and confidence intervals from fixed effects, random effects, and JCR (Joint Confidence Region) meta-analysis models. Shows relative precision of each method.", class = "plot-explanation"),
       #                      hr(),
       #                      h4("Summary"),
       #                      verbatimTextOutput("methodComparisonSummary")),
@@ -447,25 +447,25 @@ ui <- page_fillable(
                   # )
                 )
       ),
-      nav_panel("Bivariate Approach",
+      nav_panel("JCR Method",
                 tabsetPanel(
                   tabPanel("Effect Size and Heterogeneity", 
                            actionButton("biv_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            
-                           # Bivariate Forest Plot (full width)
+                           # JCR Forest Plot (full width)
                            div(class = "plot-container",
                                style = "max-height: 600px; overflow-y: auto;",
                                withSpinner(plotOutput("bivariateForestPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> This forest plot displays the results from the bivariate random-effects model. It shows the individual study effect sizes and the overall pooled estimate (diamond) calculated using a more advanced statistical method that jointly estimates the overall effect (μ) and the between-study heterogeneity (τ).<br>
-                                      <strong>How to interpret:</strong> The bivariate model often provides a more precise and reliable estimate than standard random-effects models, especially with sparse data. The interpretation is similar to a standard forest plot, but the underlying model is more statistically robust."), class = "plot-explanation"),
+                           p(HTML("<strong>What it is:</strong> This forest plot displays the results from the Joint Confidence Region (JCR) method. It shows the individual study effect sizes and the overall pooled estimate (diamond) calculated using Maximum Likelihood Estimation (MLE) that jointly estimates the overall effect (μ) and the between-study heterogeneity (τ).<br>
+                                      <strong>How to interpret:</strong> The JCR method often provides a more precise and reliable estimate than standard random-effects models, especially with sparse data. The interpretation is similar to a standard forest plot, but the underlying statistical approach uses joint MLE estimation for both parameters simultaneously."), class = "plot-explanation"),
                            
                            # Confidence Region Plot (full width)
                            div(class = "plot-container",
                                withSpinner(plotOutput("confidenceRegionPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> This plot shows the joint confidence region for the two main parameters of the bivariate model: the overall effect size (μ) and the between-study heterogeneity (τ). The different colored regions represent the 50%, 90%, 95%, and 99% confidence levels.<br>
-                                      <strong>How to interpret:</strong> The plot illustrates the uncertainty in the estimates of μ and τ simultaneously. A wide region indicates greater uncertainty. The shape of the region shows the correlation between the estimates of the two parameters. The maximum likelihood estimates for both are marked with a cross."), class = "plot-explanation"),
+                           p(HTML("<strong>What it is:</strong> This is the signature plot of the Joint Confidence Region (JCR) method. It shows the joint confidence region for the two main parameters: the overall effect size (μ) and the between-study heterogeneity (τ). The different colored regions represent the 50%, 90%, 95%, and 99% confidence levels.<br>
+                                      <strong>How to interpret:</strong> The plot illustrates the uncertainty in the estimates of μ and τ simultaneously. A wide region indicates greater uncertainty. The shape of the region shows the correlation between the estimates of the two parameters. The maximum likelihood estimates (MLE) for both are marked with a cross. This joint estimation approach is what distinguishes the JCR method from traditional meta-analysis."), class = "plot-explanation"),
                            
                            div(class = "plot-container",
                                withSpinner(plotOutput("efficacyHarmPlot")),
@@ -504,7 +504,7 @@ ui <- page_fillable(
                                       actionButton("run_bivariate_subgroup", "Run Subgroup Analysis", 
                                                   class = "btn-primary", icon = icon("play")),
                                       br(), br(),
-                                      helpText("Subgroup analysis using the bivariate approach performs separate bivariate meta-analyses for each subgroup, providing joint estimation of effect and heterogeneity parameters.")
+                                      helpText("Subgroup analysis using the JCR method performs separate JCR meta-analyses for each subgroup, providing joint MLE estimation of effect and heterogeneity parameters.")
                                     ),
                                     conditionalPanel(
                                       condition = "!output.hasSubgroupData",
@@ -520,7 +520,7 @@ ui <- page_fillable(
                                           style = "max-height: 700px; overflow-y: auto;",
                                           withSpinner(plotOutput("bivariateSubgroupForestPlot"))
                                       ),
-                                      p(HTML("<strong>Bivariate Subgroup Analysis:</strong> Forest plot showing studies grouped by the selected variable, with bivariate MLE estimates for each subgroup."), class = "plot-explanation"),
+                                      p(HTML("<strong>JCR Subgroup Analysis:</strong> Forest plot showing studies grouped by the selected variable, with JCR (joint MLE) estimates for each subgroup."), class = "plot-explanation"),
                                       br(),
                                       h4("Subgroup Comparison"),
                                       verbatimTextOutput("bivariateSubgroupTest")
@@ -529,7 +529,7 @@ ui <- page_fillable(
                                       condition = "input.run_bivariate_subgroup == 0 && output.hasSubgroupData",
                                       div(class = "alert alert-secondary text-center",
                                           style = "margin-top: 50px; padding: 30px;",
-                                          h4("Ready for Bivariate Subgroup Analysis"),
+                                          h4("Ready for JCR Subgroup Analysis"),
                                           p("Select a subgroup variable and click 'Run Subgroup Analysis' to begin."))
                                     )
                              )
@@ -538,17 +538,17 @@ ui <- page_fillable(
                   tabPanel("Model Diagnostics",
                            actionButton("biv_model_diagnostics_info", "", icon = icon("info-circle"), class = "help-text"),
                            h4("Normality Assessment"),
-                           p("These plots assess whether the bivariate meta-analysis model assumptions are met using joint MLE estimation:", class = "section-explanation"),
+                           p("These plots assess whether the JCR meta-analysis model assumptions are met using joint MLE estimation:", class = "section-explanation"),
                            
                            # Side-by-side deleted residuals Q-Q plots (NEW - moved up)
                            h5("Deleted Residuals Comparison"),
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("bivariateDeletedResidualsComparisonPlot", height = "400px")),
                                p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
-                                      <em>Left panel:</em> Bivariate MLE deleted residuals - each point represents the residual when that study is removed and the bivariate model is refitted.<br>
+                                      <em>Left panel:</em> JCR (joint MLE) deleted residuals - each point represents the residual when that study is removed and the JCR model is refitted.<br>
                                       <em>Right panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
-                                      <br><em>Interpretation:</em> Compare tail behavior between the bivariate MLE and fixed effects approaches. The bivariate model often shows better 
-                                      behavior in the tails due to its more flexible modeling of heterogeneity. Different patterns suggest model-specific strengths and weaknesses."), 
+                                      <br><em>Interpretation:</em> Compare tail behavior between the JCR and fixed effects approaches. The JCR method often shows better 
+                                      behavior in the tails due to its joint estimation of μ and τ. Different patterns suggest model-specific strengths and weaknesses."), 
                                  class = "plot-explanation")
                            ),
                            
@@ -556,10 +556,10 @@ ui <- page_fillable(
                            h5("Best Linear Unbiased Predictors (BLUPs)"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("qqPlotMu")),
-                               p(HTML("<strong>Q-Q Plot of BLUPs (Bivariate MLE):</strong><br>
-                                      This plot tests normality of Best Linear Unbiased Predictors using jointly estimated μ̂<sub>MLE</sub> and τ̂<sub>MLE</sub> parameters. 
+                               p(HTML("<strong>Q-Q Plot of BLUPs (JCR Method):</strong><br>
+                                      This plot tests normality of Best Linear Unbiased Predictors using jointly estimated μ̂<sub>MLE</sub> and τ̂<sub>MLE</sub> parameters from the JCR method. 
                                       Points should follow the diagonal line if the random effects distribution is normal. The simulation envelope provides robust assessment.
-                                      <br><em>Interpretation:</em> The bivariate approach provides more precise estimates than standard random effects. 
+                                      <br><em>Interpretation:</em> The JCR approach provides more precise estimates than standard random effects due to joint MLE estimation. 
                                       Deviations suggest the random effects may not follow the assumed normal distribution."), class = "plot-explanation")
                            ),
                            
@@ -570,8 +570,8 @@ ui <- page_fillable(
                            actionButton("publication_bias_info", "", icon = icon("info-circle"), class = "help-text"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("bivariateAdaptedFunnelPlot")),
-                               p(HTML("<strong>What it is:</strong> This is a funnel plot adapted for the results of the bivariate meta-analysis. It plots the study-specific effect sizes (from the bivariate model) against their standard errors.<br>
-                                          <strong>How to interpret:</strong> Similar to a standard funnel plot, it should be symmetrical in the absence of publication bias. Asymmetry may suggest that small studies with non-significant results are missing. Because the bivariate model provides more precise standard errors, this plot can sometimes provide a clearer picture of potential bias than a standard funnel plot."), class = "plot-explanation")
+                               p(HTML("<strong>What it is:</strong> This is a funnel plot adapted for the results of the JCR meta-analysis. It plots the study-specific effect sizes (from the JCR model) against their standard errors.<br>
+                                          <strong>How to interpret:</strong> Similar to a standard funnel plot, it should be symmetrical in the absence of publication bias. Asymmetry may suggest that small studies with non-significant results are missing. Because the JCR method provides more precise standard errors through joint MLE estimation, this plot can sometimes provide a clearer picture of potential bias than a standard funnel plot."), class = "plot-explanation")
                            ),
                            # verbatimTextOutput("bivariateBiasTestResults")
                   ),
@@ -588,8 +588,8 @@ ui <- page_fillable(
                              column(6,
                                     div(class = "plot-container",
                                         withSpinner(plotlyOutput("enhancedBaujatPlot")),
-                                        p(HTML("<strong>What it is:</strong> This is an enhanced Baujat plot specifically for the bivariate model. It identifies influential studies by plotting each study's contribution to heterogeneity against its influence on the pooled effect estimate, using values derived from the more precise bivariate model.<br>
-                                                  <strong>How to interpret:</strong> Studies in the top-right quadrant are the most influential. Because this plot uses estimates from the bivariate model, it can provide a more accurate identification of influential studies than a standard Baujat plot. These studies should be reviewed to understand their impact on the overall findings."), class = "plot-explanation")
+                                        p(HTML("<strong>What it is:</strong> This is an enhanced Baujat plot specifically for the JCR method. It identifies influential studies by plotting each study's contribution to heterogeneity against its influence on the pooled effect estimate, using values derived from the joint MLE estimation.<br>
+                                                  <strong>How to interpret:</strong> Studies in the top-right quadrant are the most influential. Because this plot uses estimates from the JCR method's joint MLE approach, it can provide a more accurate identification of influential studies than a standard Baujat plot. These studies should be reviewed to understand their impact on the overall findings."), class = "plot-explanation")
                                     )
                              )
                            ),

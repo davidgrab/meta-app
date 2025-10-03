@@ -3,7 +3,7 @@
 This planning document outlines how to deliver **two major outputs** requested by the user:
 
 1. **Comprehensive Technical Report** — explaining every R script in the `R/` folder, mapping each feature/UI tab to its underlying statistical methods, and evaluating whether the implementation faithfully follows the literature (Saad et al., Handbook of Meta-Analysis, Introduction to Meta-Analysis, etc.).
-2. **Practitioner-Facing Post (Markdown)** — an engaging article that introduces the JCR (Joint Cumulative Ratio) bivariate approach, showcases the Shiny app, and invites feedback/contributions from clinicians and analysts.
+2. **Practitioner-Facing Post (Markdown)** — an engaging article that introduces the Joint Confidence Region (JCR) method, showcases the Shiny app, and invites feedback/contributions from clinicians and analysts.
 
 The plan emphasises systematic code review, literature cross-validation, and clear communication for practitioners.
 

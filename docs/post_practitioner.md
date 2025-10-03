@@ -15,7 +15,7 @@
 ## 🤔 Why the Joint-Confidence-Region (JCR) Method Matters
 
 Classic meta-analysis tells you *the average* effect.  
-The **JCR bivariate model** (Saad *et al.*, 2019) answers the question clinicians actually ask:
+The **JCR method** (Saad *et al.*, 2019) answers the question clinicians actually ask:
 
 > **“What’s the probability that the true effect beats my clinical threshold?”**
 
@@ -37,7 +37,7 @@ Result ➜ move from *p-values* to *probabilistic thinking*.
 | **Fixed / Random Effects** | DerSimonian-Laird & inverse-variance pooling; forest & funnel plots; Q, I², τ². | `meta`, `metafor` |
 | **Subgroup & Sensitivity** | One-click subgroups, leave-one-out, Cook’s D, Baujat plot, toggle outliers. | Handbook 2021 ch 11 |
 | **Diagnostics & Bias** | Residual & BLUP QQ, Egger test, trim-&-fill. | Handbook 2021 |
-| **Bivariate (JCR)** | Saad MLE, 95 % joint ellipse, probability table for any threshold, efficiency-hump plot. | Custom open-source code |
+| **JCR Method** | Saad et al. joint MLE, 95 % joint confidence region, probability table for any threshold, efficacy-harm plot. | Custom open-source code |
 | **Meta-Regression** | Moderator slopes with permutation p-values; bubble plot + ribbon. | `metafor` (REML) |
 | **One-click Report** | PDF/HTML with every plot + session info (reproducible). | R Markdown |
 
@@ -52,7 +52,7 @@ Result ➜ move from *p-values* to *probabilistic thinking*.
 3. **Borenstein *et al.* (2009)** – FE vs RE, heterogeneity math.  
 4. **Cochrane Handbook** – subgroups, risk-of-bias.
 
-Core maths handled by vetted R packages (`meta`, `metafor`); the fancy JCR bits live in `bivariate_meta.R` – 100 % open-source & unit-tested.
+Core maths handled by vetted R packages (`meta`, `metafor`); the JCR method implementation lives in `bivariate_meta.R` – 100 % open-source & unit-tested.
 
 ---
 
@@ -71,7 +71,7 @@ Core maths handled by vetted R packages (`meta`, `metafor`); the fancy JCR bits 
 3. **Click “Analyze”** – the app runs fixed- & random-effects models and computes heterogeneity.
 
 4. **Explore Results**  
-   * **Bivariate tab** for joint ellipse & probability table.  
+   * **JCR Method tab** for joint confidence region & probability table.  
    * **Diagnostics tab** to spot outliers or bias.
 
 5. **Download Report** – a polished PDF/HTML with every plot & statistic.

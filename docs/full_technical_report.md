@@ -9,10 +9,10 @@
 | Layer | Key Files | Responsibilities |
 |-------|-----------|------------------|
 | **Entry** | `app.R` | Unified launch point sourcing UI & server modules. |
-| **Presentation** | <mcfile name="ui.R" path="/Users/davidgrabois/meta-app/R/ui.R"></mcfile> | Defines navigation: Data Preview ➜ Random Effects ➜ Fixed Effects ➜ Bivariate (JCR) ➜ Meta-Regression; embeds help-text & dark-mode. |
+| **Presentation** | <mcfile name="ui.R" path="/Users/davidgrabois/meta-app/R/ui.R"></mcfile> | Defines navigation: Data Preview ➜ Random Effects ➜ Fixed Effects ➜ JCR Method ➜ Meta-Regression; embeds help-text & dark-mode. |
 | **Business Logic** | <mcfile name="server.R" path="/Users/davidgrabois/meta-app/R/server.R"></mcfile> | Manages reactives: data upload, analysis buttons, tab gating, report download, subgroup/meta-reg modules. |
 | **Statistical Engines** | <mcfile name="functions.R" path="/Users/davidgrabois/meta-app/R/functions.R"></mcfile> | Helper wrappers around **meta/metafor** (fixed, random), diagnostics, forest/funnel/QQ plots, GRADE evaluation, combined plots. |
-| **Novel Methods** | <mcfile name="bivariate_meta.R" path="/Users/davidgrabois/meta-app/R/bivariate_meta.R"></mcfile> | Custom implementation of Saad et al. (2019) Joint Cumulative Ratio (JCR) bivariate random-effects model via MLE, confidence region and deviance grid search. |
+| **Novel Methods** | <mcfile name="bivariate_meta.R" path="/Users/davidgrabois/meta-app/R/bivariate_meta.R"></mcfile> | Custom implementation of Saad et al. (2019) Joint Confidence Region (JCR) method via joint MLE, confidence region and deviance grid search. |
 
 ---
 
@@ -22,7 +22,7 @@
 |---------|-----------|-------------|-----------|
 | **Fixed / Random Effects** | *Introduction to Meta-Analysis* (Borenstein 2009) ch. 9 | \(\hat\mu_{FE}=\sum w_i y_i / \sum w_i\); DerSimonian-Laird \(\tau^2_{DL}\) | functions.R `random_effect_dist_plot` (≈ 45–65) & weighting in bivariate_meta.R 120–140 |
 | **Heterogeneity Metrics** | Cochrane Handbook ch. 10 | \(Q, I^2, H^2\) definitions | bivariate_meta.R 280–310; plotted everywhere. |
-| **JCR Bivariate Model** | *Saad et al.* 2019 + Supplement | Log-ratio vector \(y\_k\sim N(\mu, \sigma_k^2+\tau^2)\); joint deviance grid search for \((\mu,\tau)\) | bivariate_meta.R 150–260 (initial values) & 320–420 (MLE & CI region) |
+| **JCR Method** | *Saad et al.* 2019 + Supplement | Log-ratio vector \(y\_k\sim N(\mu, \sigma_k^2+\tau^2)\); joint MLE via deviance grid search for \((\mu,\tau)\) | bivariate_meta.R 150–260 (initial values) & 320–420 (MLE & CI region) |
 | **Normality Diagnostics** | *Handbook of Meta-Analysis* (2023) ch. 11 | Deleted-residual QQ, BLUP QQ | ui.R tabs ➜ server.R ≈ 650–780 functions. |
 | **Publication Bias** | Egger/T-&-Fill (Handbook ch. 11) | Egger regression, Duval & Tweedie trim-fill | wrapped via meta::funnel & metafor::trimfill in functions.R. |
 

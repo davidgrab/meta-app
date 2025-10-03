@@ -1,6 +1,7 @@
-# metabiv: Bivariate Meta-Analysis for Binary Outcomes
+# metabiv: Joint Confidence Region (JCR) Meta-Analysis
 # This package implements the methodology described in Saad et al. (2019)
-# for conducting bivariate meta-analysis in the presence of unexplained heterogeneity.
+# for conducting Joint Confidence Region (JCR) meta-analysis with joint MLE estimation
+# of the overall effect (μ) and between-study heterogeneity (τ).
 
 # Required libraries
 library(meta)
@@ -30,8 +31,8 @@ log.odds <- function(p) log(p / (1-p))
 #' @export
 inv.log.odds <- function(theta) exp(theta) / (1 + exp(theta))
 
-#' @title Bivariate Meta-Analysis
-#' @description Performs a bivariate meta-analysis for binary outcomes
+#' @title Joint Confidence Region (JCR) Meta-Analysis
+#' @description Performs JCR meta-analysis using joint maximum likelihood estimation
 #' @param event.e A numeric vector of event counts in the experimental group
 #' @param n.e A numeric vector of sample sizes in the experimental group
 #' @param event.c A numeric vector of event counts in the control group
@@ -44,7 +45,7 @@ inv.log.odds <- function(theta) exp(theta) / (1 + exp(theta))
 #' @param level Confidence level for individual studies
 #' @param level.ma Confidence level for meta-analysis
 #' @param verbose Logical, whether to print verbose output
-#' @return A list with class "metabiv" containing the results of the bivariate meta-analysis
+#' @return A list with class "metabiv" containing the results of the JCR meta-analysis
 #' @export
 metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, studlab = NULL,
                     data = NULL, sm = "RR", y = NULL, sigma2 = NULL,

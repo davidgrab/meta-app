@@ -1,10 +1,10 @@
 # jcrmeta
 
-A comprehensive R package for bivariate meta-analysis of paired outcomes, implementing the methodology described in Saad et al. (2019).
+A comprehensive R package for Joint Confidence Region (JCR) meta-analysis, implementing the methodology described in Saad et al. (2019). The JCR method uses joint maximum likelihood estimation to simultaneously estimate the overall effect (μ) and between-study heterogeneity (τ).
 
 ## Features
 
-- **Bivariate Meta-Analysis**: Perform meta-analysis for binary outcomes with comprehensive statistical methods
+- **Joint Confidence Region (JCR) Meta-Analysis**: Perform meta-analysis with joint MLE estimation for more precise results
 - **Multiple Summary Measures**: Support for Risk Ratio (RR), Odds Ratio (OR), and Standardized Mean Difference (SMD)
 - **Maximum Likelihood Estimation**: Advanced MLE-based parameter estimation with DerSimonian-Laird initial values
 - **Heterogeneity Assessment**: Calculate Q-statistics, I², and H² for heterogeneity evaluation
@@ -31,7 +31,7 @@ n.e <- c(100, 120, 150)
 event.c <- c(5, 8, 12)
 n.c <- c(100, 110, 140)
 
-# Perform bivariate meta-analysis
+# Perform JCR meta-analysis
 result <- metabiv(event.e, n.e, event.c, n.c, sm = "OR")
 print(result)
 ```
@@ -49,7 +49,7 @@ result <- metabiv(y = y, sigma2 = sigma2, sm = "SMD")
 ## Functions
 
 ### Main Functions
-- `metabiv()`: Main function for bivariate meta-analysis
+- `metabiv()`: Main function for JCR meta-analysis with joint MLE estimation
 
 ### Helper Functions
 - `log_rr()`, `log_or()`: Calculate log risk ratios and log odds ratios

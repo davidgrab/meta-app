@@ -14,7 +14,7 @@ A comprehensive Shiny application for performing meta-analyses with advanced sta
 ### Core Meta-Analysis Capabilities
 - **Multiple Effect Size Measures**: Support for risk ratios (RR), odds ratios (OR), standardized mean differences, and more
 - **Advanced Statistical Methods**: Fixed-effects, random-effects, and mixed-effects models
-- **Bivariate Meta-Analysis**: Full support for both RR and OR with MLE estimation
+- **Joint Confidence Region (JCR) Method**: Advanced meta-analysis with joint MLE estimation of effect size and heterogeneity (Saad et al., 2019)
 - **Meta-Regression**: Advanced meta-regression with permutation tests for robust inference
 
 ### Statistical Enhancements
@@ -77,6 +77,10 @@ testthat::test_dir("tests/testthat")
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for more details.
 
 To report a bug or request a feature, please open an issue on our [GitHub Issues page](https://github.com/davidgrab/meta-app/issues).
+
+## 🗺️ Roadmap
+
+- Migrate the JCR method logic from `R/bivariate_meta.R` into the `jcrmeta/` package for reuse and testability. See `docs/JCR_PACKAGE_MIGRATION.md` for the step-by-step plan.
 
 ## 📜 License
 

@@ -46,7 +46,7 @@ server <- function(input, output, session) {
   # Initially hide all tabs except Data Preview
   observe({
     print("Hiding tabs")
-    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach", "Meta-Regression"), function(tab) {
+    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "JCR Method", "Meta-Regression"), function(tab) {
       hideTab(inputId = "main_tabs", target = tab)
     })
   })
@@ -54,7 +54,7 @@ server <- function(input, output, session) {
   # Show all tabs when Analyze button is clicked
   observeEvent(input$analyze, {
     print("Analyze button clicked")
-    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "Bivariate Approach", "Meta-Regression"), function(tab) {
+    lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "JCR Method", "Meta-Regression"), function(tab) {
       showTab(inputId = "main_tabs", target = tab)
     })
   })
@@ -721,7 +721,7 @@ server <- function(input, output, session) {
   
   
   
-  # Bivariate analysis results
+  # JCR method analysis results
   bivariate_result <- reactive({
     req(input$analyze)
     # Handle both data types
@@ -740,11 +740,11 @@ server <- function(input, output, session) {
     }
   })
   
-  # Bivariate Forest Plot
+  # JCR Forest Plot
   output$bivariateForestPlot <- renderPlot({
     req(bivariate_result())
     forest.metabiv(bivariate_result(),
-                   title = paste("Bivariate Forest Plot (", effect_measure_label(), ")"),
+                   title = paste("JCR Forest Plot (", effect_measure_label(), ")"),
                    xlab = paste("Effect Size (", effect_measure_label(), ")"))
   }, height = function() forest_plot_height())
   
@@ -769,7 +769,7 @@ server <- function(input, output, session) {
   })
   
   
-  # Bivariate Overall Summary
+  # JCR Overall Summary
   output$bivariateOverallSummary <- renderPrint({
     req(bivariate_result())
     summary(bivariate_result())
@@ -842,7 +842,7 @@ server <- function(input, output, session) {
     return(influence_df)
   }
   
-  # Bivariate Influence Summary
+  # JCR Influence Summary
   output$bivariateInfluenceSummary <- renderPrint({
     req(bivariate_result())
     cat("Bivariate Influence Summary\n")
@@ -947,7 +947,7 @@ server <- function(input, output, session) {
     return(display_table)
   }, striped = TRUE, hover = TRUE, bordered = TRUE)
   
-  # Bivariate GOSH Plot
+  # JCR GOSH Plot
   output$bivariateGOSHPlot <- renderPlotly({
     req(bivariate_result())
     # Implement GOSH plot
@@ -973,7 +973,7 @@ server <- function(input, output, session) {
              yaxis = list(title = "τ"))
   })
   
-  # Bivariate Adapted Funnel Plot
+  # JCR Adapted Funnel Plot
   output$bivariateAdaptedFunnelPlot <- renderPlot({
     req(bivariate_result())
     
@@ -998,7 +998,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Bivariate Bias Test Results
+  # JCR Bias Test Results
   output$bivariateBiasTestResults <- renderPrint({
     req(bivariate_result())
     cat("Bivariate Bias Test Results\n")
@@ -1009,7 +1009,7 @@ server <- function(input, output, session) {
         "this may indicate the presence of small-study effects or publication bias.\n")
   })
   
-  # Bivariate GRADE Summary
+  # JCR GRADE Summary
   output$bivariateGRADESummary <- renderPrint({
     req(bivariate_result(), input$risk_of_bias, input$indirectness)
     cat("Bivariate GRADE Assessment\n\n")
@@ -1072,7 +1072,7 @@ server <- function(input, output, session) {
 
     # Combine results
     results <- data.frame(
-      Method = c("Fixed Effects", "Random Effects", "Bivariate"),
+      Method = c("Fixed Effects", "Random Effects", "JCR Method"),
       Estimate = c(trad_meta_fixed$TE.common, trad_meta_random$TE.random, bivariate_result()$mu),
       Lower = c(trad_meta_fixed$lower.common, trad_meta_random$lower.random, bivariate_result()$lower),
       Upper = c(trad_meta_fixed$upper.common, trad_meta_random$upper.random, bivariate_result()$upper)
@@ -1122,7 +1122,7 @@ server <- function(input, output, session) {
         "- <i>Overall Results:</i> Compare results across all methods.<br>",
         "- <i>Random Effects Analysis:</i> Detailed random effects model results.<br>",
         "- <i>Fixed Effects Analysis:</i> Detailed fixed effects model results.<br>",
-        "- <i>Bivariate Approach:</i> Results from the bivariate analysis.<br><br>",
+        "- <i>JCR Method:</i> Results from the joint MLE meta-analysis with a joint confidence region.<br><br>",
         
         "Throughout the app, look for info buttons (?) for additional guidance on interpreting results and using features.<br><br>",
         "This tool is designed to help researchers thoroughly examine their meta-analytic data and draw robust conclusions from their analyses."
@@ -1164,7 +1164,7 @@ server <- function(input, output, session) {
         "The Method Comparison Plot visually compares results from different meta-analysis methods:<br><br>",
         "- Random Effects<br>",
         "- Fixed Effects<br>",
-        "- Bivariate Approach<br><br>",
+        "- JCR Method<br><br>",
         "This plot shows effect size estimates and their confidence intervals for each method, allowing you to easily see differences in results across approaches.<br><br>",
         "Key points to consider:<br>",
         "1. Consistency across methods<br>",
@@ -1429,13 +1429,13 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Bivariate Approach Overall Results Info
+  # JCR Method Overall Results Info
   observeEvent(input$bivariate_overall_info, {
     showModal(modalDialog(
-      title = "Bivariate Approach: Overall Results and Heterogeneity",
+      title = "JCR Method: Overall Results and Heterogeneity",
       HTML(paste0(
         "This section presents key results from the bivariate meta-analysis approach:<br><br>",
-        "1. Bivariate Forest Plot:<br>",
+        "1. JCR Forest Plot:<br>",
         "   - Displays effect sizes for two outcomes simultaneously<br>",
         "   - Allows for a more comprehensive view of the results<br><br>",
         "2. Confidence Region Plot:<br>",
@@ -1450,17 +1450,17 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Bivariate Approach Sensitivity and Influence Info
+  # JCR Method Sensitivity and Influence Info
   observeEvent(input$bivariate_sensitivity_info, {
     showModal(modalDialog(
-      title = "Bivariate Approach: Sensitivity and Influence",
+      title = "JCR Method: Sensitivity and Influence",
       HTML(paste0(
         "This section assesses the robustness of bivariate results:<br><br>",
         "1. Confidence Region Shift Plot:<br>",
         "   - Novel plot showing how the confidence region changes when each study is removed<br>",
         "   - Helps identify influential studies in the bivariate context<br><br>",
         "2. Enhanced Baujat Plot:<br>",
-        "   - Adapted for the bivariate approach<br>",
+        "   - Adapted for the JCR method<br>",
         "   - Shows each study's contribution to heterogeneity and influence on results<br><br>",
         "3. Influence Summary:<br>",
         "   - Provides numerical details on the influence of each study<br>",
@@ -1471,12 +1471,12 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Bivariate Approach Residuals and Effect Distribution Info
+  # JCR Method Residuals and Effect Distribution Info
   observeEvent(input$bivariate_residuals_info, {
     showModal(modalDialog(
-      title = "Bivariate Approach: Residuals and Effect Distribution",
+      title = "JCR Method: Residuals and Effect Distribution",
       HTML(paste0(
-        "This section helps assess model assumptions for the bivariate approach:<br><br>",
+        "This section helps assess model assumptions for the JCR method:<br><br>",
         "1. Q-Q Plot (μ):<br>",
         "   - Assesses normality of residuals for the first outcome<br><br>",
         "2. Q-Q Plot (τ):<br>",
@@ -1490,19 +1490,19 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Bivariate Approach Stability and Publication Bias Info
+  # JCR Method Stability and Publication Bias Info
   observeEvent(input$bivariate_stability_info, {
     showModal(modalDialog(
-      title = "Bivariate Approach: Stability and Publication Bias",
+      title = "JCR Method: Stability and Publication Bias",
       HTML(paste0(
         "This section assesses result stability and potential publication bias in the bivariate context:<br><br>",
-        "1. Bivariate GOSH Plot:<br>",
+        "1. JCR GOSH Plot:<br>",
         "   - Assesses stability of results across different subsets of studies<br>",
-        "   - Adapted for the bivariate approach<br><br>",
+        "   - Adapted for the JCR method<br><br>",
         "2. Adapted Funnel Plot:<br>",
         "   - Visualizes potential publication bias in the bivariate context<br>",
         "   - Interpretation may differ from traditional funnel plots<br><br>",
-        "3. Bivariate Bias Test Results:<br>",
+        "3. JCR Bias Test Results:<br>",
         "   - Provides statistical assessment of potential bias<br>",
         "   - Adapted for the bivariate meta-analysis framework"
       )),
@@ -1511,12 +1511,12 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Bivariate Approach Quality Assessment Info
+  # JCR Method Quality Assessment Info
   observeEvent(input$bivariate_quality_info, {
     showModal(modalDialog(
-      title = "Bivariate Approach: Quality Assessment",
+      title = "JCR Method: Quality Assessment",
       HTML(paste0(
-        "This section provides an overall assessment of the evidence quality using the bivariate approach:<br><br>",
+        "This section provides an overall assessment of the evidence quality using the JCR method:<br><br>",
         "1. Modified GRADE Assessment:<br>",
         "   - Adapted for the bivariate meta-analysis context<br>",
         "   - Evaluates the quality of evidence considering both outcomes simultaneously<br><br>",
@@ -1621,10 +1621,10 @@ server <- function(input, output, session) {
   
   observeEvent(input$biv_effect_size_heterogeneity_info, {
     showModal(modalDialog(
-      title = "Bivariate Approach: Effect Size and Heterogeneity",
+      title = "JCR Method: Effect Size and Heterogeneity",
       HTML(paste0(
         "This section presents key results from the bivariate meta-analysis approach:<br><br>",
-        "1. Bivariate Forest Plot:<br>",
+        "1. JCR Forest Plot:<br>",
         "   - Displays effect sizes for two outcomes simultaneously<br>",
         "   - Allows for a more comprehensive view of the results<br><br>",
         "2. Confidence Region Plot:<br>",
@@ -1641,9 +1641,9 @@ server <- function(input, output, session) {
   
   observeEvent(input$biv_model_diagnostics_info, {
     showModal(modalDialog(
-      title = "Bivariate Approach: Model Diagnostics",
+      title = "JCR Method: Model Diagnostics",
       HTML(paste0(
-        "This section helps assess model assumptions for the bivariate approach:<br><br>",
+        "This section helps assess model assumptions for the JCR method:<br><br>",
         "1. Q-Q Plot (μ):<br>",
         "   - Assesses normality of residuals for the first outcome<br><br>",
         "2. Q-Q Plot (τ):<br>",
@@ -1772,9 +1772,9 @@ server <- function(input, output, session) {
   
   observeEvent(input$biv_subgroup_info, {
     showModal(modalDialog(
-      title = "Bivariate: Subgroup Analysis",
+      title = "JCR Method: Subgroup Analysis",
       HTML(paste0(
-        "This section performs subgroup analysis using the bivariate approach:<br><br>",
+        "This section performs subgroup analysis using the JCR method:<br><br>",
         "1. Purpose:<br>",
         "   - Investigates whether treatment effects differ between subgroups<br>",
         "   - Uses bivariate meta-analysis for joint estimation within subgroups<br>",
@@ -1933,7 +1933,7 @@ server <- function(input, output, session) {
         "bivariate"
       )
     }, error = function(e) {
-      cat("Bivariate MLE Normality Test Summary Unavailable\n")
+    cat("JCR MLE Normality Test Summary Unavailable\n")
       cat("Error:", e$message, "\n")
     })
   })
@@ -2135,7 +2135,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Bivariate Subgroup Analysis
+  # JCR Subgroup Analysis
   bivariate_subgroup_results <- eventReactive(input$run_bivariate_subgroup, {
     req(data(), input$bivariate_subgroup_variable)
     df <- data()
@@ -2194,7 +2194,7 @@ server <- function(input, output, session) {
     req(bivariate_subgroup_results())
     results <- bivariate_subgroup_results()$results
     
-    cat("Bivariate Subgroup Analysis Results\n")
+    cat("JCR Subgroup Analysis Results\n")
     cat("===================================\n\n")
     
     for (i in seq_along(results)) {
@@ -2208,7 +2208,7 @@ server <- function(input, output, session) {
       cat("I²:", round(result$I2, 1), "%\n\n")
     }
     
-    cat("Note: Formal statistical test for subgroup differences is not implemented for bivariate approach.\n")
+    cat("Note: Formal statistical test for subgroup differences is not implemented for the JCR method.\n")
     cat("Compare confidence intervals and effect estimates between subgroups.\n")
   })
   
@@ -2583,7 +2583,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # Combined forest plot for Bivariate subgroups
+  # Combined forest plot for JCR subgroups
   output$bivariateSubgroupForestPlot <- renderPlot({
     req(bivariate_subgroup_results())
     results <- bivariate_subgroup_results()$results

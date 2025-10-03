@@ -4,9 +4,9 @@ Version: 0.1.0
 Authors@R: 
     person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: Bivariate random-effects model for meta-analysis with joint confidence regions (Saad et al.).
-    Provides functions for bivariate meta-analysis of paired outcomes with comprehensive
-    statistical methods including odds ratio and risk ratio calculations.
+Description: Joint Confidence Region (JCR) meta-analysis method (Saad et al., 2019).
+    Provides joint maximum likelihood estimation of effect size (μ) and heterogeneity (τ)
+    with comprehensive statistical methods including odds ratio and risk ratio calculations.
 License: MIT
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
