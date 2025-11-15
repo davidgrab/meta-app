@@ -257,9 +257,25 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
     mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for smoother contours
     tau.vec <- seq(0.01, 1, length.out = 150)  # Higher resolution for smoother contours
   } else {
-    # For OR/RR, use traditional log scale range
-  mu.vec <- seq(-1, 1, length.out = 100)
-  tau.vec <- seq(0.01, 1, length.out = 100)
+    # For OR/RR, use adaptive range based on data to ensure full confidence region is captured
+    # Consider the range of observed effect sizes and add generous margins
+    y_range <- range(y.k, na.rm = TRUE)
+    
+    # Use MLE estimate (mu) as center, but ensure we capture the full range
+    # Add margins: at least 1.5 units on each side, but more if data extends further
+    mu_center <- mu  # Use the MLE estimate as center
+    mu_range_width <- max(3.0, 2.0 * diff(y_range), 2.5 * abs(mu))  # At least 3 units wide
+    
+    # Set grid range centered on MLE but wide enough to capture full confidence region
+    mu_min <- min(mu_center - mu_range_width/2, y_range[1] - 1.0, -1.5)  # At least -1.5, but wider if needed
+    mu_max <- max(mu_center + mu_range_width/2, y_range[2] + 1.0, 1.5)   # At least 1.5, but wider if needed
+    
+    # Ensure reasonable bounds (not too extreme)
+    mu_min <- max(mu_min, -2.5)  # Don't go below exp(-2.5) ≈ 0.082
+    mu_max <- min(mu_max, 2.5)   # Don't go above exp(2.5) ≈ 12.18
+    
+    mu.vec <- seq(mu_min, mu_max, length.out = 150)  # Increased resolution for smoother contours
+    tau.vec <- seq(0.01, 1, length.out = 150)  # Increased resolution
   }
   
   # For all summary measures, use the standard chi-squared approximation.
@@ -871,6 +887,12 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
   
+  # Get grid boundaries
+  tau_grid_max <- max(seq.tau)
+  tau_grid_min <- min(seq.tau)
+  mu_grid_max <- max(seq.mu)
+  mu_grid_min <- min(seq.mu)
+  
   # Transform appropriately based on summary measure
   if (sm == "SMD") {
     mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length.out = 100)
@@ -1033,38 +1055,143 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
                              color = "green"),
                  name = "Full Model MLE")
   
-  # Set layout
+  # Calculate axis limits from all contours (full model + all LOO)
   if (sm == "SMD") {
+    # Collect all x and y values from all contours
+    all_x_vals <- c(full_contour_95[[1]]$x, full_contour_50[[1]]$x, main_mu_val)
+    all_y_vals <- c(full_contour_95[[1]]$y, full_contour_50[[1]]$y, x$tau)
+    
+    # Add LOO contours
+    for (i in 1:k) {
+      all_x_vals <- c(all_x_vals, loo_results[[i]]$contour_95[[1]]$x)
+      all_y_vals <- c(all_y_vals, loo_results[[i]]$contour_95[[1]]$y)
+      mu_val <- loo_results[[i]]$mu  # Already in SMD scale
+      all_x_vals <- c(all_x_vals, mu_val)
+      all_y_vals <- c(all_y_vals, loo_results[[i]]$tau)
+    }
+    
+    # Calculate ranges with very small margins (1% for minimal visual gap)
+    x_range <- range(all_x_vals, na.rm = TRUE)
+    y_range <- range(all_y_vals, na.rm = TRUE)
+    
+    # Start with generous margins (10% for linear scale) to ensure ellipses are fully visible
+    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    x_margin <- diff(x_range) * 0.10
+    y_margin <- diff(y_range) * 0.10
+    
+    # If contour hits grid boundary, extend axis further beyond boundary to show completeness
+    if (abs(y_range[2] - tau_grid_max) < 1e-6) {
+      # Contour hit upper boundary - extend by 15% of range to show it's complete
+      y_max <- tau_grid_max + diff(y_range) * 0.15
+    } else {
+      y_max <- y_range[2] + y_margin
+    }
+    
+    if (abs(y_range[1] - tau_grid_min) < 1e-6) {
+      # Contour hit lower boundary - extend by 15% of range
+      y_min <- max(0.0, tau_grid_min - diff(y_range) * 0.15)
+    } else {
+      y_min <- max(0.0, y_range[1] - y_margin)
+    }
+    
+    # Check if x-axis hits boundaries - if so, extend even more
+    if (abs(max(all_x_vals) - mu_grid_max) < 1e-6) {
+      x_margin <- diff(x_range) * 0.15
+    }
+    if (abs(min(all_x_vals) - mu_grid_min) < 1e-6) {
+      x_margin <- max(x_margin, diff(x_range) * 0.15)
+    }
+    
+    # Set layout with dynamic ranges
     p <- p %>% layout(
       title = paste("Confidence Region Shift Plot for", sm),
       xaxis = list(
         title = "Effect Size (SMD)",
-        range = c(-3, 3)
+        range = c(x_range[1] - x_margin, x_range[2] + x_margin)
       ),
       yaxis = list(
         title = "tau",
-        range = c(0, 1)
+        range = c(y_min, y_max)
       ),
       showlegend = TRUE,
       hovermode = "closest"
     )
   } else {
-  p <- p %>% layout(
-    title = paste("Confidence Region Shift Plot for", sm),
-    xaxis = list(
-      title = "Effect Size (OR/RR)",
-      type = "log",
-      range = log10(c(0.5, 2.5)),
-      ticktext = c("0.5", "1.0", "1.5", "2.0", "2.5"),
-      tickvals = c(0.5, 1.0, 1.5, 2.0, 2.5)
-    ),
-    yaxis = list(
-      title = "tau",
-      range = c(0, 1)
-    ),
-    showlegend = TRUE,
-    hovermode = "closest"
-  )
+    # Collect all x values (in log scale) and y values from all contours
+    all_x_log_vals <- c(full_contour_95[[1]]$x, full_contour_50[[1]]$x, x$mu)
+    all_y_vals <- c(full_contour_95[[1]]$y, full_contour_50[[1]]$y, x$tau)
+    
+    # Add LOO contours
+    for (i in 1:k) {
+      all_x_log_vals <- c(all_x_log_vals, loo_results[[i]]$contour_95[[1]]$x)
+      all_y_vals <- c(all_y_vals, loo_results[[i]]$contour_95[[1]]$y)
+      all_x_log_vals <- c(all_x_log_vals, loo_results[[i]]$mu)
+      all_y_vals <- c(all_y_vals, loo_results[[i]]$tau)
+    }
+    
+    # Convert to exponentiated scale for range calculation
+    all_x_exp_vals <- exp(all_x_log_vals)
+    
+    # Calculate ranges
+    x_range_exp <- range(all_x_exp_vals, na.rm = TRUE)
+    y_range <- range(all_y_vals, na.rm = TRUE)
+    
+    # Start with generous margins (10% multiplicative for log scale x-axis, 10% additive for y-axis)
+    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    x_factor <- 1.10  # 10% multiplicative margin for log scale (ensures ellipse is fully visible)
+    y_margin <- diff(y_range) * 0.10  # 10% additive margin for y-axis
+    
+    # If contour hits grid boundary, extend axis further beyond boundary to show completeness
+    if (abs(y_range[2] - tau_grid_max) < 1e-6) {
+      # Contour hit upper boundary - extend by 15% of range to show it's complete
+      y_max <- tau_grid_max + diff(y_range) * 0.15
+    } else {
+      y_max <- y_range[2] + y_margin
+    }
+    
+    if (abs(y_range[1] - tau_grid_min) < 1e-6) {
+      # Contour hit lower boundary - extend by 15% of range
+      y_min <- max(0.0, tau_grid_min - diff(y_range) * 0.15)
+    } else {
+      y_min <- max(0.0, y_range[1] - y_margin)
+    }
+    
+    # Check if x-axis hits boundaries - if so, extend even more
+    if (abs(max(all_x_log_vals) - mu_grid_max) < 1e-6) {
+      # Extend x-axis further beyond boundary
+      x_factor <- 1.15
+    }
+    if (abs(min(all_x_log_vals) - mu_grid_min) < 1e-6) {
+      # Extend x-axis further beyond boundary
+      x_factor <- max(x_factor, 1.15)
+    }
+    
+    # Calculate nice tick values for log scale
+    x_min_exp <- x_range_exp[1] / x_factor
+    x_max_exp <- x_range_exp[2] * x_factor
+    
+    # Generate nice tick values
+    x_ticks_exp <- pretty(x_range_exp, n = 5)
+    x_ticks_exp <- x_ticks_exp[x_ticks_exp > 0]  # ensure positive for log scale
+    x_ticks_log <- log10(x_ticks_exp)
+    
+    # Set layout with dynamic ranges
+    p <- p %>% layout(
+      title = paste("Confidence Region Shift Plot for", sm),
+      xaxis = list(
+        title = "Effect Size (OR/RR)",
+        type = "log",
+        range = log10(c(x_min_exp, x_max_exp)),
+        ticktext = format(x_ticks_exp, digits = 2),
+        tickvals = x_ticks_log
+      ),
+      yaxis = list(
+        title = "tau",
+        range = c(y_min, y_max)
+      ),
+      showlegend = TRUE,
+      hovermode = "closest"
+    )
   }
   
   # Add reference line
@@ -1591,26 +1718,70 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
   
+  # Get grid boundaries
+  tau_grid_max <- max(seq.tau)
+  tau_grid_min <- min(seq.tau)
+  mu_grid_max <- max(seq.mu)
+  mu_grid_min <- min(seq.mu)
+  
   # Check if we're dealing with SMD
   is_smd <- !is.null(sm) && sm == "SMD"
   
+  # Extract 95% and 50% confidence contours using the correct method
+  contour_50 <- get_contours(pval.mat, 0.50)
+  contour_95 <- get_contours(pval.mat, 0.05)
+  
+  # Get MLE point
+  if (is.null(mu_mle) || is.null(tau_mle)) {
+    mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
+    mu_mle <- seq.mu[mle_index[1]]
+    tau_mle <- seq.tau[mle_index[2]]
+  }
+  
   if (is_smd) {
     # For SMD: Use linear scale centered around 0
-    mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length.out = 100)
-    tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
     
-    # Extract 95% and 50% confidence contours using the correct method
-    contour_50 <- get_contours(pval.mat, 0.50)
-    contour_95 <- get_contours(pval.mat, 0.05)
+    # Calculate axis limits from actual contour extents
+    # Get all x and y values from both contours
+    all_x <- c(contour_95[[1]]$x, contour_50[[1]]$x, mu_mle)
+    all_y <- c(contour_95[[1]]$y, contour_50[[1]]$y, tau_mle)
     
-    # Auto-scale x-axis to data range with small margin
-    mu_range <- range(c(contour_95[[1]]$x, mu_mle))
-    x_margin <- diff(mu_range) * 0.1
+    # Calculate ranges with very small margins (1% for minimal visual gap)
+    x_range <- range(all_x, na.rm = TRUE)
+    y_range <- range(all_y, na.rm = TRUE)
     
-    # Set up plot with linear scale and auto-scaled x-axis
+    # Start with generous margins (10% for linear scale) to ensure ellipses are fully visible
+    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    x_margin <- diff(x_range) * 0.10
+    y_margin <- diff(y_range) * 0.10
+    
+    # If contour hits grid boundary, extend axis further beyond boundary to show completeness
+    if (abs(y_range[2] - tau_grid_max) < 1e-6) {
+      # Contour hit upper boundary - extend by 10% of range to show it's complete
+      y_max <- tau_grid_max + diff(y_range) * 0.10
+    } else {
+      y_max <- y_range[2] + y_margin
+    }
+    
+    if (abs(y_range[1] - tau_grid_min) < 1e-6) {
+      # Contour hit lower boundary - extend by 10% of range
+      y_min <- max(0.0, tau_grid_min - diff(y_range) * 0.10)
+    } else {
+      y_min <- max(0.0, y_range[1] - y_margin)
+    }
+    
+    # Check if x-axis hits boundaries - if so, extend even more
+    if (abs(max(all_x) - mu_grid_max) < 1e-6) {
+      x_margin <- diff(x_range) * 0.10
+    }
+    if (abs(min(all_x) - mu_grid_min) < 1e-6) {
+      x_margin <- max(x_margin, diff(x_range) * 0.10)
+    }
+    
+    # Set up plot with linear scale and auto-scaled axes
     plot(1, type = "n",
-         xlim = c(mu_range[1] - x_margin, mu_range[2] + x_margin),
-         ylim = range(tau.pred.vec),
+         xlim = c(x_range[1] - x_margin, x_range[2] + x_margin),
+         ylim = c(y_min, y_max),
          xlab = xlab, 
          ylab = "τ",
          main = mlb,
@@ -1623,11 +1794,6 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
     lines(contour_50[[1]]$x, contour_50[[1]]$y, col = "blue", lwd = 2, lty = 1) # 50% CI
     
     # Add MLE point
-    if (is.null(mu_mle) || is.null(tau_mle)) {
-      mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
-      mu_mle <- seq.mu[mle_index[1]]
-      tau_mle <- seq.tau[mle_index[2]]
-    }
     points(mu_mle, tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
     
     # Add reference line at 0 for SMD
@@ -1635,50 +1801,76 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
     
   } else {
     # Original code for OR/RR with log scale
-  # Convert to exponentiated scale for effect sizes
-  mu.pred.vec <- exp(seq(min(seq.mu), max(seq.mu), length.out = 100))
-  tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
-  
-  # Extract 95% and 50% confidence contours using the correct method
-  contour_50 <- get_contours(pval.mat, 0.50)
-  contour_95 <- get_contours(pval.mat, 0.05)
-  
-  # Auto-scale x-axis to data range with small margin
-  mu_range_exp <- range(c(exp(contour_95[[1]]$x), exp(mu_mle)))
-  x_factor <- 1.2  # multiplicative margin for log scale
-  
-    # Set up plot with log scale and auto-scaled x-axis
-  plot(1, type = "n", log = "x",
-       xlim = c(mu_range_exp[1] / x_factor, mu_range_exp[2] * x_factor),
-       ylim = range(tau.pred.vec),
-       xlab = xlab, 
-       ylab = "τ",
-       main = mlb,
-       cex.lab = 1.2, 
-       cex.axis = 0.8, 
-       cex.main = 1.2,
-       xaxt = "n")
-  
-  # Draw confidence contours
-  lines(exp(contour_95[[1]]$x), contour_95[[1]]$y, col = "red", lwd = 2, lty = 1)  # 95% CI
-  lines(exp(contour_50[[1]]$x), contour_50[[1]]$y, col = "blue", lwd = 2, lty = 1) # 50% CI
-  
-  # Add MLE point
-  if (is.null(mu_mle) || is.null(tau_mle)) {
-    mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
-    mu_mle <- seq.mu[mle_index[1]]
-    tau_mle <- seq.tau[mle_index[2]]
-  }
-  points(exp(mu_mle), tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
-  
-  # Add reference lines
-  abline(v = 1, lty = 2, col = "gray")
-  abline(v = exp(0), col = "blue", lty = 3)
-  
-  # Custom x-axis with auto-scaled nice ticks
-  x_ticks <- pretty(mu_range_exp, n = 5)
-  x_ticks <- x_ticks[x_ticks > 0]  # ensure positive for log scale
-  axis(1, at = x_ticks, labels = format(x_ticks, digits = 2))
+    
+    # Calculate axis limits from actual contour extents
+    # Get all x values (in log scale) and y values from both contours
+    all_x_log <- c(contour_95[[1]]$x, contour_50[[1]]$x, mu_mle)
+    all_y <- c(contour_95[[1]]$y, contour_50[[1]]$y, tau_mle)
+    
+    # Convert x to exponentiated scale for range calculation
+    all_x_exp <- exp(all_x_log)
+    
+    # Calculate ranges
+    x_range_exp <- range(all_x_exp, na.rm = TRUE)
+    y_range <- range(all_y, na.rm = TRUE)
+    
+    # Start with a generous margin to ensure ellipse is fully visible
+    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    x_factor <- 1.10  # 10% multiplicative margin for log scale (ensures ellipse is fully visible)
+    y_margin <- diff(y_range) * 0.10  # 10% additive margin for y-axis
+    
+    # If contour hits grid boundary, extend axis further beyond boundary to show completeness
+    if (abs(y_range[2] - tau_grid_max) < 1e-6) {
+      # Contour hit upper boundary - extend by 15% of range to show it's complete
+      y_max <- tau_grid_max + diff(y_range) * 0.15
+    } else {
+      y_max <- y_range[2] + y_margin
+    }
+    
+    if (abs(y_range[1] - tau_grid_min) < 1e-6) {
+      # Contour hit lower boundary - extend by 15% of range
+      y_min <- max(0.0, tau_grid_min - diff(y_range) * 0.15)
+    } else {
+      y_min <- max(0.0, y_range[1] - y_margin)
+    }
+    
+    # Check if x-axis hits boundaries - if so, extend even more
+    if (abs(max(all_x_log) - mu_grid_max) < 1e-6) {
+      # Extend x-axis further beyond boundary
+      x_factor <- 1.15
+    }
+    if (abs(min(all_x_log) - mu_grid_min) < 1e-6) {
+      # Extend x-axis further beyond boundary
+      x_factor <- max(x_factor, 1.15)
+    }
+    
+    # Set up plot with log scale and auto-scaled axes
+    plot(1, type = "n", log = "x",
+         xlim = c(x_range_exp[1] / x_factor, x_range_exp[2] * x_factor),
+         ylim = c(y_min, y_max),
+         xlab = xlab, 
+         ylab = "τ",
+         main = mlb,
+         cex.lab = 1.2, 
+         cex.axis = 0.8, 
+         cex.main = 1.2,
+         xaxt = "n")
+    
+    # Draw confidence contours
+    lines(exp(contour_95[[1]]$x), contour_95[[1]]$y, col = "red", lwd = 2, lty = 1)  # 95% CI
+    lines(exp(contour_50[[1]]$x), contour_50[[1]]$y, col = "blue", lwd = 2, lty = 1) # 50% CI
+    
+    # Add MLE point
+    points(exp(mu_mle), tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
+    
+    # Add reference lines
+    abline(v = 1, lty = 2, col = "gray")
+    abline(v = exp(0), col = "blue", lty = 3)
+    
+    # Custom x-axis with auto-scaled nice ticks
+    x_ticks <- pretty(x_range_exp, n = 5)
+    x_ticks <- x_ticks[x_ticks > 0]  # ensure positive for log scale
+    axis(1, at = x_ticks, labels = format(x_ticks, digits = 2))
   }
   
   # Add legend

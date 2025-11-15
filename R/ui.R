@@ -461,14 +461,14 @@ ui <- page_fillable(
                                       <strong>How to interpret:</strong> The JCR method often provides a more precise and reliable estimate than standard random-effects models, especially with sparse data. The interpretation is similar to a standard forest plot, but the underlying statistical approach uses joint MLE estimation for both parameters simultaneously."), class = "plot-explanation"),
                            
                            # Confidence Region Plot (full width)
-                           div(class = "plot-container",
-                               withSpinner(plotOutput("confidenceRegionPlot"))
+                           div(class = "plot-container", style = "width: 100%;",
+                               withSpinner(plotOutput("confidenceRegionPlot", height = "600px"))
                            ),
                            p(HTML("<strong>What it is:</strong> This is the signature plot of the Joint Confidence Region (JCR) method. It shows the joint confidence region for the two main parameters: the overall effect size (μ) and the between-study heterogeneity (τ). The different colored regions represent the 50%, 90%, 95%, and 99% confidence levels.<br>
                                       <strong>How to interpret:</strong> The plot illustrates the uncertainty in the estimates of μ and τ simultaneously. A wide region indicates greater uncertainty. The shape of the region shows the correlation between the estimates of the two parameters. The maximum likelihood estimates (MLE) for both are marked with a cross. This joint estimation approach is what distinguishes the JCR method from traditional meta-analysis."), class = "plot-explanation"),
                            
-                           div(class = "plot-container",
-                               withSpinner(plotOutput("efficacyHarmPlot")),
+                           div(class = "plot-container", style = "width: 100%;",
+                               withSpinner(plotOutput("efficacyHarmPlot", height = "500px")),
                                p(HTML("<strong>What it is:</strong> The Efficacy-Harm plot shows the probability of observing a true effect size that is more extreme than a certain threshold. It plots the cumulative distribution function (CDF) for the treatment effect, showing probabilities for both benefit (efficacy) and harm.<br>
                                           <strong>How to interpret:</strong> This plot helps in making clinical decisions. For example, you can use it to determine the probability that the true effect is greater than a minimal clinically important difference, or the probability that it falls into a range considered harmful. The steepness of the curve indicates the level of certainty."), class = "plot-explanation"),
                                
@@ -488,8 +488,10 @@ ui <- page_fillable(
                                tableOutput("efficacyHarmProbabilityTable"),
                                p(HTML("<strong>What it shows:</strong> This table displays the exact same data as the Efficacy/Harm plot above. For each threshold value T, it shows the probability P(θ ≥ T) that the true effect size is greater than or equal to that threshold, along with 95% confidence intervals.<br>
                                           <strong>How to use:</strong> These are the numerical values underlying the Efficacy/Harm plot. You can add custom threshold values above to see their exact probabilities from the curve."), class = "plot-explanation")
-                           ),
-                           verbatimTextOutput("bivariateOverallSummary")
+                           )
+                           # COMMENTED OUT: Summary removed - mu/tau values don't match plot scales
+                           # TODO: Fix scale consistency before re-enabling
+                           # verbatimTextOutput("bivariateOverallSummary")
                   ),
                   tabPanel("Subgroup Analysis",
                            actionButton("biv_subgroup_info", "", icon = icon("info-circle"), class = "help-text"),
@@ -579,21 +581,22 @@ ui <- page_fillable(
                            actionButton("sensitivity_analysis_info", "", icon = icon("info-circle"), class = "help-text"),
                            fluidRow(
                              column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotlyOutput("confidenceRegionShiftPlot")),
+                                    div(class = "plot-container", style = "width: 100%;",
+                                        withSpinner(plotlyOutput("confidenceRegionShiftPlot", height = "600px")),
                                         p(HTML("<strong>What it is:</strong> This plot shows how the joint confidence region of the overall effect (μ) and heterogeneity (τ) shifts when each study is removed one at a time. The solid black line is the confidence region from the full dataset.<br>
                                                   <strong>How to interpret:</strong> This is a powerful sensitivity analysis. If a single study's removal (a colored line) causes a large shift in the confidence region away from the original, it indicates that the main results are highly dependent on that single study. Such influential studies should be carefully examined."), class = "plot-explanation")
                                     )
                              ),
                              column(6,
-                                    div(class = "plot-container",
-                                        withSpinner(plotlyOutput("enhancedBaujatPlot")),
+                                    div(class = "plot-container", style = "width: 100%;",
+                                        withSpinner(plotlyOutput("enhancedBaujatPlot", height = "600px")),
                                         p(HTML("<strong>What it is:</strong> This is an enhanced Baujat plot specifically for the JCR method. It identifies influential studies by plotting each study's contribution to heterogeneity against its influence on the pooled effect estimate, using values derived from the joint MLE estimation.<br>
                                                   <strong>How to interpret:</strong> Studies in the top-right quadrant are the most influential. Because this plot uses estimates from the JCR method's joint MLE approach, it can provide a more accurate identification of influential studies than a standard Baujat plot. These studies should be reviewed to understand their impact on the overall findings."), class = "plot-explanation")
                                     )
                              )
-                           ),
-                           verbatimTextOutput("bivariateInfluenceSummary")
+                           )
+                           # COMMENTED OUT: Influence summary removed as requested
+                           # verbatimTextOutput("bivariateInfluenceSummary")
                   ),
                   # tabPanel("Quality Assessment",
                   #          actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),

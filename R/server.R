@@ -766,14 +766,17 @@ server <- function(input, output, session) {
                    mu_mle = bivariate_result()$mu,
                    tau_mle = bivariate_result()$tau,
                    sm = bivariate_result()$sm)
-  })
+  }, height = 600)  # Set explicit height for better visibility
   
   
   # JCR Overall Summary
-  output$bivariateOverallSummary <- renderPrint({
-    req(bivariate_result())
-    summary(bivariate_result())
-  })
+  # COMMENTED OUT: The summary shows mu and tau values that don't match what's displayed in plots
+  # TODO: Fix the scale consistency - should use same scale as plots (exponentiated for OR/RR)
+  # The mu estimate here appears to be in log scale while plots show exponentiated values
+  # output$bivariateOverallSummary <- renderPrint({
+  #   req(bivariate_result())
+  #   summary(bivariate_result())
+  # })
   
   # Confidence Region Shift Plot
   output$confidenceRegionShiftPlot <- renderPlotly({
@@ -843,26 +846,27 @@ server <- function(input, output, session) {
   }
   
   # JCR Influence Summary
-  output$bivariateInfluenceSummary <- renderPrint({
-    req(bivariate_result())
-    cat("Bivariate Influence Summary\n")
-    influence <- lapply(1:length(bivariate_result()$y.k), function(i) {
-        df <- data()[-i, ]
-        if (input$data_type == "smd") {
-            se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
-            var <- se^2
-            res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var, verbose = FALSE)  # No logs
-        } else {
-            res_i <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
-                             studlab = df$study, sm = input$effect_measure, verbose = FALSE)  # No logs
-        }
-      c(mu_change = res_i$mu - bivariate_result()$mu,
-        tau_change = res_i$tau - bivariate_result()$tau)
-    })
-    influence_df <- do.call(rbind, influence)
-    rownames(influence_df) <- bivariate_result()$studlab
-    print(influence_df)
-  })
+  # COMMENTED OUT: Removed as requested - not needed for now
+  # output$bivariateInfluenceSummary <- renderPrint({
+  #   req(bivariate_result())
+  #   cat("Bivariate Influence Summary\n")
+  #   influence <- lapply(1:length(bivariate_result()$y.k), function(i) {
+  #       df <- data()[-i, ]
+  #       if (input$data_type == "smd") {
+  #           se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
+  #           var <- se^2
+  #           res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var, verbose = FALSE)  # No logs
+  #       } else {
+  #           res_i <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
+  #                            studlab = df$study, sm = input$effect_measure, verbose = FALSE)  # No logs
+  #       }
+  #     c(mu_change = res_i$mu - bivariate_result()$mu,
+  #       tau_change = res_i$tau - bivariate_result()$tau)
+  #   })
+  #   influence_df <- do.call(rbind, influence)
+  #   rownames(influence_df) <- bivariate_result()$studlab
+  #   print(influence_df)
+  # })
   
   # Q-Q Plot for μ
   output$qqPlotMu <- renderPlot({
@@ -913,7 +917,7 @@ server <- function(input, output, session) {
                        mlb = plot_title,
                        xlb = paste("Effect Size (", effect_label, ")"),
                        sm = bivariate_result()$sm)
-  })
+  }, height = 500)  # Set explicit height for better visibility
   
   # Probability Table for Clinical Thresholds
   output$efficacyHarmProbabilityTable <- renderTable({

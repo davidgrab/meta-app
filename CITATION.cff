@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use the Modern Meta-Analysis App in your research, please cite it as below."
+title: "Modern Meta-Analysis App"
+type: software
+authors:
+  - family-names: Grabois
+    given-names: David
+    email: david.grabois@gmail.com
+    affiliation: Tel Aviv University
+repository-code: https://github.com/davidgrab/meta-app
+url: https://davidgrab-meta-app.share.connect.posit.cloud/
+version: 1.0.0
+date-released: 2025-11-15
+license: MIT
+keywords:
+  - meta-analysis
+  - shiny
+  - statistics
+abstract: >
+  Modern Meta-Analysis App is an interactive R Shiny application that
+  streamlines binary and continuous meta-analyses, provides advanced
+  diagnostics (including bivariate methods and normality assessments),
+  and exports publication-ready reports and visualizations.
+
