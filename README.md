@@ -94,4 +94,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-For questions or feedback, please open an issue or contact [davidgrabois@mail.tau.ac.il](mailto:davidgrabois@mail.tau.ac.il).
+For questions or feedback, please open an issue or contact [davidgarbois@gmail.com](mailto:davidgarbois@gmail.com).
