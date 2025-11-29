@@ -620,6 +620,57 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
 comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Efficacy/Harm Plot", 
                                xlb = "Efficacy/Harm", min.OR = 0.3, max.OR = 3, sm = NULL) {
   
+  # Helper: stable interpolation + monotone smoothing keeps CDF well-behaved
+  safe_approx <- function(x, y, xout) {
+    tryCatch({
+      keep <- is.finite(x) & is.finite(y)
+      x_keep <- x[keep]
+      y_keep <- y[keep]
+      if (length(x_keep) < 2) {
+        fallback <- ifelse(all(!is.finite(y)), 0.5, mean(y, na.rm = TRUE))
+        return(rep(fallback, length(xout)))
+      }
+      ord <- order(x_keep)
+      x_ordered <- x_keep[ord]
+      y_ordered <- y_keep[ord]
+      unique_idx <- !duplicated(x_ordered)
+      x_unique <- x_ordered[unique_idx]
+      y_unique <- y_ordered[unique_idx]
+      if (length(x_unique) < 2) {
+        fallback <- ifelse(all(!is.finite(y_unique)), 0.5, mean(y_unique, na.rm = TRUE))
+        return(rep(fallback, length(xout)))
+      }
+      stats::approx(x_unique, y_unique, xout = xout, rule = 2, ties = "ordered")$y
+    }, error = function(e) {
+      rep(mean(y, na.rm = TRUE), length(xout))
+    })
+  }
+  
+  smooth_monotone <- function(x, y, increasing = TRUE) {
+    keep <- is.finite(x) & is.finite(y)
+    if (sum(keep) < 3) {
+      fallback <- ifelse(all(!is.finite(y[keep])), 0.5, mean(y[keep], na.rm = TRUE))
+      y_smooth <- rep(ifelse(is.na(fallback), 0.5, fallback), length(y))
+    } else {
+      x_keep <- x[keep]
+      y_keep <- y[keep]
+      y_smooth <- tryCatch({
+        stats::predict(stats::smooth.spline(x_keep, y_keep, spar = 0.65), x)$y
+      }, error = function(e) {
+        stats::approx(x_keep, y_keep, xout = x, rule = 2, ties = "ordered")$y
+      })
+    }
+    y_smooth <- pmax(0, pmin(1, y_smooth))
+    if (increasing) {
+      y_smooth <- cummax(y_smooth)
+    } else {
+      y_smooth <- rev(cummax(rev(y_smooth)))
+    }
+    return(y_smooth)
+  }
+  
+  clamp_prob <- function(p) pmax(0, pmin(1, p))
+  
   # Check if we're dealing with SMD
   is_smd <- !is.null(sm) && sm == "SMD"
   
@@ -646,29 +697,18 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
       seq(max(CDF.ci.obj[[4]]), 3, length = 50)
     )
     
-    # Safe approximation with error handling
-    safe_approx <- function(x, y, xout) {
-      tryCatch({
-        # Remove duplicate x values before interpolation
-        unique_indices <- !duplicated(x)
-        x_unique <- x[unique_indices]
-        y_unique <- y[unique_indices]
-        
-        # Ensure we have at least 2 unique points for interpolation
-        if (length(x_unique) < 2) {
-          return(rep(mean(y, na.rm = TRUE), length(xout)))
-        }
-        
-        approx(x_unique, y_unique, xout = xout)$y
-      }, error = function(e) {
-        rep(mean(y, na.rm = TRUE), length(xout))
-      })
-    }
-    
-    # Calculate CDFs with error handling
+    # Calculate CDFs with error handling + smoothing
     cdf.est <- safe_approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
     cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
     cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+    
+    cdf.est <- smooth_monotone(x.seq, clamp_prob(cdf.est))
+    cdf.ll <- smooth_monotone(x.seq, clamp_prob(cdf.ll))
+    cdf.ul <- smooth_monotone(x.seq, clamp_prob(cdf.ul))
+    cdf.lower <- pmin(cdf.ll, cdf.ul)
+    cdf.upper <- pmax(cdf.ll, cdf.ul)
+    cdf.ll <- pmin(cdf.lower, cdf.est)
+    cdf.ul <- pmax(cdf.upper, cdf.est)
     
     # Set colors: for SMD, values > 0 are considered beneficial (green), < 0 harmful (red)
     le0.col <- 2  # Red for x < 0
@@ -756,29 +796,18 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     seq(max(safe_exp(CDF.ci.obj[[4]])), max.OR, length = 50)
   )
   
-  # Safe approximation with error handling
-  safe_approx <- function(x, y, xout) {
-    tryCatch({
-      # Remove duplicate x values before interpolation
-      unique_indices <- !duplicated(x)
-      x_unique <- x[unique_indices]
-      y_unique <- y[unique_indices]
-      
-      # Ensure we have at least 2 unique points for interpolation
-      if (length(x_unique) < 2) {
-        return(rep(mean(y, na.rm = TRUE), length(xout)))
-      }
-      
-      approx(x_unique, y_unique, xout = xout)$y
-    }, error = function(e) {
-      rep(mean(y, na.rm = TRUE), length(xout))
-    })
-  }
-  
   # Calculate CDFs with error handling
   cdf.est <- safe_approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
   cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
   cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
+  
+  cdf.est <- smooth_monotone(x.seq, clamp_prob(cdf.est))
+  cdf.ll <- smooth_monotone(x.seq, clamp_prob(cdf.ll))
+  cdf.ul <- smooth_monotone(x.seq, clamp_prob(cdf.ul))
+  cdf.lower <- pmin(cdf.ll, cdf.ul)
+  cdf.upper <- pmax(cdf.ll, cdf.ul)
+  cdf.ll <- pmin(cdf.lower, cdf.est)
+  cdf.ul <- pmax(cdf.upper, cdf.est)
   
   # Set colors for RR/OR: values > 1 are considered beneficial (green), < 1 harmful (red)
   le1.col <- 2   # Red for x < 1

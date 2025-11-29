@@ -52,3 +52,21 @@ test_that("generate_report_content works", {
   expect_type(report_content, "character")
   expect_true(grepl("Comprehensive Meta-Analysis Report", report_content))
 })
+
+test_that("calculate_threshold_probabilities_from_cdf toggles probability direction", {
+  bivariate_result <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e,
+                              event.c = test_data$event.c, n.c = test_data$n.c,
+                              studlab = test_data$studlab, sm = "RR", verbose = FALSE)
+  CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result$dev_pvals, sm = "RR")
+  
+  greater_tbl <- calculate_threshold_probabilities_from_cdf(CDF.ci.obj, sm = "RR", direction = "greater")
+  less_tbl <- calculate_threshold_probabilities_from_cdf(CDF.ci.obj, sm = "RR", direction = "less")
+  
+  expect_equal(greater_tbl$Threshold, less_tbl$Threshold)
+  expect_equal(less_tbl$Probability, round(1 - greater_tbl$Probability, 3))
+  expect_equal(less_tbl$CI_Lower, round(1 - greater_tbl$CI_Upper, 3))
+  expect_equal(less_tbl$CI_Upper, round(1 - greater_tbl$CI_Lower, 3))
+  
+  expect_identical(attr(greater_tbl, "prob_label"), "P(θ ≥ T)")
+  expect_identical(attr(less_tbl, "prob_label"), "P(θ ≤ T)")
+})

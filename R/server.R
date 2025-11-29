@@ -936,17 +936,29 @@ server <- function(input, output, session) {
       custom_thresholds <- custom_thresholds[!is.na(custom_thresholds)]
     }
     
+    direction <- if (!is.null(input$probability_direction)) input$probability_direction else "greater"
+    
     # Calculate probability table using the exact same CDF data as the plot
-    prob_table <- calculate_threshold_probabilities_from_cdf(CDF.ci.obj, custom_thresholds, bivariate_result()$sm)
+    prob_table <- calculate_threshold_probabilities_from_cdf(
+      CDF.ci.obj,
+      custom_thresholds,
+      bivariate_result()$sm,
+      direction = direction
+    )
+    
+    prob_label <- attr(prob_table, "prob_label")
+    if (is.null(prob_label)) {
+      prob_label <- if (identical(direction, "less")) "P(θ ≤ T)" else "P(θ ≥ T)"
+    }
     
     # Format for display (simple numeric display)
-    prob_table$`P(θ ≥ T)` <- sprintf("%.3f", prob_table$Probability)
+    prob_table[[prob_label]] <- sprintf("%.3f", prob_table$Probability)
     prob_table$`95% CI Lower` <- sprintf("%.3f", prob_table$CI_Lower)
     prob_table$`95% CI Upper` <- sprintf("%.3f", prob_table$CI_Upper)
     prob_table$`Threshold (T)` <- sprintf("%.3f", prob_table$Threshold)
     
-    # Select and rename columns for display (just numbers, no descriptions)
-    display_table <- prob_table[, c("Threshold (T)", "P(θ ≥ T)", "95% CI Lower", "95% CI Upper")]
+    # Select and rename columns for display
+    display_table <- prob_table[, c("Threshold (T)", prob_label, "95% CI Lower", "95% CI Upper")]
     
     return(display_table)
   }, striped = TRUE, hover = TRUE, bordered = TRUE)

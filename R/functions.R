@@ -2687,9 +2687,13 @@ calculate_threshold_probabilities <- function(bivariate_result, custom_threshold
 #' @param CDF.ci.obj The same CDF object used to generate the Efficacy/Harm plot
 #' @param custom_thresholds Optional vector of custom thresholds
 #' @param sm Summary measure (for determining default thresholds)
+#' @param direction Whether to compute P(θ ≥ T) ("greater") or P(θ ≤ T) ("less")
 #' @return A data frame with threshold, probability, and confidence intervals
 #' @export
-calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresholds = NULL, sm = NULL) {
+calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresholds = NULL, sm = NULL,
+                                                      direction = c("greater", "less")) {
+  
+  direction <- match.arg(direction)
   
   # Extract CDF components (same as used in the plot)
   CDF.vec <- CDF.ci.obj[[1]]        # Probability values (0.01 to 0.99)
@@ -2727,46 +2731,56 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
   # Remove duplicates and sort
   all_thresholds <- sort(unique(round(all_thresholds, 6)))
   
-  # Calculate probabilities for each threshold using the same CDF data as the plot
-  result_df <- data.frame(
-    Threshold = numeric(length(all_thresholds)),
-    Probability = numeric(length(all_thresholds)),
-    CI_Lower = numeric(length(all_thresholds)),
-    CI_Upper = numeric(length(all_thresholds)),
-    stringsAsFactors = FALSE
-  )
+  threshold_vals <- numeric(length(all_thresholds))
+  prob_vals <- numeric(length(all_thresholds))
+  ci_lower_vals <- numeric(length(all_thresholds))
+  ci_upper_vals <- numeric(length(all_thresholds))
   
   for (i in seq_along(all_thresholds)) {
     T_val <- all_thresholds[i]
     
-    # Find P(θ ≥ T) by interpolating the CDF
-    # For MLE estimate
+    # Base calculation uses P(θ ≥ T); we convert later if needed
     prob_mle <- 1 - approx(MLE.CDF, CDF.vec, xout = T_val, rule = 2)$y
+    prob_lower <- 1 - approx(ci.CDF.ul, CDF.vec, xout = T_val, rule = 2)$y
+    prob_upper <- 1 - approx(ci.CDF.ll, CDF.vec, xout = T_val, rule = 2)$y
     
-    # For confidence bounds - find probabilities at the CI bounds
-    prob_lower <- 1 - approx(ci.CDF.ul, CDF.vec, xout = T_val, rule = 2)$y  # Note: ul gives lower prob
-    prob_upper <- 1 - approx(ci.CDF.ll, CDF.vec, xout = T_val, rule = 2)$y  # Note: ll gives upper prob
-    
-    # Ensure probabilities are in [0, 1]
     prob_mle <- pmax(0, pmin(1, prob_mle))
     prob_lower <- pmax(0, pmin(1, prob_lower))
     prob_upper <- pmax(0, pmin(1, prob_upper))
     
-    # FIXED: Swap the confidence intervals so lower is actually lower
-    ci_lower <- min(prob_lower, prob_upper)
-    ci_upper <- max(prob_lower, prob_upper)
+    prob_vals[i] <- prob_mle
+    ci_lower_vals[i] <- min(prob_lower, prob_upper)
+    ci_upper_vals[i] <- max(prob_lower, prob_upper)
     
-    # Store results with proper threshold format
-    if (!is.null(sm) && sm %in% c("OR", "RR")) {
-      result_df$Threshold[i] <- round(exp(T_val), 3)
+    threshold_vals[i] <- if (!is.null(sm) && sm %in% c("OR", "RR")) {
+      exp(T_val)
     } else {
-      result_df$Threshold[i] <- round(T_val, 3)
+      T_val
     }
-    
-    result_df$Probability[i] <- round(prob_mle, 3)
-    result_df$CI_Lower[i] <- round(ci_lower, 3)
-    result_df$CI_Upper[i] <- round(ci_upper, 3)
   }
+  
+  if (direction == "less") {
+    prob_vals <- 1 - prob_vals
+    new_lower <- 1 - ci_upper_vals
+    new_upper <- 1 - ci_lower_vals
+    ci_lower_vals <- pmax(0, pmin(1, pmin(new_lower, new_upper)))
+    ci_upper_vals <- pmax(0, pmin(1, pmax(new_lower, new_upper)))
+  } else {
+    ci_lower_vals <- pmax(0, pmin(1, ci_lower_vals))
+    ci_upper_vals <- pmax(0, pmin(1, ci_upper_vals))
+  }
+  
+  prob_vals <- pmax(0, pmin(1, prob_vals))
+  
+  result_df <- data.frame(
+    Threshold = round(threshold_vals, 3),
+    Probability = round(prob_vals, 3),
+    CI_Lower = round(ci_lower_vals, 3),
+    CI_Upper = round(ci_upper_vals, 3),
+    stringsAsFactors = FALSE
+  )
+  
+  attr(result_df, "prob_label") <- ifelse(direction == "greater", "P(θ ≥ T)", "P(θ ≤ T)")
   
   return(result_df)
 }

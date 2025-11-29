@@ -480,14 +480,22 @@ ui <- page_fillable(
                                             value = "", 
                                             placeholder = "e.g., 0.3, 0.7, 1.0",
                                             width = "300px"),
-                                   helpText("Optional: Add custom threshold values for probability calculations")
+                                  radioButtons(
+                                    "probability_direction",
+                                    label = "Report probability as:",
+                                    choices = c("P(θ ≥ T) – probability true effect exceeds threshold" = "greater",
+                                                "P(θ ≤ T) – probability true effect is below threshold" = "less"),
+                                    selected = "greater",
+                                    inline = TRUE
+                                  ),
+                                  helpText("Add custom thresholds and choose whether the table reports the chance of exceeding or staying below each value.")
                                ),
                                
                                # Probability table
                                h5("Probability Table for Key Clinical Thresholds"),
                                tableOutput("efficacyHarmProbabilityTable"),
-                               p(HTML("<strong>What it shows:</strong> This table displays the exact same data as the Efficacy/Harm plot above. For each threshold value T, it shows the probability P(θ ≥ T) that the true effect size is greater than or equal to that threshold, along with 95% confidence intervals.<br>
-                                          <strong>How to use:</strong> These are the numerical values underlying the Efficacy/Harm plot. You can add custom threshold values above to see their exact probabilities from the curve."), class = "plot-explanation")
+                              p(HTML("<strong>What it shows:</strong> This table mirrors the Efficacy/Harm plot. For each threshold value T, it reports whichever probability you selected above (either P(θ ≥ T) or P(θ ≤ T)), along with 95% confidence intervals.<br>
+                                         <strong>How to use:</strong> Toggle the probability direction to switch between \"benefit\" and \"harm\" perspectives and use custom thresholds to pull precise numbers from the curve."), class = "plot-explanation")
                            )
                            # COMMENTED OUT: Summary removed - mu/tau values don't match plot scales
                            # TODO: Fix scale consistency before re-enabling
