@@ -1,70 +1,102 @@
 # Meta-Analysis App
 
+A comprehensive Shiny application for performing meta-analyses with advanced statistical methods, including the Joint Confidence Region (JCR) approach for jointly estimating effect size and heterogeneity.
 
 ## Live App
 
-Try the latest master build in your browser:
+Try the app in your browser:
 
-- [Open the app on Posit Cloud](https://davidgrab-meta-app.share.connect.posit.cloud/)
-
-A comprehensive Shiny application for performing meta-analyses with advanced statistical methods, bivariate analysis, and interactive visualizations.
+**[Open the Meta-Analysis App](https://meta-app-jcr-main.share.connect.posit.cloud/)**
 
 ## Features
 
-### Core Meta-Analysis Capabilities
-- **Multiple Effect Size Measures**: Support for risk ratios (RR), odds ratios (OR), standardized mean differences, and more
-- **Advanced Statistical Methods**: Fixed-effects, random-effects, and mixed-effects models
-- **Joint Confidence Region (JCR) Method**: Advanced meta-analysis with joint MLE estimation of effect size and heterogeneity (Saad et al., 2019)
-- **Meta-Regression**: Advanced meta-regression with permutation tests for robust inference
+### Core Meta-Analysis Methods
+- **Fixed Effects Model**: Common effect estimation using inverse-variance weighting
+- **Random Effects Model**: DerSimonian-Laird and other heterogeneity estimators
+- **Joint Confidence Region (JCR) Method**: Advanced approach using joint MLE estimation of effect size (μ) and between-study heterogeneity (τ), based on Saad et al. (2019)
 
-### Statistical Enhancements
-- **Permutation Testing**: Non-parametric significance testing for meta-regression
-- **Comprehensive OR Support**: Complete odds ratio calculations with continuity corrections
-- **Zero-Cell Handling**: Robust methods for studies with zero events
-- **Influence Analysis**: Leave-one-out diagnostics and influence plots
+### Effect Size Measures
+- Risk Ratio (RR)
+- Odds Ratio (OR)
+- Standardized Mean Difference (SMD)
 
-### Visualization & Reporting
-- **Interactive Forest Plots**: Dynamic visualizations with confidence intervals
-- **Publication Bias Assessment**: Funnel plots, Egger's test, and trim-and-fill analysis
-- **Comprehensive Reports**: Downloadable analysis reports with statistical summaries
-- **Data Import/Export**: Support for CSV, Excel, and manual data entry
+### Diagnostics & Visualization
+- **Forest Plots**: Interactive visualizations with study weights and confidence intervals
+- **Confidence Region Plots**: 2D joint confidence regions for μ and τ (JCR method)
+- **Efficacy-Harm Probability Plots**: Probability tables for treatment decisions
+- **Q-Q Plots**: Normality diagnostics with simulation envelopes
+- **Funnel Plots**: Publication bias assessment with trim-and-fill
+- **Baujat & Influence Plots**: Identify influential studies
+- **Leave-One-Out Analysis**: Sensitivity to individual studies
 
-## 🚀 Quick Start
+### Additional Features
+- **Meta-Regression**: Explore moderator effects on treatment outcomes
+- **Subgroup Analysis**: Compare effects across categorical variables
+- **Downloadable Reports**: Export comprehensive analysis reports
+- **Multiple Data Formats**: Support for CSV and Excel files
 
-Get up and running in minutes:
+## Quick Start
+
+### Run Locally
 
 1. Clone this repository:
-   ```
+   ```bash
    git clone https://github.com/davidgrab/meta-app.git
+   cd meta-app
    ```
 
-2. Install the required R packages:
+2. Install required R packages:
    ```r
-   install.packages(c("shiny", "meta", "metafor", "ggplot2", "plotly", "DT", "bslib", "shinyjs", "rmarkdown", "knitr", "gridExtra", "sp", "sf", "testthat","BiasedUrn","bsicons","readxl","shinycssloaders","pandoc"))
+   install.packages(c(
+     "shiny", "meta", "metafor", "ggplot2", "plotly", "DT", 
+     "bslib", "shinyjs", "rmarkdown", "knitr", "gridExtra", 
+     "testthat", "BiasedUrn", "bsicons", "readxl", "shinycssloaders"
+   ))
    ```
 
-3. Run the app locally:
+3. Run the app:
    ```r
-   shiny::runApp("path/to/meta-app")
+   shiny::runApp()
    ```
 
-**Data Format:**
-- For binary (2x2) data: columns should be `study`, `ie`, `it`, `pe`, `pt`
-- For continuous data: columns should be `study`, `smd`, `ci_lower`, `ci_upper` (the SMD column may also be labeled `CoNC` or `HeadGrid-G`)
+### Data Format
 
-## 📁 Project Structure
+**Binary (2×2) data:**
+| Column | Description |
+|--------|-------------|
+| `study` | Study identifier |
+| `ie` | Intervention events |
+| `it` | Intervention total |
+| `pe` | Placebo/control events |
+| `pt` | Placebo/control total |
 
-- `app.R`: Main Shiny app file
-- `R/`: Folder containing R scripts
-  - `ui.R`: User interface definition
-  - `server.R`: Server logic
-  - `functions.R`: Helper functions
-  - `bivariate_meta.R`: Bivariate meta-analysis functions
-- `data/`: Sample datasets
-- `www/`: Static assets (CSS, images)
-- `tests/`: Unit tests
+**Continuous (SMD) data:**
+| Column | Description |
+|--------|-------------|
+| `study` | Study identifier |
+| `smd` | Standardized mean difference |
+| `ci_lower` | Lower confidence interval |
+| `ci_upper` | Upper confidence interval |
 
-## 🧪 Testing
+## Project Structure
+
+```
+meta-app/
+├── app.R                 # Main Shiny app entry point
+├── R/
+│   ├── ui.R              # User interface definition
+│   ├── server.R          # Server logic and reactives
+│   ├── functions.R       # Helper functions and plotting
+│   └── bivariate_meta.R  # JCR method implementation
+├── data/                 # Example datasets
+├── www/                  # Static assets (CSS, logos)
+├── tests/testthat/       # Unit tests
+├── jcrmeta/              # R package for JCR method (in development)
+├── docs/                 # Documentation
+└── .circleci/            # CI/CD configuration
+```
+
+## Testing
 
 Run the test suite:
 
@@ -72,36 +104,39 @@ Run the test suite:
 testthat::test_dir("tests/testthat")
 ```
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for more details.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-To report a bug or request a feature, please open an issue on our [GitHub Issues page](https://github.com/davidgrab/meta-app/issues).
+To report bugs or request features, open an issue on the [GitHub Issues page](https://github.com/davidgrab/meta-app/issues).
 
-## 🗺️ Roadmap
+## License
 
-- Migrate the JCR method logic from `R/bivariate_meta.R` into the `jcrmeta/` package for reuse and testability. See `docs/JCR_PACKAGE_MIGRATION.md` for the step-by-step plan.
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
 
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🎓 About
+## About
 
 This application was developed by **David Grabois** as part of a Master's thesis at **Tel Aviv University**, Department of Statistics and Operations Research.
 
 **Thesis:** *"Modern Meta-Analysis: Joint Confidence Regions for Effect Size and Heterogeneity"*
 
-The app implements the **Joint Confidence Region (JCR)** method based on:
+### The JCR Method
 
+The Joint Confidence Region method provides a frequentist approach to jointly estimating the overall effect (μ) and between-study heterogeneity (τ) using Maximum Likelihood Estimation. Unlike traditional methods that estimate these parameters separately, JCR acknowledges their interdependence and provides:
+
+- Joint confidence regions via likelihood-ratio tests with χ²(2) distribution
+- Efficacy-harm probability plots for clinical decision-making
+- Better characterization of uncertainty when heterogeneity is present
+
+**Based on:**
 > Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. *Journal of Clinical Epidemiology*, 107, 101-106.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- [Shiny](https://shiny.rstudio.com/) by RStudio
-- [meta](https://cran.r-project.org/web/packages/meta/index.html) package by Guido Schwarzer
+- [Shiny](https://shiny.posit.co/) by Posit
+- [meta](https://cran.r-project.org/package=meta) package by Guido Schwarzer
 - [metafor](https://www.metafor-project.org/) package by Wolfgang Viechtbauer
 
-## 📞 Contact
+## Contact
 
 For questions or feedback, please open an issue or contact [davidgarbois@gmail.com](mailto:davidgarbois@gmail.com).
