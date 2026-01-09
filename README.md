@@ -86,6 +86,16 @@ To report a bug or request a feature, please open an issue on our [GitHub Issues
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 🎓 About
+
+This application was developed by **David Grabois** as part of a Master's thesis at **Tel Aviv University**, Department of Statistics and Operations Research.
+
+**Thesis:** *"Modern Meta-Analysis: Joint Confidence Regions for Effect Size and Heterogeneity"*
+
+The app implements the **Joint Confidence Region (JCR)** method based on:
+
+> Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. *Journal of Clinical Epidemiology*, 107, 101-106.
+
 ## 🙏 Acknowledgments
 
 - [Shiny](https://shiny.rstudio.com/) by RStudio

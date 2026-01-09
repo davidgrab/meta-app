@@ -1,8 +1,58 @@
+# R project files
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
 *.Rproj
-/articales_and_code_this_application_is_based_upon
+
 # Cursor IDE settings
 .cursor/
+
+# macOS files
+.DS_Store
+**/.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+manifest.json
+docs/manifest.json
+Rplots.pdf
+docs/Rplots.pdf
+*.png
+!www/*.png
+!www/*.svg
+
+# Thesis LaTeX (not needed for app)
+thesis_latex/
+
+# Legacy/internal documents (development notes)
+docs/CRITIC.md
+docs/thinker-planner.md
+docs/efficacy_harm_plot_fix.md
+docs/app_sync_plan.md
+docs/full_technical_report.md
+docs/PACKAGE_ENHANCEMENTS.md
+docs/SummaryMD.md
+docs/theory_appendices.md
+docs/post.md
+
+# Test artifacts (keep testthat/ but ignore loose test files)
+tests/local_functions_test.R
+tests/test_bcg_contours.R
+tests/test_bcg_plot.png
+tests/test_report_bcg.md
+
+# Local scripts
+scripts/
+
+# R package build artifacts (root level, not jcrmeta)
+NAMESPACE
+
+# renv library (large, recreatable)
+renv/library/
+
+# Articles and source materials
+/articales_and_code_this_application_is_based_upon

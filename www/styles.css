@@ -1,11 +1,61 @@
+/* ===========================================
+   META-ANALYSIS APP STYLES
+   Clean, professional styling
+   =========================================== */
+
+/* App Header */
 .app-title {
   margin-bottom: 5px;
 }
 
-hr {
-  margin-top: 0;
+/* App Header - Compact */
+.app-header {
+  padding: 6px 0;
+  border-bottom: 1px solid #e9ecef;
+  margin-bottom: 0;
 }
 
+.app-header .row {
+  align-items: center;
+}
+
+[data-bs-theme="dark"] .app-header {
+  border-bottom-color: #444;
+}
+
+/* App Logo Container */
+.app-logo-container {
+  display: inline-flex;
+  align-items: center;
+}
+
+.app-logo {
+  height: 44px;
+  width: auto;
+}
+
+/* Light mode: show light logo, hide dark logo */
+.logo-for-light {
+  display: block !important;
+}
+.logo-for-dark {
+  display: none !important;
+}
+
+/* Dark mode: show dark logo, hide light logo */
+[data-bs-theme="dark"] .logo-for-light {
+  display: none !important;
+}
+[data-bs-theme="dark"] .logo-for-dark {
+  display: block !important;
+}
+
+hr {
+  margin-top: 0;
+  border-color: #dee2e6;
+}
+
+/* Info Buttons - More subtle */
 .info-btn {
   position: absolute;
   top: 10px;
@@ -29,58 +79,287 @@ hr {
   font-size: 0.9em;
 }
 
-/* Model Diagnostics Section Styling */
+/* Section Headers */
+h4 {
+  margin-top: 25px;
+  margin-bottom: 15px;
+  color: #2c3e50;
+  border-bottom: 2px solid #ecf0f1;
+  padding-bottom: 8px;
+  font-weight: 600;
+}
+
+h5 {
+  color: #34495e;
+  font-weight: 600;
+  margin-top: 20px;
+  margin-bottom: 12px;
+}
+
+/* Section Explanations - Italic subtitle text */
 .section-explanation {
-  color: #666;
+  color: #6c757d;
   font-style: italic;
   margin-bottom: 15px;
   font-size: 0.95em;
 }
 
+/* Plot Explanation Boxes - Toned down blue */
 .plot-explanation {
-  margin-top: 10px;
+  margin-top: 12px;
   font-size: 0.9em;
-  line-height: 1.4;
-  padding: 8px;
+  line-height: 1.5;
+  padding: 12px 15px;
   background-color: #f8f9fa;
-  border-left: 3px solid #007bff;
-  border-radius: 3px;
-  color: #000;
+  border-left: 4px solid #5d6d7e;
+  border-radius: 4px;
+  color: #2c3e50;
 }
 
 .plot-explanation strong {
-  color: #000;
+  color: #2c3e50;
 }
 
 .plot-explanation em {
-  color: #000;
+  color: #34495e;
   font-style: italic;
 }
 
-h4 {
-  margin-top: 25px;
+/* Plot Containers */
+.plot-container {
+  background-color: #fff;
+  border-radius: 6px;
+  padding: 10px;
   margin-bottom: 15px;
-  color: #333;
-  border-bottom: 1px solid #e9ecef;
-  padding-bottom: 5px;
+}
+
+/* Tab Panels - Clean look */
+.nav-tabs .nav-link {
+  color: #5d6d7e;
+  font-weight: 500;
+}
+
+.nav-tabs .nav-link.active {
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+/* Alerts - Softer colors */
+.alert-info {
+  background-color: #eef3f7;
+  border-color: #c9d6df;
+  color: #34495e;
+}
+
+.alert-secondary {
+  background-color: #f5f6f7;
+  border-color: #e0e3e6;
+  color: #5d6d7e;
+}
+
+/* Buttons - Professional look */
+.btn-primary {
+  background-color: #34495e;
+  border-color: #34495e;
+}
+
+.btn-primary:hover {
+  background-color: #2c3e50;
+  border-color: #2c3e50;
+}
+
+/* Sidebar styling */
+.sidebar {
+  background-color: #f8f9fa;
+}
+
+/* Tables - Clean look */
+.table {
+  font-size: 0.9em;
+}
+
+.table thead th {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+/* Verbatim Output - Better readability */
+pre {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 0.85em;
+  color: #2c3e50;
+}
+
+/* Help text under inputs */
+.form-text, .help-block {
+  color: #6c757d;
+  font-size: 0.85em;
+}
+
+/* Spinners - Subtle */
+.spinner-border {
+  color: #5d6d7e !important;
+}
+
+/* ===========================================
+   DARK MODE OVERRIDES
+   =========================================== */
+
+/* Base text colors for dark mode - ensure visibility */
+[data-bs-theme="dark"] {
+  --bs-body-color: #f0f0f0;
+}
+
+[data-bs-theme="dark"] body,
+[data-bs-theme="dark"] p,
+[data-bs-theme="dark"] span,
+[data-bs-theme="dark"] div,
+[data-bs-theme="dark"] label {
+  color: #f0f0f0;
+}
+
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3 {
+  color: #ffffff;
 }
 
 [data-bs-theme="dark"] h4 {
   color: #ffffff;
-  border-bottom: 1px solid #444;
+  border-bottom: 2px solid #555;
+}
+
+[data-bs-theme="dark"] h5 {
+  color: #e0e0e0;
 }
 
 [data-bs-theme="dark"] .section-explanation {
-  color: #cccccc;
+  color: #d0d0d0;
 }
 
 [data-bs-theme="dark"] .plot-explanation {
-  background-color: #343a40;
-  border-left-color: #17a2b8;
-  color: #ffffff;
+  background-color: #2d3436;
+  border-left-color: #74b9ff;
+  color: #f0f0f0;
 }
 
 [data-bs-theme="dark"] .plot-explanation strong,
 [data-bs-theme="dark"] .plot-explanation em {
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .plot-container {
+  background-color: #343a40;
+}
+
+[data-bs-theme="dark"] pre {
+  background-color: #2d3436;
+  border-color: #555;
+  color: #f0f0f0;
+}
+
+/* Form elements in dark mode */
+[data-bs-theme="dark"] .form-label,
+[data-bs-theme="dark"] .control-label,
+[data-bs-theme="dark"] .shiny-input-container label {
+  color: #f0f0f0 !important;
+}
+
+[data-bs-theme="dark"] .form-text,
+[data-bs-theme="dark"] .help-block,
+[data-bs-theme="dark"] .shiny-input-container .help-block {
+  color: #c0c0c0 !important;
+}
+
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+  background-color: #3a3f44;
+  border-color: #555;
+  color: #f0f0f0;
+}
+
+/* Radio buttons and checkboxes */
+[data-bs-theme="dark"] .radio label,
+[data-bs-theme="dark"] .checkbox label,
+[data-bs-theme="dark"] .form-check-label {
+  color: #f0f0f0 !important;
+}
+
+/* Alerts in dark mode */
+[data-bs-theme="dark"] .alert-info {
+  background-color: #2d3436;
+  border-color: #555;
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .alert-secondary {
+  background-color: #343a40;
+  border-color: #555;
+  color: #e0e0e0;
+}
+
+/* Tables in dark mode */
+[data-bs-theme="dark"] .table {
+  color: #f0f0f0;
+}
+
+[data-bs-theme="dark"] .table thead th {
+  background-color: #2d3436;
+  border-bottom-color: #555;
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .table td,
+[data-bs-theme="dark"] .table th {
+  border-color: #444;
+}
+
+/* DataTables in dark mode */
+[data-bs-theme="dark"] .dataTables_wrapper {
+  color: #f0f0f0;
+}
+
+[data-bs-theme="dark"] .dataTables_info,
+[data-bs-theme="dark"] .dataTables_length label,
+[data-bs-theme="dark"] .dataTables_filter label {
+  color: #e0e0e0 !important;
+}
+
+/* Sidebar in dark mode */
+[data-bs-theme="dark"] .sidebar,
+[data-bs-theme="dark"] .bslib-sidebar-layout > .sidebar {
+  background-color: #1e2124;
+  color: #f0f0f0;
+}
+
+/* Tab content in dark mode */
+[data-bs-theme="dark"] .tab-content,
+[data-bs-theme="dark"] .card-body {
+  color: #f0f0f0;
+}
+
+/* Nav tabs in dark mode */
+[data-bs-theme="dark"] .nav-tabs .nav-link {
+  color: #c0c0c0;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link.active {
+  color: #ffffff;
+  background-color: #343a40;
+}
+
+/* Buttons in dark mode */
+[data-bs-theme="dark"] .btn-outline-secondary {
+  color: #e0e0e0;
+  border-color: #666;
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary:hover {
+  background-color: #444;
   color: #ffffff;
 }

@@ -51,8 +51,45 @@ server <- function(input, output, session) {
     })
   })
   
+  # Enable/disable Analyze button based on data availability
+  observe({
+    data_loaded <- !is.null(currentData()) && nrow(currentData()) > 0
+    if (data_loaded) {
+      shinyjs::enable("analyze")
+    } else {
+      shinyjs::disable("analyze")
+    }
+  })
+  
+  # Show helper text when no data is loaded
+  output$analyzeHelpText <- renderUI({
+    data_loaded <- !is.null(currentData()) && nrow(currentData()) > 0
+    if (!data_loaded) {
+      helpText(icon("info-circle"), "Please load data first", 
+               style = "color: #6c757d; font-size: 0.85em; margin-top: 5px;")
+    } else {
+      NULL
+    }
+  })
+  
   # Show all tabs when Analyze button is clicked
   observeEvent(input$analyze, {
+    # Check if data is loaded first
+    if (is.null(currentData()) || nrow(currentData()) == 0) {
+      showModal(modalDialog(
+        title = "No Data Loaded",
+        HTML("<p>Please load a dataset before running the analysis.</p>
+              <p>You can either:</p>
+              <ul>
+                <li>Upload your own data file using the <strong>Upload Data</strong> button</li>
+                <li>Load one of the example datasets from the <strong>Data Preview</strong> tab</li>
+              </ul>"),
+        easyClose = TRUE,
+        footer = modalButton("OK")
+      ))
+      return()
+    }
+    
     print("Analyze button clicked")
     lapply(c("Overall Results", "Random Effects Analysis", "Fixed Effects Analysis", "JCR Method", "Meta-Regression"), function(tab) {
       showTab(inputId = "main_tabs", target = tab)
@@ -1117,7 +1154,16 @@ server <- function(input, output, session) {
     showModal(modalDialog(
       title = "Comprehensive Meta-Analysis App: User Guide",
       HTML(paste0(
-        "This app provides a comprehensive tool for conducting and interpreting meta-analyses. Here's how to use it:<br><br>",
+        "<div style='border-left: 4px solid #5d6d7e; padding-left: 15px; margin-bottom: 20px; background-color: #f8f9fa; padding: 15px; border-radius: 4px;'>",
+        "<h5 style='margin-top: 0; color: #2c3e50;'>About This App</h5>",
+        "<p>This application was developed by <strong>David Grabois</strong> as part of a Master's thesis at <strong>Tel Aviv University</strong>, Department of Statistics and Operations Research.</p>",
+        "<p><strong>Thesis:</strong> <em>\"Modern Meta-Analysis: Joint Confidence Regions for Effect Size and Heterogeneity\"</em></p>",
+        "<p>The app implements the <strong>Joint Confidence Region (JCR)</strong> method based on:</p>",
+        "<p style='margin-left: 15px; font-size: 0.9em;'><em>Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. Journal of Clinical Epidemiology, 107, 101-106.</em></p>",
+        "<p>The JCR method provides a frequentist approach to jointly estimating the overall effect (μ) and between-study heterogeneity (τ) using Maximum Likelihood Estimation, with confidence regions constructed via likelihood-ratio tests.</p>",
+        "</div>",
+        
+        "<b>How to Use This App:</b><br><br>",
         
         "<b>1. Data Input:</b><br>",
         "- Upload your data CSV file using the 'Upload Data' button in the sidebar.<br>",
@@ -1141,7 +1187,10 @@ server <- function(input, output, session) {
         "- <i>JCR Method:</i> Results from the joint MLE meta-analysis with a joint confidence region.<br><br>",
         
         "Throughout the app, look for info buttons (?) for additional guidance on interpreting results and using features.<br><br>",
-        "This tool is designed to help researchers thoroughly examine their meta-analytic data and draw robust conclusions from their analyses."
+        
+        "<b>Methodology Note:</b><br>",
+        "Q-Q plots in this app include an OLS regression line to visualize deviation from the identity line. ",
+        "The thesis uses the traditional qqline (line through quartiles), but both approaches assess normality—the regression line better highlights systematic deviations."
       )),
       easyClose = TRUE,
       footer = NULL

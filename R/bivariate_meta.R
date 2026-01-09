@@ -1017,13 +1017,10 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     if (sm == "SMD") {
       hover_text <- sprintf(
         "Study: %d (omitted)<br>Effect Size (SMD): %.3f<br>τ: %.3f<br>
-         Relative Shift: %.3f<br>IoU: %.3f<br>Hellinger: %.3f<br>KLD: %.3f<br>
-         RMSE: %.3f<br>Coverage Prob: %.3f<br>Combined Score: %.3f<br>
+         Relative Shift: %.3f<br>IoU: %.3f<br>
          50%% CI: (%.3f, %.3f) to (%.3f, %.3f)<br>95%% CI: (%.3f, %.3f) to (%.3f, %.3f)",
         i, loo_results[[i]]$mu, loo_results[[i]]$tau,
-        loo_results[[i]]$shift, loo_results[[i]]$iou, loo_results[[i]]$hellinger,
-        loo_results[[i]]$kld, loo_results[[i]]$rmse, loo_results[[i]]$coverage_prob,
-        loo_results[[i]]$combined_score,
+        loo_results[[i]]$shift, loo_results[[i]]$iou,
         min(sapply(contour_50, function(x) min(x$x))), min(sapply(contour_50, function(x) min(x$y))),
         max(sapply(contour_50, function(x) max(x$x))), max(sapply(contour_50, function(x) max(x$y))),
         min(sapply(contour_95, function(x) min(x$x))), min(sapply(contour_95, function(x) min(x$y))),
@@ -1032,13 +1029,10 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     } else {
     hover_text <- sprintf(
       "Study: %d (omitted)<br>Effect Size: %.3f (log: %.3f)<br>τ: %.3f<br>
-       Relative Shift: %.3f<br>IoU: %.3f<br>Hellinger: %.3f<br>KLD: %.3f<br>
-       RMSE: %.3f<br>Coverage Prob: %.3f<br>Combined Score: %.3f<br>
+       Relative Shift: %.3f<br>IoU: %.3f<br>
        50%% CI: (%.3f, %.3f) to (%.3f, %.3f)<br>95%% CI: (%.3f, %.3f) to (%.3f, %.3f)",
       i, exp(loo_results[[i]]$mu), loo_results[[i]]$mu, loo_results[[i]]$tau,
-      loo_results[[i]]$shift, loo_results[[i]]$iou, loo_results[[i]]$hellinger,
-      loo_results[[i]]$kld, loo_results[[i]]$rmse, loo_results[[i]]$coverage_prob,
-      loo_results[[i]]$combined_score,
+      loo_results[[i]]$shift, loo_results[[i]]$iou,
       exp(min(sapply(contour_50, function(x) min(x$x)))), min(sapply(contour_50, function(x) min(x$y))),
       exp(max(sapply(contour_50, function(x) max(x$x)))), max(sapply(contour_50, function(x) max(x$y))),
       exp(min(sapply(contour_95, function(x) min(x$x)))), min(sapply(contour_95, function(x) min(x$y))),

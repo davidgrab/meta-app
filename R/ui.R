@@ -14,31 +14,37 @@ library(shinycssloaders)
 # Source the functions file
 source("R/functions.R")
 
-# Define the custom theme for light mode
+# Define the custom theme for light mode - Clean, professional colors
 light_theme <- bs_theme(
+
   version = 5,
   bg = "#FFFFFF",
-  fg = "#333333",
-  primary = "#34495E",  # Dark blue color for the sidebar
-  secondary = "#ECF0F1", # Light gray for backgrounds
-  base_font = "Arial, sans-serif",
-  heading_font = "Arial, sans-serif",
+  fg = "#2c3e50",
+  primary = "#34495e",      # Muted blue-gray for primary actions
+
+  secondary = "#95a5a6",    # Soft gray for secondary elements
+  success = "#27ae60",      # Muted green
+  info = "#5d6d7e",         # Slate gray for info
+  warning = "#f39c12",      # Muted orange
+  danger = "#c0392b",       # Muted red
+  base_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  heading_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
   font_scale = 0.9
 )
 
-# Define dark theme (keeping your previous dark theme)
+# Define dark theme - Consistent with light theme colors
 dark_theme <- bs_theme(
   version = 5,
-  bg = "#212529",
-  fg = "#ffffff",
-  primary = "#0062cc",
-  secondary = "#6c757d",
-  success = "#28a745",
-  info = "#17a2b8",
-  warning = "#ffc107",
-  danger = "#dc3545",
-  base_font = "Arial, sans-serif",
-  heading_font = "Arial, sans-serif",
+  bg = "#1a1d21",
+  fg = "#ecf0f1",
+  primary = "#5dade2",      # Lighter blue for visibility on dark
+  secondary = "#7f8c8d",    # Muted gray
+  success = "#2ecc71",      # Brighter green for dark mode
+  info = "#74b9ff",         # Light blue for info
+  warning = "#f1c40f",      # Yellow-gold
+  danger = "#e74c3c",       # Coral red
+  base_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  heading_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
   font_scale = 0.9
 )
 
@@ -49,15 +55,25 @@ ui <- page_fillable(
   ),
   
   
-  fluidRow(
-    column(8, h3("Comprehensive Meta-Analysis App", style = "margin-top: 5px;")),
-    column(4, 
-           style = "text-align: right; margin-top: 5px;",
-           actionButton("app_info", "App Info", icon = icon("info-circle"), style = "margin-right: 10px;"),
-           input_dark_mode(id = "dark_mode", mode = "light", style="font-size: 0.8em; padding: 0; width: 20px; height: 20px; border-radius: 50%;")
+  div(class = "app-header",
+    fluidRow(
+      column(8, 
+             div(class = "app-logo-container",
+                 tags$img(src = "logo_light.svg", alt = "Meta Analysis App logo", class = "app-logo logo-for-light"),
+                 tags$img(src = "logo_dark.svg", alt = "Meta Analysis App logo", class = "app-logo logo-for-dark")
+             )
+      ),
+      column(4, 
+             style = "text-align: right;",
+             actionButton("app_info", "App Info", 
+                         icon = icon("info-circle"), 
+                         class = "btn-outline-secondary btn-sm",
+                         style = "margin-right: 8px;"),
+             input_dark_mode(id = "dark_mode", mode = "light", 
+                            style = "font-size: 0.8em; padding: 0; width: 20px; height: 20px; border-radius: 50%;")
+      )
     )
   ),
-  hr(),
   
   layout_sidebar(
     sidebar = sidebar(
@@ -71,7 +87,8 @@ ui <- page_fillable(
         condition = "input.data_type == 'binary'",
         selectInput("effect_measure", "Effect Measure", choices = c("OR", "RR"), selected = "RR")
       ),
-      actionButton("analyze", "Analyze", class = "btn-primary"),
+      shinyjs::disabled(actionButton("analyze", "Analyze", class = "btn-primary")),
+      uiOutput("analyzeHelpText"),
       hr(),
       h4("Data Cleaning"),
       checkboxInput("remove_na", "Remove rows with NA values", value = TRUE),
@@ -99,8 +116,9 @@ ui <- page_fillable(
                                           "CBT for Depression (SMD)" = "smd"
                                         ), 
                                         selected = "default"),
-                             actionButton("dataset_info", "", icon = icon("info-circle"), 
-                                          style = "margin-left: 5px; height: 30px;")
+                            actionButton("dataset_info", "", icon = icon("info-circle"), 
+                                         class = "btn-outline-secondary",
+                                         style = "margin-left: 8px; width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;")
                            ),
                            uiOutput("datasetDescription"),
                            actionButton("loadExampleData", "Load Example Dataset"),
@@ -214,23 +232,26 @@ ui <- page_fillable(
                            h5("Deleted Residuals Comparison"),
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("randomDeletedResidualsComparisonPlot", height = "400px")),
-                               p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
-                                      <em>Left panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
-                                      <em>Right panel:</em> Random Effects deleted residuals - each point represents the residual when that study is removed and the random effects model is refitted.<br>
-                                      <br><em>Interpretation:</em> Compare tail behavior between models. If points deviate similarly from the diagonal in both panels, 
-                                      it suggests the deviations are due to the data rather than the choice of model. Different patterns suggest model-specific issues."), 
-                                 class = "plot-explanation")
+                              p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
+                                     <em>Left panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
+                                     <em>Right panel:</em> Random Effects deleted residuals - each point represents the residual when that study is removed and the random effects model is refitted.<br>
+                                     <strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with a standard normal distribution. The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles, showing the actual trend of the data. Comparing this regression line to the identity line reveals systematic deviations from normality.
+                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope - points should fall within this band if the data are normally distributed.
+                                     <br><em>Interpretation:</em> Compare tail behavior between models. If points deviate similarly from the identity line in both panels, 
+                                     it suggests the deviations are due to the data rather than the choice of model. Different patterns suggest model-specific issues."), 
+                                class = "plot-explanation")
                            ),
                            
                            # BLUPs Q-Q plot (moved down)
                            h5("Best Linear Unbiased Predictors (BLUPs)"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("randomQQPlot")),
-                               p(HTML("<strong>Q-Q Plot of BLUPs:</strong><br>
-                                      This plot tests whether the study-specific effect estimates follow a normal distribution under the random effects model. 
-                                      Points should lie along the red diagonal line if normality holds. The gray envelope shows 95% confidence bands.
-                                      <br><em>Interpretation:</em> S-shaped curves indicate tail deviations, systematic curvature suggests skewness, 
-                                      and points outside the envelope may indicate outliers or model misspecification."), class = "plot-explanation")
+                              p(HTML("<strong>Q-Q Plot of BLUPs:</strong><br>
+                                     This plot tests whether the study-specific effect estimates follow a normal distribution under the random effects model. 
+                                     <br><strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
+                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
+                                     <br><em>Interpretation:</em> S-shaped curves indicate tail deviations, systematic curvature suggests skewness, 
+                                     and points outside the envelope may indicate outliers or model misspecification."), class = "plot-explanation")
                            ),
                            
                            h4("Formal Statistical Tests"),
@@ -371,11 +392,12 @@ ui <- page_fillable(
                            p("This plot assesses whether the fixed effects model assumptions are met:", class = "section-explanation"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("fixedQQPlot")),
-                               p(HTML("<strong>Q-Q Plot of Standardized Residuals:</strong><br>
-                                      This plot tests whether the residuals r<sub>i</sub> = (Y<sub>i</sub> - θ̂)/σ<sub>i</sub> follow a standard normal distribution. 
-                                      Points should lie along the red diagonal line if the fixed effects normality assumption holds. The gray envelope shows 95% confidence bands.
-                                      <br><em>Interpretation:</em> If points systematically deviate from the line, this suggests the sampling errors 
-                                      do not follow the assumed normal distribution, which may invalidate the fixed effects model."), class = "plot-explanation")
+                              p(HTML("<strong>Q-Q Plot of Standardized Residuals:</strong><br>
+                                     This plot tests whether the residuals r<sub>i</sub> = (Y<sub>i</sub> - θ̂)/σ<sub>i</sub> follow a standard normal distribution. 
+                                     <br><strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
+                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
+                                     <br><em>Interpretation:</em> If points systematically deviate from the line, this suggests the sampling errors 
+                                     do not follow the assumed normal distribution, which may invalidate the fixed effects model."), class = "plot-explanation")
                            ),
                            h4("Formal Statistical Test"),
                            verbatimTextOutput("fixedNormalityTestSummary"),
@@ -554,23 +576,26 @@ ui <- page_fillable(
                            h5("Deleted Residuals Comparison"),
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("bivariateDeletedResidualsComparisonPlot", height = "400px")),
-                               p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
-                                      <em>Left panel:</em> JCR (joint MLE) deleted residuals - each point represents the residual when that study is removed and the JCR model is refitted.<br>
-                                      <em>Right panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
-                                      <br><em>Interpretation:</em> Compare tail behavior between the JCR and fixed effects approaches. The JCR method often shows better 
-                                      behavior in the tails due to its joint estimation of μ and τ. Different patterns suggest model-specific strengths and weaknesses."), 
-                                 class = "plot-explanation")
+                              p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
+                                     <em>Left panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
+                                     <em>Right panel:</em> JCR (joint MLE) deleted residuals - each point represents the residual when that study is removed and the JCR model is refitted.<br>
+                                     <strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
+                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
+                                     <br><em>Interpretation:</em> Compare tail behavior between the fixed effects and JCR approaches. The JCR method often shows better 
+                                     behavior in the tails due to its joint estimation of μ and τ. Different patterns suggest model-specific strengths and weaknesses."), 
+                                class = "plot-explanation")
                            ),
                            
                            # BLUPs Q-Q plot (moved down)
                            h5("Best Linear Unbiased Predictors (BLUPs)"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("qqPlotMu")),
-                               p(HTML("<strong>Q-Q Plot of BLUPs (JCR Method):</strong><br>
-                                      This plot tests normality of Best Linear Unbiased Predictors using jointly estimated μ̂<sub>MLE</sub> and τ̂<sub>MLE</sub> parameters from the JCR method. 
-                                      Points should follow the diagonal line if the random effects distribution is normal. The simulation envelope provides robust assessment.
-                                      <br><em>Interpretation:</em> The JCR approach provides more precise estimates than standard random effects due to joint MLE estimation. 
-                                      Deviations suggest the random effects may not follow the assumed normal distribution."), class = "plot-explanation")
+                              p(HTML("<strong>Q-Q Plot of BLUPs (JCR Method):</strong><br>
+                                     This plot tests normality of Best Linear Unbiased Predictors using jointly estimated μ̂<sub>MLE</sub> and τ̂<sub>MLE</sub> parameters from the JCR method. 
+                                     <br><strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
+                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
+                                     <br><em>Interpretation:</em> The JCR approach provides more precise estimates than standard random effects due to joint MLE estimation. 
+                                     Deviations suggest the random effects may not follow the assumed normal distribution."), class = "plot-explanation")
                            ),
                            
                            h4("Formal Statistical Tests"),

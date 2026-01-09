@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="84" viewBox="0 0 560 84" role="img" aria-label="Comprehensive Meta-Analysis App logo">
+  <defs>
+    <!-- Accent gradient stays vibrant -->
+    <linearGradient id="accentDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2FE3FF"/>
+      <stop offset="0.45" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+
+    <!-- Soft glow for dark mode -->
+    <filter id="glowDark" x="-30%" y="-60%" width="160%" height="220%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#60A5FA" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <!-- Light colors for dark backgrounds -->
+  <g fill="none" stroke="none">
+    <!-- ICON (left) -->
+    <g transform="translate(18,14)" filter="url(#glowDark)">
+      <!-- Outer rounded tile (subtle outline only) -->
+      <rect x="0" y="0" width="56" height="56" rx="16"
+            fill="none" stroke="#F2F6FF" stroke-opacity="0.18" stroke-width="2"/>
+
+      <!-- "Forest plot" / CI band line -->
+      <path d="M10 38 C18 30, 24 44, 32 30 S46 34, 46 26"
+            stroke="#F2F6FF" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
+
+      <!-- CI band (accent gradient) -->
+      <path d="M12 30 L44 18" stroke="url(#accentDark)" stroke-width="6" stroke-linecap="round" opacity="0.95"/>
+      <path d="M12 30 L44 18" stroke="#F2F6FF" stroke-opacity="0.12" stroke-width="10" stroke-linecap="round"/>
+
+      <!-- Sigma mark (meta-analysis symbol) -->
+      <path d="M22 14 H38
+               C40 14, 41 16, 40 17
+               L30 28
+               L40 39
+               C41 40, 40 42, 38 42
+               H22"
+            fill="none" stroke="#F2F6FF" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+
+      <!-- Small "point estimate" dot -->
+      <circle cx="34" cy="24" r="3.2" fill="url(#accentDark)"/>
+    </g>
+
+    <!-- WORDMARK (right, single line) -->
+    <g transform="translate(92,52)">
+      <text x="0" y="0"
+            fill="#F2F6FF"
+            font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"
+            font-size="28" font-weight="750" letter-spacing="-0.2">
+        MetaAnalysis
+      </text>
+
+      <!-- Small separator dot -->
+      <circle cx="170" cy="-10" r="3" fill="url(#accentDark)"/>
+
+      <text x="184" y="0"
+            fill="#F2F6FF"
+            opacity="0.80"
+            font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"
+            font-size="22" font-weight="600" letter-spacing="-0.1">
+        App
+      </text>
+    </g>
+  </g>
+</svg>

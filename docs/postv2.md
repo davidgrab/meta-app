@@ -1,296 +1,351 @@
 # Making Joint Inference in Meta-Analysis Practical
 
-*An interactive app for heterogeneity-aware decisions in meta-analysis*
+*An interactive app for heterogeneity-aware evidence synthesis*
 
 ---
 
-Meta-analysis is one of the most influential tools in evidence-based research. By combining results from multiple studies, we define clinical guidelines, inform policy, and shape future research directions. The method has evolved significantly since Glass first coined the term in 1976 [1], becoming a cornerstone of evidence-based medicine.
+## What is Meta-Analysis?
 
-But in real applications, meta-analysis often faces a difficult and under-appreciated problem:
+Meta-analysis combines results from multiple independent studies to produce a single, more precise estimate of a treatment effect. The key idea is simple: **weight each study by its precision**, giving more influence to studies with smaller uncertainty.
 
-> **Different studies rarely estimate the same true effect.**
+By pooling studies, meta-analysis:
+- **Increases statistical power**—detecting effects that individual studies miss
+- **Improves precision**—narrower confidence intervals than any single study
+- **Reconciles conflicting results**—providing a unified summary
+- **Provides evidence for decisions**—supporting clinical guidelines and policy
 
-Differences in populations, settings, protocols, and measurements introduce **heterogeneity** — genuine variation in underlying effects across studies [2]. And yet, much of standard practice still treats this uncertainty in a surprisingly simplistic way.
-
-This post introduces an **open-source interactive app** that helps researchers *see*, *quantify*, and *reason about* heterogeneity — using both classical meta-analysis tools and modern likelihood-based methods.
-
----
-
-## The Problem with How We Usually Handle Heterogeneity
-
-Most applied meta-analyses rely on one of two familiar frameworks:
-
-* **Fixed-effect models**, which assume all studies share a single true effect
-* **Random-effects models**, which allow true effects to vary around a mean effect (μ), with between-study variance (τ²)
-
-Random-effects models are widely used because they acknowledge heterogeneity. However, even here, a critical simplification remains.
-
-In the standard workflow:
-
-1. τ² is estimated (e.g., DerSimonian–Laird [3], REML)
-2. That estimate is *plugged into* a confidence interval for μ
-3. τ² is then treated as if it were known
-
-This so-called **plug-in approach** ignores the uncertainty in τ² itself — especially problematic when the number of studies is small or heterogeneity is large [4, 5].
-
-The result is familiar but dangerous:
-
-> **Confidence intervals that look precise, but are often overconfident.**
-
-Research has shown that traditional methods can substantially underestimate uncertainty, particularly in meta-analyses with fewer than 20 studies or high heterogeneity (I² > 50%) [4].
+Meta-analysis has become a cornerstone of evidence-based medicine, psychology, education, and many other fields. Since Gene Glass coined the term in 1976, the methodology has evolved significantly—yet some fundamental challenges remain.
 
 ---
 
-## Joint Inference: The Idea Behind JCR
+## The Two Main Models: Fixed vs. Random Effects
 
-A principled alternative has been proposed in the statistical literature.
+When combining studies, we must choose how to model the underlying effects. The two dominant approaches reflect different assumptions about heterogeneity.
 
-Saad et al. (2019) introduced the **Joint Confidence Region (JCR)** approach [6], which performs *simultaneous inference* on both μ (the mean effect) and τ (the heterogeneity) under the normal random-effects model.
+### Fixed-Effect Model
+
+The fixed-effect model assumes **all studies share a single true effect** (θ). Any observed variation is attributed solely to sampling error.
+
+**Key assumption:** τ² = 0 (no heterogeneity)
+
+**When to use:** Studies are sufficiently similar in populations, interventions, and settings. The goal is to estimate "the" common effect.
+
+**Estimation:** Studies are weighted by precision (inverse variance):
+```
+θ̂ = Σ(wᵢ × Yᵢ) / Σwᵢ,  where wᵢ = 1/σᵢ²
+```
+
+### Random-Effects Model
+
+The random-effects model allows **true effects to vary across studies**. Each study estimates its own true effect (θᵢ), drawn from a distribution around the overall mean (μ).
+
+**Key assumption:** θᵢ ~ N(μ, τ²), where τ² is the between-study variance
+
+**When to use:** Studies differ in populations, settings, or interventions. The goal is to estimate the *average* effect across a distribution of possible effects.
+
+**Estimation:** Studies are weighted by total variance (within + between):
+```
+μ̂ = Σ(wᵢ* × Yᵢ) / Σwᵢ*,  where wᵢ* = 1/(σᵢ² + τ²)
+```
+
+The critical difference: **when τ² is large, all studies receive nearly equal weight**. The random-effects model produces wider confidence intervals that account for between-study variation.
+
+---
+
+## Why Heterogeneity Matters
+
+Heterogeneity (τ²) represents genuine variation in true effects across studies. It can arise from:
+
+- **Clinical diversity**: Different participant characteristics, interventions, outcomes
+- **Methodological diversity**: Variations in study design, quality, implementation
+- **Unexplained factors**: Unknown sources of variation
+
+### The Problem with Ignoring Heterogeneity
+
+When heterogeneity exists but is ignored (using fixed-effect when τ² > 0), confidence intervals are **too narrow**—creating false precision.
+
+But even when using random-effects models, a critical problem remains:
+
+> **Standard methods treat τ² as if it were known after estimating it.**
+
+This "plug-in" approach:
+1. Estimates τ² (using DerSimonian-Laird, REML, etc.)
+2. Plugs that estimate into the confidence interval for μ
+3. **Ignores the uncertainty in τ² itself**
+
+Research shows this can substantially underestimate uncertainty, especially when:
+- The number of studies is small (k < 20)
+- Heterogeneity is moderate to high (I² > 50%)
+
+### Measuring Heterogeneity
+
+Several statistics quantify heterogeneity:
+
+**Cochran's Q**: Tests whether observed variation exceeds sampling error. A significant Q (p < 0.05) suggests heterogeneity exists.
+
+**I²**: The proportion of total variation due to heterogeneity (not sampling error):
+- I² ≈ 0%: No observed heterogeneity
+- I² ≈ 25%: Low heterogeneity
+- I² ≈ 50%: Moderate heterogeneity
+- I² ≈ 75%: High heterogeneity
+
+**τ²**: The actual between-study variance, on the scale of the effect measure.
+
+But here's the catch: **knowing heterogeneity exists doesn't tell you what to do about it**.
+
+---
+
+## The Limitation of Explaining Heterogeneity
+
+When heterogeneity is detected, the standard advice is to *explain* it through:
+- **Subgroup analysis**: Stratify by categorical variables (e.g., age group, study quality)
+- **Meta-regression**: Model effect size as a function of continuous moderators
+
+But these approaches have limitations:
+
+1. **Often inconclusive**: With few studies, statistical power is low
+2. **Multiple testing concerns**: Testing many potential moderators inflates false positives
+3. **Residual heterogeneity**: Even after adjustment, unexplained variation often remains
+4. **Data requirements**: Need sufficient studies with moderator information
+
+**What do practitioners do when heterogeneity remains unexplained?**
+
+This is where the Joint Confidence Region approach offers a principled alternative.
+
+---
+
+## The JCR Approach: Joint Inference on (μ, τ)
+
+The Joint Confidence Region (JCR) method, introduced by Saad et al. (2019), performs **simultaneous inference on both μ (the mean effect) and τ (the heterogeneity)**.
 
 Instead of producing:
+- One estimate of μ
+- One estimate of τ (treated as known)
 
-* one estimate of μ
-* one estimate of τ
+JCR constructs a **two-dimensional confidence region** containing all (μ, τ) pairs consistent with the data at a given confidence level.
 
-JCR constructs a **two-dimensional confidence region** containing all (μ, τ) pairs consistent with the observed data at a given confidence level.
+### How It Works
 
-This region:
+The JCR is built using the likelihood-ratio test:
 
-* Captures uncertainty in both parameters simultaneously
-* Reveals trade-offs between μ and τ
-* Avoids pretending heterogeneity is known
-* Provides appropriately wider confidence intervals that reflect true uncertainty
+1. **Compute the likelihood** for each candidate (μ, τ) pair on a dense grid
+2. **Calculate the likelihood-ratio statistic**: T(μ₀, τ₀) = -2 × log(L(μ₀,τ₀) / L(μ̂,τ̂))
+3. **Compute p-values** using χ²(df=2) reference distribution
+4. **Form the region**: All points with p-value ≥ α comprise the (1-α) confidence region
 
-Importantly, **JCR itself is not a new model** — it is a likelihood-based inference procedure grounded firmly in frequentist theory.
+### What the JCR Reveals
+
+The confidence region's **shape and size** tell you something important:
+
+- **Large regions**: High uncertainty about both μ and τ
+- **Tilted regions**: Strong trade-off—plausible μ values depend heavily on τ
+- **Compact regions**: Robust inference—conclusions hold across plausible τ values
+
+This geometric representation makes uncertainty **visible** in ways that one-dimensional intervals cannot.
 
 ---
 
-## Why Joint Inference Matters for Real Decisions
+## From Joint Inference to Practical Decisions
 
-Joint inference becomes especially powerful when translated into *questions people actually care about*, such as:
+The JCR becomes especially powerful when translated into **questions practitioners actually care about**:
 
-* What is the probability that a new study would show **any benefit**?
-* How likely is the effect to exceed a **clinically meaningful threshold**?
-* How sensitive are these probabilities to between-study heterogeneity?
+- What is the probability that a new study would show **any benefit**?
+- How likely is the effect to exceed a **clinically meaningful threshold**?
+- What's the chance of **harm** if we adopt this treatment?
 
-Using the JCR, joint uncertainty in (μ, τ) can be projected into **probability bands** for such thresholds — producing answers that are intuitive, interpretable, and honest about uncertainty.
+### The Efficacy-Harm Probability Plot
 
-### A Concrete Example: BCG Vaccine Effectiveness
+Using the JCR, we can compute probability statements for any threshold of interest.
 
-Consider the classic BCG vaccine meta-analysis (13 trials examining tuberculosis prevention). This dataset exhibits substantial heterogeneity (I² = 94%).
+For a threshold T on the effect scale, the probability that a new study's true effect exceeds T is:
+```
+P(θ_new ≥ T) = 1 - Φ((T - μ) / τ)
+```
 
-Traditional analysis gives a pooled risk ratio of 0.48 (95% CI: 0.34–0.68), suggesting strong protection. But what does this mean for decision-makers?
+By projecting the JCR onto this probability function, we get **confidence bands** that honestly reflect uncertainty in both μ and τ.
 
-Using the JCR approach, we can make probability statements:
+### The Probability Table: Actionable Numbers
 
-| Threshold | Probability RR ≤ Threshold | 95% CI |
-|-----------|---------------------------|--------|
-| 0.90 | 88.0% | 58.7% – 99.0% |
+The app generates tables like this:
+
+| Threshold (RR) | P(effect ≤ threshold) | 95% CI |
+|----------------|----------------------|--------|
+| 0.50 | 45.2% | 18.3% – 72.1% |
+| 0.75 | 72.8% | 42.1% – 93.5% |
 | 1.00 (no effect) | 91.5% | 63.8% – 99.0% |
-| 1.50 | 98.2% | 79.5% – 99.0% |
+| 1.25 | 97.2% | 78.4% – 99.9% |
 
-This tells us: despite massive heterogeneity, there's a 91.5% probability that BCG provides *some* protection — but the wide confidence bands (63.8% to 99.0%) honestly reflect our uncertainty.
+**What this tells practitioners:**
+- "There's a 91.5% probability the treatment provides *some* benefit"
+- "But we're only 63.8%–99.0% confident in that probability"
+- "Even accounting for heterogeneity, harm is unlikely (< 9%)"
 
-This shift — from point estimates to *probability-based reasoning* — is where JCR becomes especially useful for applied research and decision-making.
-
----
-
-## The Practical Gap: A Great Method That's Hard to Use
-
-Despite its appeal, JCR has seen limited adoption in applied research.
-
-Why?
-
-* It requires likelihood-based computation over a two-dimensional parameter space
-* It is not implemented in standard meta-analysis software
-* It is difficult to combine with everyday diagnostics, sensitivity analyses, and publication-bias tools
-
-In short:
-
-> **The method exists — but it is not operational for most practitioners.**
-
-This gap is what motivated the app.
+This probability framing connects statistical uncertainty to **clinical decision-making**.
 
 ---
 
-## An Interactive App for Heterogeneity-Aware Meta-Analysis
+## JCR Without Meta-Regression: Understanding Heterogeneity Anyway
 
-I built an **open-source R/Shiny application** that makes JCR usable *alongside* classical meta-analysis tools.
+Here's the key insight: **JCR helps you reason about heterogeneity even when you cannot explain it**.
 
-The goal was not to replace existing methods, but to **extend them coherently** — so users can move seamlessly between classical summaries and joint inference.
+Traditional workflow when heterogeneity exists:
+1. Detect heterogeneity (high I²)
+2. Try to explain it (subgroup analysis, meta-regression)
+3. Often fail to fully explain it
+4. Report results with residual uncertainty unquantified
 
-The app allows users to:
+JCR workflow:
+1. Detect heterogeneity
+2. **Visualize the joint uncertainty** in (μ, τ)
+3. **Translate to decision thresholds** via probability plots
+4. **Communicate honestly** about what the data support
 
-**Core Analysis**
-* Fit **fixed-effect and random-effects models** (DL, REML, ML, Paule-Mandel)
-* Compute **Joint Confidence Regions** for (μ, τ)
-* Visualize JCR contours and their geometry
-* Translate JCR into **efficacy–harm probability plots**
+The JCR contours show:
+- Whether clinically important μ values only occur under large τ
+- Whether conclusions are robust across plausible heterogeneity levels
+- The full range of (μ, τ) pairs consistent with the data
 
-**Diagnostics** (following best practices from Viechtbauer [7])
-* Deleted-residual Q–Q plots for outlier detection
-* BLUP Q–Q plots for random effects distribution
-* Side-by-side FE vs. RE residual comparison
-
-**Sensitivity & Bias**
-* Leave-one-out JCR shift analysis
-* Funnel plots for publication bias
-* Egger's test [8]
-* Trim-and-fill adjustment [9]
-
-**Flexible Data Support**
-* Binary outcomes (OR, RR)
-* Continuous outcomes (SMD)
-* Upload your own data or use built-in examples
-
-All outputs are linked back to the same underlying model assumptions, making comparisons meaningful rather than ad-hoc.
+**You don't need to explain heterogeneity to account for its uncertainty.**
 
 ---
 
-## Why Visualization Changes the Conversation
+## A Concrete Example: BCG Vaccine
 
-One of the most striking aspects of joint inference is how much information is lost in one-dimensional summaries.
+The BCG vaccine meta-analysis (13 trials, tuberculosis prevention) is a classic example with massive heterogeneity (I² = 94%).
 
-In datasets with:
+### Traditional Analysis
+- Pooled RR = 0.48 (95% CI: 0.34–0.68)
+- Conclusion: "BCG provides significant protection"
 
-* Few studies
-* Large heterogeneity
+But this confidence interval **ignores uncertainty in τ²**.
 
-JCRs often become **wide and tilted**, showing that plausible values of μ depend strongly on τ.
+### JCR Analysis
 
-In larger, more homogeneous datasets, the region collapses into a tighter shape — indicating robust inference.
+The Joint Confidence Region shows a wide, tilted contour—indicating:
+- High uncertainty about both μ and τ
+- Strong dependence: low μ values are only plausible if τ is high
 
-Seeing this geometry makes uncertainty tangible in a way no single confidence interval can.
+The probability table provides nuanced interpretation:
 
-### The Triangulation Approach
+| Question | Probability | 95% CI |
+|----------|-------------|--------|
+| Any protection (RR < 1.0)? | 91.5% | 63.8% – 99.0% |
+| Strong protection (RR < 0.5)? | 47.3% | 22.1% – 73.2% |
+| Could be harmful (RR > 1.5)? | 1.8% | 0.1% – 20.5% |
 
-The app presents three diagnostic Q–Q plots side-by-side, enabling what we call "triangulation":
+**Interpretation for practitioners:**
+- Very likely BCG provides *some* protection
+- But uncertain whether protection is strong or modest
+- Harm is unlikely but not impossible
+- The wide CIs honestly reflect heterogeneity uncertainty
 
-1. **FE deleted residuals**: Tests the fixed-effect assumption (τ² = 0)
-2. **RE deleted residuals**: Tests the sampling distribution after modeling τ²
-3. **Standardized BLUPs**: Tests the random-effects distribution assumption
-
-This combination helps users distinguish between different types of model violations and make informed decisions about the validity of their inference.
-
----
-
-## Connecting to Evidence Quality Frameworks
-
-The JCR approach integrates naturally with evidence quality assessment frameworks like GRADE [10]:
-
-* **Inconsistency**: Large JCR contours directly visualize unexplained heterogeneity
-* **Imprecision**: When probability bands span both benefit and harm thresholds, evidence should be downgraded
-* **Decision support**: Probability tables translate statistical uncertainty into clinically actionable statements
+This is richer than "RR = 0.48 (0.34–0.68)" alone.
 
 ---
 
-## What This App Is — and What It Is Not
+## What the App Provides
 
-To be explicit:
+This **open-source R/Shiny application** integrates JCR with classical meta-analysis tools.
 
-* **JCR is not my invention**
-* The statistical framework follows **Saad et al. (2019)** [6]
-* The contribution here is:
-  * Operationalizing joint inference in accessible software
-  * Integrating it with classical meta-analysis diagnostics
-  * Making it accessible through an interactive interface
-  * Extending it with efficacy–harm visualizations developed through practitioner collaboration
+### Core Analysis
+- **Fixed-effect and random-effects models** (DL, REML, ML, Paule-Mandel)
+- **Joint Confidence Regions** for (μ, τ) at multiple confidence levels
+- **Efficacy-harm probability plots** with confidence bands
+- **Probability tables** for custom clinical thresholds
 
-The app is designed to help researchers:
+### Diagnostics
+- **Deleted-residual Q-Q plots** (FE vs. RE comparison)
+- **BLUP Q-Q plots** for random effects distribution
+- 95% simulation-based confidence envelopes
+- Formal normality tests
 
-* Understand when heterogeneity uncertainty matters
-* Avoid false precision
-* Communicate results in probability-based terms aligned with real decisions
+### Sensitivity Analysis
+- **Leave-one-out JCR shifts**—see how the region changes when each study is removed
+- Funnel plots, Egger's test, trim-and-fill
+
+### Data Support
+- Binary outcomes (OR, RR)
+- Continuous outcomes (SMD)
+- Upload your data or use built-in examples
+- Subgroup analysis and meta-regression
 
 ---
 
-## When Should You Use the JCR Approach?
+## When to Use the JCR Approach
 
-Based on case studies across different domains, the JCR approach is particularly valuable when:
+The JCR is particularly valuable when:
 
-* **Heterogeneity is moderate to high** (I² > 40%)
-* **The number of studies is small to moderate** (k < 20), where τ² estimation is most uncertain
-* **Decisions hinge on threshold-crossing probabilities** (e.g., "What's the chance of clinically meaningful benefit?")
-* **Conservative inference is preferred** to avoid overconfident conclusions
+| Situation | Why JCR Helps |
+|-----------|---------------|
+| **Few studies** (k < 20) | τ² estimation is most uncertain |
+| **High heterogeneity** (I² > 40%) | Traditional CIs may be overconfident |
+| **Threshold-based decisions** | Probability tables quantify chances of benefit/harm |
+| **Unexplained heterogeneity** | Visualize implications without needing to explain it |
+| **Conservative inference needed** | Avoid false precision |
 
-When heterogeneity is low and k is large, traditional plug-in estimators may suffice — but the JCR still provides more transparent uncertainty accounting.
+When heterogeneity is low and k is large, traditional methods suffice—but JCR still provides more transparent uncertainty accounting.
 
 ---
 
 ## Try It Yourself
 
 **Live app (no installation required):**  
-[https://meta-app-jcr-main.share.connect.posit.cloud](https://meta-app-jcr-main.share.connect.posit.cloud)
+[https://davidgrab-meta-app.share.connect.posit.cloud/](https://davidgrab-meta-app.share.connect.posit.cloud/)
 
-**Source code (GitHub):**  
+**Source code:**  
 [https://github.com/davidgrab/meta-app](https://github.com/davidgrab/meta-app)
 
-The repository includes:
-* Complete documentation
-* Built-in example datasets (BCG vaccine, CBT for depression)
-* Installation instructions for local use with sensitive data
-* Contribution guidelines
+Built-in examples include:
+- BCG vaccine (tuberculosis prevention)
+- Beta-blockers (post-MI mortality)
+- CBT for depression (continuous outcome)
 
 ---
 
-## Call to Action
+## Get Involved
 
-**If you work with meta-analyses, I'd like your help making this tool better.**
+🔬 **Use it** — Try on your own data. Does the JCR reveal something the traditional analysis missed?
 
-Here's how you can contribute:
+🐛 **Report issues** — [Open an issue on GitHub](https://github.com/davidgrab/meta-app/issues)
 
-🔬 **Use it** — Run the app on your own meta-analysis data. Does it reveal something the traditional analysis missed? Does the probability framing resonate with your stakeholders?
+💡 **Request features** — Hazard ratios? Network meta-analysis? Let us know.
 
-🐛 **Report issues** — Found a bug? Something confusing in the interface? [Open an issue on GitHub](https://github.com/davidgrab/meta-app/issues).
-
-💡 **Request features** — What would make this more useful for your workflow? Meta-regression? Additional effect measures? Hazard ratios? Let me know.
-
-📝 **Cite and share** — If you find this useful, cite the underlying method (Saad et al., 2019) and share the app with colleagues who might benefit.
-
-🤝 **Collaborate** — Interested in extending the methodology or applying it in a specific domain? I'm open to collaborations.
-
-The app is released under the MIT license. Fork it, adapt it, build on it.
+📝 **Share** — If useful, cite Saad et al. (2019) and share with colleagues.
 
 ---
 
-## Closing
+## Summary
 
-Meta-analysis is not just about pooling numbers — it is about **quantifying uncertainty responsibly**.
+Meta-analysis is not just about pooling numbers—it's about **quantifying uncertainty responsibly**.
 
-Traditional methods have served us well, but they can create false precision when heterogeneity is substantial and poorly estimated. The Joint Confidence Region provides a principled way to acknowledge what we don't know while still drawing useful conclusions.
+Traditional methods work well when heterogeneity is low and studies are plentiful. But when heterogeneity is substantial and poorly estimated, they can create false precision.
 
-This app aims to make that principled approach practical.
+The Joint Confidence Region provides a principled way to:
+- **Acknowledge uncertainty** in both the mean effect and heterogeneity
+- **Visualize the trade-offs** between μ and τ
+- **Translate uncertainty into probabilities** that support decisions
+- **Communicate honestly** about what the data support
 
-If you work with meta-analyses where heterogeneity matters — especially with small or moderate numbers of studies — I hope you'll try it, explore it, and help improve it.
+**You don't need to fully explain heterogeneity to account for its implications.** The JCR lets you reason about unexplained variation in a statistically principled way.
 
-The evidence synthesis community deserves tools that are both statistically rigorous and practically accessible. This is one step toward that goal.
+This app makes that approach practical.
 
 ---
 
 ## References
 
-[1] Glass, G.V. (1976). Primary, secondary and meta-analysis of research. *Educational Researcher*, 5(10), 3–8.
+Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G.H. (2019). Getting more out of meta-analyses: A new approach to meta-analysis in light of unexplained heterogeneity. *Journal of Clinical Epidemiology*, 107, 101–106.
 
-[2] Higgins, J.P.T., & Thompson, S.G. (2002). Quantifying heterogeneity in a meta-analysis. *Statistics in Medicine*, 21(11), 1539–1558.
+DerSimonian, R., & Laird, N. (1986). Meta-analysis in clinical trials. *Controlled Clinical Trials*, 7(3), 177–188.
 
-[3] DerSimonian, R., & Laird, N. (1986). Meta-analysis in clinical trials. *Controlled Clinical Trials*, 7(3), 177–188.
+Higgins, J.P.T., & Thompson, S.G. (2002). Quantifying heterogeneity in a meta-analysis. *Statistics in Medicine*, 21(11), 1539–1558.
 
-[4] Hartung, J., & Knapp, G. (2001). A refined method for meta-analysis of controlled clinical trials with binary outcome. *Statistics in Medicine*, 20(24), 3875–3889.
+Viechtbauer, W. (2005). Bias and efficiency of meta-analytic variance estimators in the random-effects model. *Journal of Educational and Behavioral Statistics*, 30(3), 261–293.
 
-[5] Viechtbauer, W. (2005). Bias and efficiency of meta-analytic variance estimators in the random-effects model. *Journal of Educational and Behavioral Statistics*, 30(3), 261–293.
-
-[6] Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G.H. (2019). Getting more out of meta-analyses: A new approach to meta-analysis in light of unexplained heterogeneity. *Journal of Clinical Epidemiology*, 107, 101–106.
-
-[7] Viechtbauer, W. (2021). Model checking in meta-analysis. In C.H. Schmid, T. Stijnen, & I.R. White (Eds.), *Handbook of Meta-Analysis* (pp. 219–254). CRC Press.
-
-[8] Egger, M., Davey Smith, G., Schneider, M., & Minder, C. (1997). Bias in meta-analysis detected by a simple, graphical test. *BMJ*, 315(7109), 629–634.
-
-[9] Duval, S., & Tweedie, R. (2000). Trim and fill: A simple funnel-plot-based method of testing and adjusting for publication bias in meta-analysis. *Biometrics*, 56(2), 455–463.
-
-[10] Guyatt, G.H., Oxman, A.D., Vist, G., et al. (2008). GRADE: An emerging consensus on rating quality of evidence and strength of recommendations. *BMJ*, 336(7650), 924.
+Borenstein, M., Hedges, L.V., Higgins, J.P.T., & Rothstein, H.R. (2021). *Introduction to Meta-Analysis* (2nd ed.). Wiley.
 
 ---
 
-*This post is based on my M.Sc. thesis "Advanced Methods for Meta-Analysis: Joint Confidence Region and Interactive Application" completed at Tel Aviv University under the supervision of Prof. Daniel Yekutieli.*
+*This app was developed by David Grabois as part of a Master's thesis at Tel Aviv University, Department of Statistics and Operations Research, under the supervision of Prof. Daniel Yekutieli.*
 
-*The thesis and full technical details are available in the [GitHub repository](https://github.com/davidgrab/meta-app).*
+*The thesis "Modern Meta-Analysis: Joint Confidence Regions for Effect Size and Heterogeneity" and full technical details are available in the [GitHub repository](https://github.com/davidgrab/meta-app).*

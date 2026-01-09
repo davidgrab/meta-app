@@ -1509,10 +1509,6 @@ safe_run({
 
 ## Sensitivity Analysis
 
-```{r biv-loo, fig.width=10, fig.height=6}
-safe_run(bivariate_leave_one_out(params$bivariate_results))
-```
-
 ```{r biv-confidence, fig.width=10, fig.height=6}
 safe_run({
   if(exists("confidence_region_shift_plot")) {
@@ -1718,8 +1714,11 @@ qq_plot_fixed_residuals <- function(fixed_results, envelope = TRUE) {
        ylab = "Sample Quantiles",
        pch = 19, col = "blue")
   
-  # Add reference line
+  # Add identity line (y = x)
   abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add regression line (OLS fit) - subtle gray
+  abline(lm(sorted_residuals ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   
   # Add simulation envelope if requested
   if (envelope && n >= 5) {
@@ -1737,18 +1736,11 @@ qq_plot_fixed_residuals <- function(fixed_results, envelope = TRUE) {
             c(lower_env, rev(upper_env)),
             col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
     
-    # Re-add points and line
+    # Re-add points and lines
     points(theoretical_quantiles, sorted_residuals, pch = 19, col = "blue")
     abline(0, 1, col = "red", lty = 2, lwd = 2)
+    abline(lm(sorted_residuals ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   }
-  
-  # Add legend
-  legend("topleft", 
-         legend = c("Observed", "Expected (N(0,1))", if(envelope) "95% Envelope"),
-         pch = c(19, NA, if(envelope) 15),
-         lty = c(NA, 2, NA),
-         col = c("blue", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
-         bg = "white")
   
   return(invisible(list(
     residuals = valid_residuals,
@@ -1834,8 +1826,11 @@ qq_plot_random_blups <- function(random_results, envelope = TRUE) {
        ylab = "Standardized BLUPs",
        pch = 19, col = "darkgreen")
   
-  # Add reference line
+  # Add identity line (y = x)
   abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add regression line (OLS fit) - subtle gray
+  abline(lm(sorted_blups ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   
   # Add simulation envelope if requested
   if (envelope && n >= 5) {
@@ -1853,18 +1848,11 @@ qq_plot_random_blups <- function(random_results, envelope = TRUE) {
             c(lower_env, rev(upper_env)),
             col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
     
-    # Re-add points and line
+    # Re-add points and lines
     points(theoretical_quantiles, sorted_blups, pch = 19, col = "darkgreen")
     abline(0, 1, col = "red", lty = 2, lwd = 2)
+    abline(lm(sorted_blups ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   }
-  
-  # Add legend
-  legend("topleft", 
-         legend = c("Standardized BLUPs", "Expected (N(0,1))", if(envelope) "95% Envelope"),
-         pch = c(19, NA, if(envelope) 15),
-         lty = c(NA, 2, NA),
-         col = c("darkgreen", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
-         bg = "white")
   
   return(invisible(list(
     blups = valid_blups,
@@ -1934,8 +1922,11 @@ qq_plot_random_deleted_residuals <- function(random_results, envelope = TRUE) {
        ylab = "Standardized Deleted Residuals",
        pch = 19, col = "purple")
   
-  # Add reference line
+  # Add identity line (y = x)
   abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add regression line (OLS fit) - subtle gray
+  abline(lm(sorted_residuals ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   
   # Add simulation envelope if requested
   if (envelope && n >= 5) {
@@ -1953,18 +1944,11 @@ qq_plot_random_deleted_residuals <- function(random_results, envelope = TRUE) {
             c(lower_env, rev(upper_env)),
             col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
     
-    # Re-add points and line
+    # Re-add points and lines
     points(theoretical_quantiles, sorted_residuals, pch = 19, col = "purple")
     abline(0, 1, col = "red", lty = 2, lwd = 2)
+    abline(lm(sorted_residuals ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   }
-  
-  # Add legend
-  legend("topleft", 
-         legend = c("Deleted Residuals", "Expected (N(0,1))", if(envelope) "95% Envelope"),
-         pch = c(19, NA, if(envelope) 15),
-         lty = c(NA, 2, NA),
-         col = c("purple", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
-         bg = "white")
   
   return(invisible(list(
     residuals = valid_residuals,
@@ -2058,8 +2042,11 @@ qq_plot_bivariate_blups <- function(bivariate_results, envelope = TRUE) {
        ylab = "Standardized BLUPs",
        pch = 19, col = "orange")
   
-  # Add reference line
+  # Add identity line (y = x)
   abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add regression line (OLS fit) - subtle gray
+  abline(lm(sorted_blups ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   
   # Add simulation envelope if requested
   if (envelope && n >= 5) {
@@ -2088,18 +2075,11 @@ qq_plot_bivariate_blups <- function(bivariate_results, envelope = TRUE) {
             c(lower_env, rev(upper_env)),
             col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
     
-    # Re-add points and line
+    # Re-add points and lines
     points(theoretical_quantiles, sorted_blups, pch = 19, col = "orange")
     abline(0, 1, col = "red", lty = 2, lwd = 2)
+    abline(lm(sorted_blups ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   }
-  
-  # Add legend
-  legend("topleft", 
-         legend = c("Bivariate BLUPs", "Expected (N(0,1))", if(envelope) "95% Envelope"),
-         pch = c(19, NA, if(envelope) 15),
-         lty = c(NA, 2, NA),
-         col = c("orange", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
-         bg = "white")
   
   return(invisible(list(
     blups = valid_blups,
@@ -2184,8 +2164,11 @@ qq_plot_bivariate_deleted_residuals <- function(bivariate_results, data, input, 
        ylab = "Standardized Deleted Residuals",
        pch = 19, col = "brown")
   
-  # Add reference line
+  # Add identity line (y = x)
   abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add regression line (OLS fit) - subtle gray
+  abline(lm(sorted_residuals ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   
   # Add simulation envelope if requested (simplified version)
   if (envelope && n >= 5) {
@@ -2203,18 +2186,11 @@ qq_plot_bivariate_deleted_residuals <- function(bivariate_results, data, input, 
             c(lower_env, rev(upper_env)),
             col = rgb(0.8, 0.8, 0.8, 0.3), border = NA)
     
-    # Re-add points and line
+    # Re-add points and lines
     points(theoretical_quantiles, sorted_residuals, pch = 19, col = "brown")
     abline(0, 1, col = "red", lty = 2, lwd = 2)
+    abline(lm(sorted_residuals ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   }
-  
-  # Add legend
-  legend("topleft", 
-         legend = c("Bivariate Deleted Residuals", "Expected (N(0,1))", if(envelope) "95% Envelope"),
-         pch = c(19, NA, if(envelope) 15),
-         lty = c(NA, 2, NA),
-         col = c("brown", "red", if(envelope) rgb(0.8, 0.8, 0.8, 0.3)),
-         bg = "white")
   
   return(invisible(list(
     residuals = valid_residuals,
@@ -2456,14 +2432,54 @@ create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2,
                                                   label1 = "Model 1", 
                                                   label2 = "Model 2",
                                                   main_title = "Deleted Residuals Q-Q Plots") {
+  # Remove NA values from both
+  residuals1_clean <- residuals1[!is.na(residuals1)]
+  residuals2_clean <- residuals2[!is.na(residuals2)]
+  
+  # Calculate shared axis limits based on BOTH datasets for fair comparison
+  n1 <- length(residuals1_clean)
+  n2 <- length(residuals2_clean)
+  
+  if (n1 >= 3 && n2 >= 3) {
+    # Calculate theoretical quantiles for both
+    p1 <- (1:n1 - 0.5) / n1
+    p2 <- (1:n2 - 0.5) / n2
+    theo_q1 <- qnorm(p1)
+    theo_q2 <- qnorm(p2)
+    
+    # Calculate envelope widths
+    z_alpha <- qnorm(0.975)
+    se1 <- 1 / dnorm(theo_q1)
+    se2 <- 1 / dnorm(theo_q2)
+    env_width1 <- z_alpha * se1 * sqrt(p1 * (1 - p1) / n1)
+    env_width2 <- z_alpha * se2 * sqrt(p2 * (1 - p2) / n2)
+    
+    sorted1 <- sort(residuals1_clean)
+    sorted2 <- sort(residuals2_clean)
+    
+    # Calculate shared x-axis limits (theoretical quantiles)
+    shared_xlim <- range(c(theo_q1, theo_q2))
+    
+    # Calculate shared y-axis limits (including envelope)
+    shared_ylim <- range(c(
+      sorted1 - env_width1, sorted1 + env_width1,
+      sorted2 - env_width2, sorted2 + env_width2
+    ))
+  } else {
+    shared_xlim <- NULL
+    shared_ylim <- NULL
+  }
+  
   # Set up 2-panel plot
   par(mfrow = c(1, 2), mar = c(5, 4, 4, 2) + 0.1)
   
-  # Left panel
-  create_single_qq_panel(residuals1, paste(label1, "Deleted Residuals"))
+  # Left panel with shared limits
+  create_single_qq_panel(residuals1, paste(label1, "Deleted Residuals"), 
+                        xlim = shared_xlim, ylim = shared_ylim)
   
-  # Right panel
-  create_single_qq_panel(residuals2, paste(label2, "Deleted Residuals"))
+  # Right panel with shared limits
+  create_single_qq_panel(residuals2, paste(label2, "Deleted Residuals"),
+                        xlim = shared_xlim, ylim = shared_ylim)
   
   # Add main title
   mtext(main_title, side = 3, line = -2, outer = TRUE, cex = 1.2, font = 2)
@@ -2475,7 +2491,9 @@ create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2,
 #' Create Single QQ Panel with Confidence Envelope
 #' @param residuals Vector of residuals
 #' @param title Panel title
-create_single_qq_panel <- function(residuals, title) {
+#' @param xlim Optional x-axis limits for consistent comparison
+#' @param ylim Optional y-axis limits for consistent comparison
+create_single_qq_panel <- function(residuals, title, xlim = NULL, ylim = NULL) {
   # Remove NA values
   residuals <- residuals[!is.na(residuals)]
   n <- length(residuals)
@@ -2498,15 +2516,24 @@ create_single_qq_panel <- function(residuals, title) {
   se <- 1 / dnorm(theoretical_quantiles)
   envelope_width <- z_alpha * se * sqrt(p * (1 - p) / n)
   
-  # Create plot
+  # Use provided limits or calculate from data
+  if (is.null(ylim)) {
+    ylim <- range(c(sorted_residuals - envelope_width, 
+                   sorted_residuals + envelope_width))
+  }
+  if (is.null(xlim)) {
+    xlim <- range(theoretical_quantiles)
+  }
+  
+  # Create plot with shared axis limits
   plot(theoretical_quantiles, sorted_residuals,
        main = title,
        xlab = "Theoretical Quantiles",
        ylab = "Sample Quantiles",
        pch = 19,
        col = "darkblue",
-       ylim = range(c(sorted_residuals - envelope_width, 
-                     sorted_residuals + envelope_width)))
+       xlim = xlim,
+       ylim = ylim)
   
   # Add confidence envelope
   polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
@@ -2518,8 +2545,11 @@ create_single_qq_panel <- function(residuals, title) {
   # Replot points
   points(theoretical_quantiles, sorted_residuals, pch = 19, col = "darkblue")
   
-  # Add reference line
+  # Add identity line (y = x)
   abline(0, 1, col = "red", lty = 2, lwd = 2)
+  
+  # Add regression line (OLS fit) - subtle gray
+  abline(lm(sorted_residuals ~ theoretical_quantiles), col = "gray50", lty = 1, lwd = 1)
   
   # Add grid
   grid(col = "gray90")
