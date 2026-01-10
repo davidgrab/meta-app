@@ -1160,7 +1160,7 @@ server <- function(input, output, session) {
         "<p><strong>Thesis:</strong> <em>\"Modern Meta-Analysis: Joint Confidence Regions for Effect Size and Heterogeneity\"</em></p>",
         "<p>The app implements the <strong>Joint Confidence Region (JCR)</strong> method based on:</p>",
         "<p style='margin-left: 15px; font-size: 0.9em;'><em>Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. Journal of Clinical Epidemiology, 107, 101-106.</em></p>",
-        "<p>The JCR method provides a frequentist approach to jointly estimating the overall effect (μ) and between-study heterogeneity (τ) using Maximum Likelihood Estimation, with confidence regions constructed via likelihood-ratio tests.</p>",
+        "<p>The JCR method provides a frequentist approach to jointly estimating the overall effect (μ) and between-study heterogeneity (τ) using Maximum Likelihood Estimation, with confidence regions constructed via likelihood-ratio tests, enabling probability statements about treatment effects in new populations.</p>",
         "</div>",
         
         "<b>How to Use This App:</b><br><br>",

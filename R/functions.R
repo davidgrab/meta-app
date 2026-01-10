@@ -1012,7 +1012,8 @@ ggplot_metainf <- function(metainf_result) {
 # }
 
 qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE, 
-                                title = "Q-Q Plot for Residuals") {
+                                title = "Q-Q Plot for Residuals",
+                                n_sim = 1000) {
   # Transform data if log odds required
   if (log_odds) {
     y_k <- log(y_k / (1 - y_k))
@@ -1049,17 +1050,16 @@ qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE
   
   # Calculate theoretical quantiles using (i - 0.5)/n formula
   p <- (1:n_points - 0.5) / n_points
-  #theoretical_quantiles <- qnorm(p, mean = mean(mu), sd = sqrt(tau_2))  # Adjusted for empirical distribution
   theoretical_quantiles <- qnorm(p) 
-  # Calculate empirical standard error for CI
-  se_residuals <- sd(residuals_sorted)
   
-  # Calculate pointwise confidence intervals
-  z_alpha <- qnorm(0.975)  # 95% CI
-  ci_width <- z_alpha * se_residuals * sqrt(p * (1 - p) / (n_points * dnorm(theoretical_quantiles)^2))
-  
-  ci_lower <- residuals_sorted - ci_width
-  ci_upper <- residuals_sorted + ci_width
+  # CORRECT: Simulation-based envelope (metafor-style)
+  # Envelope is centered on the IDENTITY LINE, not on the data!
+  envelopes <- replicate(n_sim, {
+    sim_residuals <- rnorm(n_points)
+    sort(sim_residuals)
+  })
+  lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
+  upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
   
   # Set up plot margins to accommodate title and subtitle
   par(mar = c(5, 5, 4, 2) + 0.1)
@@ -1072,21 +1072,21 @@ qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE
        pch = 19,
        col = "blue",
        cex = point_sizes,  # Scale point size by study size
-       ylim = range(c(ci_lower, ci_upper, residuals_sorted), na.rm = TRUE))
+       ylim = range(c(lower_env, upper_env, residuals_sorted), na.rm = TRUE))
   
-  # **Modify reference line to use estimated μ and τ² (Upline)**
+  # Reference line to use estimated μ and τ² (Upline)
   abline(a = mean(mu), b = sqrt(tau_2), col = "blue", lty = 2)  # Custom upline
   
-  # **Add Q-Q Line (Least Squares Fit)**
+  # Add Q-Q Line (Least Squares Fit)
   qqline(residuals_sorted, distribution = function(p) qnorm(p, mean = mean(mu), sd = sqrt(tau_2)), col = "darkgreen", lwd = 2)
   
-  # Add confidence intervals
+  # Add simulation envelope (centered on identity line, NOT on data)
   polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
-          c(ci_lower, rev(ci_upper)),
+          c(lower_env, rev(upper_env)),
           col = rgb(0.8, 0.8, 0.8, 0.3),
           border = NA)
   
-  # Add points again to ensure they're visible above the CI region
+  # Add points again to ensure they're visible above the envelope
   points(theoretical_quantiles, residuals_sorted, pch = 19, col = "blue", cex = point_sizes)
   
 
@@ -1101,7 +1101,7 @@ qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE
          legend = c("Observed Quantiles (Scaled by Study Size)", 
                     "Reference Line (Estimated μ, τ²)", 
                     "Q-Q Line (Regression Fit)",
-                    "95% Confidence Band"),
+                    "95% Simulation Envelope"),
          pch = c(19, NA, NA, 15),
          lty = c(NA, 2, 1, NA),
          col = c("blue", "blue", "darkgreen", rgb(0.8, 0.8, 0.8, 0.3)),
@@ -1111,15 +1111,15 @@ qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE
   invisible(list(
     theoretical_quantiles = theoretical_quantiles,
     empirical_quantiles = residuals_sorted,
-    ci_lower = ci_lower,
-    ci_upper = ci_upper,
-    se_residuals = se_residuals,
+    lower_env = lower_env,
+    upper_env = upper_env,
     n_k_sorted = n_k_sorted  # Return patient numbers for reference
   ))
 }
 
 qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE, 
-                           title = "Q-Q Plot for Standardized Residuals") {
+                           title = "Q-Q Plot for Standardized Residuals",
+                           n_sim = 1000) {
   # Transform data if log odds required
   if (log_odds) {
     y_k <- log(y_k / (1 - y_k))
@@ -1141,16 +1141,15 @@ qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE,
   p <- (1:n_points - 0.5) / n_points
   theoretical_quantiles <- qnorm(p)
   
-  # Calculate empirical standard error for CI
-  se_residuals <- sd(standardized_residuals)
-  
-  # Calculate pointwise confidence intervals
-  # Using standard error of order statistics
-  z_alpha <- qnorm(0.975)  # 95% CI
-  ci_width <- z_alpha * se_residuals * sqrt(p * (1 - p) / (n_points * dnorm(theoretical_quantiles)^2))
-  
-  ci_lower <- sorted_residuals - ci_width
-  ci_upper <- sorted_residuals + ci_width
+  # CORRECT: Simulation-based envelope (metafor-style)
+  # Envelope is centered on the IDENTITY LINE, not on the data!
+  # This shows where N(0,1) order statistics typically fall
+  envelopes <- replicate(n_sim, {
+    sim_residuals <- rnorm(n_points)
+    sort(sim_residuals)
+  })
+  lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
+  upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
   
   # Set up plot margins to accommodate title and subtitle
   par(mar = c(5, 5, 4, 2) + 0.1)
@@ -1162,18 +1161,18 @@ qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE,
        ylab = if(log_odds) "Log-Odds Standardized Residuals" else "Standardized Residuals",
        pch = 19,
        col = "blue",
-       ylim = range(c(ci_lower, ci_upper, sorted_residuals), na.rm = TRUE))
+       ylim = range(c(lower_env, upper_env, sorted_residuals), na.rm = TRUE))
   
-  # Add reference line
+  # Add reference line (identity line y = x)
   abline(0, 1, col = "red", lty = 2)
  
-  # Add confidence intervals
+  # Add simulation envelope (centered on identity line, NOT on data)
   polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
-         c(ci_lower, rev(ci_upper)),
+         c(lower_env, rev(upper_env)),
          col = rgb(0.8, 0.8, 0.8, 0.3),
          border = NA)
   
-  # Add points again to ensure they're visible above the CI region
+  # Add points again to ensure they're visible above the envelope
   points(theoretical_quantiles, sorted_residuals, pch = 19, col = "blue")
   
   # Add model information as subtitle
@@ -1185,8 +1184,8 @@ qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE,
   # Add legend
   legend("topleft",
          legend = c("Observed Quantiles", 
-                   "Reference Line", 
-                   "95% Confidence Band"),
+                   "Reference Line (y = x)", 
+                   "95% Simulation Envelope"),
          pch = c(19, NA, 15),
          lty = c(NA, 2, NA),
          col = c("blue", "red", rgb(0.8, 0.8, 0.8, 0.3)),
@@ -1196,9 +1195,8 @@ qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE,
   invisible(list(
     theoretical_quantiles = theoretical_quantiles,
     empirical_quantiles = sorted_residuals,
-    ci_lower = ci_lower,
-    ci_upper = ci_upper,
-    se_residuals = se_residuals
+    lower_env = lower_env,
+    upper_env = upper_env
   ))
 }
 
@@ -2428,10 +2426,12 @@ calculate_bivariate_deleted_residuals <- function(bivariate_results, data, input
 #' @param label1 Label for first panel
 #' @param label2 Label for second panel
 #' @param main_title Main title for the plot
+#' @param n_sim Number of simulations for envelope (default 1000)
 create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2, 
                                                   label1 = "Model 1", 
                                                   label2 = "Model 2",
-                                                  main_title = "Deleted Residuals Q-Q Plots") {
+                                                  main_title = "Deleted Residuals Q-Q Plots",
+                                                  n_sim = 1000) {
   # Remove NA values from both
   residuals1_clean <- residuals1[!is.na(residuals1)]
   residuals2_clean <- residuals2[!is.na(residuals2)]
@@ -2447,12 +2447,15 @@ create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2,
     theo_q1 <- qnorm(p1)
     theo_q2 <- qnorm(p2)
     
-    # Calculate envelope widths
-    z_alpha <- qnorm(0.975)
-    se1 <- 1 / dnorm(theo_q1)
-    se2 <- 1 / dnorm(theo_q2)
-    env_width1 <- z_alpha * se1 * sqrt(p1 * (1 - p1) / n1)
-    env_width2 <- z_alpha * se2 * sqrt(p2 * (1 - p2) / n2)
+    # CORRECT: Simulation-based envelope (metafor-style)
+    # Envelopes are centered on the identity line, not on the data
+    envelopes1 <- replicate(n_sim, sort(rnorm(n1)))
+    envelopes2 <- replicate(n_sim, sort(rnorm(n2)))
+    
+    lower_env1 <- apply(envelopes1, 1, quantile, probs = 0.025)
+    upper_env1 <- apply(envelopes1, 1, quantile, probs = 0.975)
+    lower_env2 <- apply(envelopes2, 1, quantile, probs = 0.025)
+    upper_env2 <- apply(envelopes2, 1, quantile, probs = 0.975)
     
     sorted1 <- sort(residuals1_clean)
     sorted2 <- sort(residuals2_clean)
@@ -2460,10 +2463,11 @@ create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2,
     # Calculate shared x-axis limits (theoretical quantiles)
     shared_xlim <- range(c(theo_q1, theo_q2))
     
-    # Calculate shared y-axis limits (including envelope)
+    # Calculate shared y-axis limits (including data and envelope)
     shared_ylim <- range(c(
-      sorted1 - env_width1, sorted1 + env_width1,
-      sorted2 - env_width2, sorted2 + env_width2
+      sorted1, sorted2,
+      lower_env1, upper_env1,
+      lower_env2, upper_env2
     ))
   } else {
     shared_xlim <- NULL
@@ -2488,12 +2492,13 @@ create_sidebyside_deleted_residuals_qq <- function(residuals1, residuals2,
   par(mfrow = c(1, 1))
 }
 
-#' Create Single QQ Panel with Confidence Envelope
+#' Create Single QQ Panel with Simulation-Based Confidence Envelope (metafor-style)
 #' @param residuals Vector of residuals
 #' @param title Panel title
 #' @param xlim Optional x-axis limits for consistent comparison
 #' @param ylim Optional y-axis limits for consistent comparison
-create_single_qq_panel <- function(residuals, title, xlim = NULL, ylim = NULL) {
+#' @param n_sim Number of simulations for envelope (default 1000)
+create_single_qq_panel <- function(residuals, title, xlim = NULL, ylim = NULL, n_sim = 1000) {
   # Remove NA values
   residuals <- residuals[!is.na(residuals)]
   n <- length(residuals)
@@ -2511,15 +2516,19 @@ create_single_qq_panel <- function(residuals, title, xlim = NULL, ylim = NULL) {
   p <- (1:n - 0.5) / n
   theoretical_quantiles <- qnorm(p)
   
-  # Calculate confidence envelope
-  z_alpha <- qnorm(0.975)
-  se <- 1 / dnorm(theoretical_quantiles)
-  envelope_width <- z_alpha * se * sqrt(p * (1 - p) / n)
+  # CORRECT: Simulation-based envelope (metafor-style)
+  # Simulate n_sim samples from N(0,1) and compute pointwise quantiles
+  # This envelope is centered on the IDENTITY LINE, not on the data!
+  envelopes <- replicate(n_sim, {
+    sim_residuals <- rnorm(n)
+    sort(sim_residuals)
+  })
+  lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
+  upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
   
-  # Use provided limits or calculate from data
+  # Use provided limits or calculate from data and envelope
   if (is.null(ylim)) {
-    ylim <- range(c(sorted_residuals - envelope_width, 
-                   sorted_residuals + envelope_width))
+    ylim <- range(c(sorted_residuals, lower_env, upper_env))
   }
   if (is.null(xlim)) {
     xlim <- range(theoretical_quantiles)
@@ -2535,10 +2544,9 @@ create_single_qq_panel <- function(residuals, title, xlim = NULL, ylim = NULL) {
        xlim = xlim,
        ylim = ylim)
   
-  # Add confidence envelope
+  # Add simulation envelope (centered on identity line, NOT on data)
   polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
-          c(sorted_residuals - envelope_width, 
-            rev(sorted_residuals + envelope_width)),
+          c(lower_env, rev(upper_env)),
           col = rgb(0.8, 0.8, 0.8, 0.3),
           border = NA)
   
