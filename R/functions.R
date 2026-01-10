@@ -282,45 +282,6 @@ simulate_pseudo_residuals <- function(yi, vi, mu, tau, n_sim = 1000) {
   return(pseudo_residuals)
 }
 
-# Function to create Q-Q plot with pseudo confidence envelope
-qq_plot_residuals_with_envelope <- function(residuals, title, n_sim = 1000) {
-  # Observed residuals
-  qq_obs <- qqnorm(residuals, plot.it = FALSE)
-  
-  # Simulate pseudo residuals
-  pseudo_residuals <- simulate_pseudo_residuals(residuals, rep(1, length(residuals)), 0, 1, n_sim)
-  
-  # Calculate the quantiles for the confidence envelope
-  quantiles <- apply(pseudo_residuals, 2, function(x) quantile(x, probs = c(0.025, 0.975)))
-  
-  # Prepare data for ggplot
-  qq_data <- data.frame(
-    observed = qq_obs$y,
-    theoretical = qq_obs$x,
-    lower = quantiles[1,],
-    upper = quantiles[2,]
-  )
-  
-  # Create the ggplot
-  p <- ggplot(qq_data, aes(x = theoretical, y = observed)) +
-    geom_point() +
-    geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
-    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, fill = "blue") +
-    labs(title = title,
-         x = "Theoretical Quantiles",
-         y = "Sample Quantiles") +
-    theme_minimal()
-  
-  # Convert to plotly with explicit options
-  pp <- ggplotly(p, tooltip = "all", width = NULL, height = NULL)
-  
-  return(pp)
-}
-# Q-Q plots for μ and τ residuals
-qq_plot_residuals <- function(residuals, title) {
-  qqnorm(residuals, main = title)
-  qqline(residuals, col = "red")
-}
 
 
 
@@ -657,18 +618,6 @@ compare_models <- function(results) {
   summary[numeric_columns] <- lapply(summary[numeric_columns], round, 4)
   
   return(summary)
-}
-# Updated QQ plot function to handle potential errors
-qq_plot_residuals <- function(model) {
-  residuals <- (model$TE - model$TE.random) / sqrt(model$seTE^2 + model$tau2)
-  if (all(is.na(residuals))) {
-    # Create a blank plot with an error message
-    plot(1, type = "n", xlab = "", ylab = "", xlim = c(0, 1), ylim = c(0, 1))
-    text(0.5, 0.5, "Unable to generate QQ plot:\nNo valid residuals", cex = 1.2)
-  } else {
-    qqnorm(residuals, main = "Normal Q-Q Plot")
-    qqline(residuals, col = 2)
-  }
 }
 
 
@@ -1011,111 +960,6 @@ ggplot_metainf <- function(metainf_result) {
 #   ))
 # }
 
-qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, n_k, log_odds = FALSE, 
-                                title = "Q-Q Plot for Residuals",
-                                n_sim = 1000) {
-  # Transform data if log odds required
-  if (log_odds) {
-    y_k <- log(y_k / (1 - y_k))
-    mu <- log(mu / (1 - mu))
-  }
-  
-  # Calculate regular residuals
-  residuals <- y_k - mu  # Use raw residuals
-  
-  # Remove any infinite or NA values
-  valid_indices <- is.finite(residuals)
-  residuals <- residuals[valid_indices]
-  
-  if (length(residuals) < 2) {
-    plot(1, type="n", axes=FALSE, xlab="", ylab="", main=title)
-    text(1, 1, "Not enough valid data to generate Q-Q plot.")
-    return(invisible(NULL))
-  }
-  
-  sigma_2_k <- sigma_2_k[valid_indices]  # Ensure consistency
-  n_k <- n_k[valid_indices]  # Ensure study sizes are consistent
-  
-  # Scale point size based on study size (inverse variance)
-  point_sizes <- sqrt(1 / sigma_2_k)
-  point_sizes <- point_sizes / max(point_sizes) * 3  # Normalize and scale
-  
-  # Sort residuals for proper quantile computation
-  sorted_residuals <- sort(residuals, index.return = TRUE)
-  residuals_sorted <- sorted_residuals$x
-  sorted_indices <- sorted_residuals$ix  # Keep track of original order
-  n_k_sorted <- n_k[sorted_indices]  # Sort patient numbers accordingly
-  
-  n_points <- length(residuals_sorted)
-  
-  # Calculate theoretical quantiles using (i - 0.5)/n formula
-  p <- (1:n_points - 0.5) / n_points
-  theoretical_quantiles <- qnorm(p) 
-  
-  # CORRECT: Simulation-based envelope (metafor-style)
-  # Envelope is centered on the IDENTITY LINE, not on the data!
-  envelopes <- replicate(n_sim, {
-    sim_residuals <- rnorm(n_points)
-    sort(sim_residuals)
-  })
-  lower_env <- apply(envelopes, 1, quantile, probs = 0.025)
-  upper_env <- apply(envelopes, 1, quantile, probs = 0.975)
-  
-  # Set up plot margins to accommodate title and subtitle
-  par(mar = c(5, 5, 4, 2) + 0.1)
-  
-  # Create the plot
-  plot(theoretical_quantiles, residuals_sorted,
-       main = title,
-       xlab = "Theoretical Quantiles",
-       ylab = if(log_odds) "Log-Odds Residuals" else "Residuals",
-       pch = 19,
-       col = "blue",
-       cex = point_sizes,  # Scale point size by study size
-       ylim = range(c(lower_env, upper_env, residuals_sorted), na.rm = TRUE))
-  
-  # Reference line to use estimated μ and τ² (Upline)
-  abline(a = mean(mu), b = sqrt(tau_2), col = "blue", lty = 2)  # Custom upline
-  
-  # Add Q-Q Line (Least Squares Fit)
-  qqline(residuals_sorted, distribution = function(p) qnorm(p, mean = mean(mu), sd = sqrt(tau_2)), col = "darkgreen", lwd = 2)
-  
-  # Add simulation envelope (centered on identity line, NOT on data)
-  polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
-          c(lower_env, rev(upper_env)),
-          col = rgb(0.8, 0.8, 0.8, 0.3),
-          border = NA)
-  
-  # Add points again to ensure they're visible above the envelope
-  points(theoretical_quantiles, residuals_sorted, pch = 19, col = "blue", cex = point_sizes)
-  
-
-  # Add model information as subtitle
-  if (!is.null(tau_2) && !is.null(mu)) {
-    mtext(sprintf("τ² = %.3f, μ = %.3f", tau_2, mean(mu)), 
-          side = 3, line = 0.5, cex = 0.8)
-  }
-  
-  # Add legend
-  legend("topleft",
-         legend = c("Observed Quantiles (Scaled by Study Size)", 
-                    "Reference Line (Estimated μ, τ²)", 
-                    "Q-Q Line (Regression Fit)",
-                    "95% Simulation Envelope"),
-         pch = c(19, NA, NA, 15),
-         lty = c(NA, 2, 1, NA),
-         col = c("blue", "blue", "darkgreen", rgb(0.8, 0.8, 0.8, 0.3)),
-         bg = "white")
-  
-  # Return invisibly the plot data for potential further use
-  invisible(list(
-    theoretical_quantiles = theoretical_quantiles,
-    empirical_quantiles = residuals_sorted,
-    lower_env = lower_env,
-    upper_env = upper_env,
-    n_k_sorted = n_k_sorted  # Return patient numbers for reference
-  ))
-}
 
 qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE, 
                            title = "Q-Q Plot for Standardized Residuals",
@@ -1201,33 +1045,6 @@ qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE,
 }
 
 # Add a new function for QQ plots specifically for bivariate meta-analysis
-qq_plot_bivariate <- function(model, log_odds = FALSE) {
-  # Extract necessary components from the bivariate model
-  y_k <- model$y.k
-  mu <- model$mu
-  sigma_2_k <- model$sigma.2.k
-  tau_2 <- model$tau^2
-  
-  # Create QQ plot with confidence intervals
-  qq_result <- qq_plot_with_ci(
-    y_k = y_k,
-    mu = mu,
-    sigma_2_k = sigma_2_k,
-    tau_2 = tau_2,
-    log_odds = log_odds,
-    title = "Q-Q Plot for Bivariate Meta-Analysis Residuals"
-  )
-  
-  # Add model diagnostics as subtitle
-  mtext(sprintf("τ² = %.3f, μ = %.3f", tau_2, mu), 
-        side = 3, 
-        line = 0.5, 
-        cex = 0.8)
-  
-  # Return invisibly the plot data
-  invisible(qq_result)
-}
-
 # Add a helper function to check if log-odds transformation is appropriate
 should_use_log_odds <- function(y_k) {
   # Check if data appears to be proportions
@@ -1282,27 +1099,72 @@ safe_run <- function(expr, fallback = NULL) {
 }
 ```
 
+# Introduction
+
+This report presents a comprehensive meta-analysis of your data using three complementary statistical approaches:
+
+**Report Sections:**
+
+1. **Random Effects Analysis** - Assumes true effect sizes vary between studies. Best when heterogeneity exists.
+2. **Fixed Effects Analysis** - Assumes one true effect size across all studies. Best when studies are homogeneous.
+3. **JCR (Bivariate) Analysis** - Joint estimation of effect size (μ) and heterogeneity (τ) using maximum likelihood. Provides more precise confidence regions.
+4. **Meta-Regression** (if selected) - Explores whether study-level covariates explain heterogeneity.
+5. **Subgroup Analysis** (if selected) - Compares effects across categorical subgroups.
+
+**How to Use This Report:**
+
+- **Forest plots**: Look for overlap of confidence intervals with the null effect (1 for ratios, 0 for differences)
+- **Q-Q plots**: Points should fall within the gray envelope if normality assumptions hold
+- **Funnel plots**: Asymmetry suggests potential publication bias
+- **Sensitivity analyses**: Large changes when removing single studies indicate fragile results
+
+---
+
 # Random Effects Analysis
 
 ## Effect Size & Heterogeneity
 
 ```{r re-forest, fig.width=12, fig.height=8}
-safe_run(random_forest_plot(params$random_results))
+safe_run(invisible(random_forest_plot(params$random_results)))
 ```
 
-```{r re-heterogeneity, fig.width=10, fig.height=6}
-safe_run(heterogeneity_plot(params$random_results))
+**What it is:** The forest plot shows individual study effect sizes with 95% confidence intervals. The diamond at the bottom represents the pooled random effects estimate, calculated assuming true effect sizes vary between studies.
+
+**How to interpret:** Look for (1) consistency of effect direction across studies, (2) whether confidence intervals overlap, and (3) whether the pooled estimate confidence interval excludes the null effect.
+
+## Model Diagnostics
+
+```{r re-qq-comparison, fig.width=12, fig.height=6}
+safe_run(qq_plot_random_vs_fixed_deleted(params$random_results, params$fixed_results))
 ```
 
-```{r re-summary}
-safe_run(cat(capture.output(summary(params$random_results)), sep="\n"))
+**Interpretation:** Side-by-side Q-Q plots of deleted residuals compare Fixed Effects (left) vs Random Effects (right). Points within the gray simulation envelope suggest the model assumptions are met. If one model shows better behavior (points closer to the identity line), it may be more appropriate for your data.
+
+```{r re-qq-blups, fig.width=10, fig.height=6}
+safe_run(qq_plot_random_blups(params$random_results))
 ```
+
+**Interpretation:** This Q-Q plot tests whether the Best Linear Unbiased Predictors (BLUPs) follow a normal distribution. Points should fall within the gray envelope. S-shaped deviations indicate heavy/light tails; systematic curvature suggests skewness.
+
+```{r re-outlier, fig.width=10, fig.height=6}
+safe_run(outlier_detection_plot(params$random_results))
+```
+
+**Interpretation:** Studies with standardized residuals beyond ±1.96 (dashed lines) are potential outliers. These studies may be methodologically different or represent distinct populations. Consider sensitivity analysis excluding these studies.
+
+```{r re-effect-dist, fig.width=10, fig.height=6}
+safe_run(effect_distribution_plot(params$random_results))
+```
+
+**Interpretation:** This histogram shows the distribution of individual study effect sizes. The red dashed line marks the pooled estimate. Bimodal or highly skewed distributions may indicate subgroup effects or the need for stratified analysis.
 
 ## Publication Bias
 
 ```{r re-funnel, fig.width=10, fig.height=6}
 safe_run(random_funnel_plot(params$random_results))
 ```
+
+**Interpretation:** In the absence of bias, the funnel plot should be symmetric around the pooled effect. Asymmetry (e.g., missing studies in the lower-left) suggests small studies with non-significant results may be missing from the literature.
 
 ```{r re-trimfill, fig.width=10, fig.height=6}
 safe_run({
@@ -1311,9 +1173,7 @@ safe_run({
 })
 ```
 
-```{r re-egger}
-safe_run(cat(capture.output(metabias(params$random_results, method="Egger")), sep="\n"))
-```
+**Interpretation:** The trim-and-fill method imputes missing studies (open circles) to make the funnel symmetric. A large number of imputed studies and substantial change in the pooled estimate suggests publication bias may affect conclusions.
 
 ## Sensitivity Analysis
 
@@ -1329,38 +1189,19 @@ safe_run({
 })
 ```
 
+**Interpretation:** Each row shows the pooled estimate when that study is removed. If removing a single study substantially changes the estimate or its significance, results depend heavily on that study.
+
 ```{r re-baujat, fig.width=10, fig.height=6}
 safe_run(baujat(params$random_results))
 ```
 
-```{r re-influence}
-safe_run(influence_analysis(params$random_results))
+**Interpretation:** The Baujat plot identifies influential studies. Studies in the top-right contribute most to both heterogeneity (x-axis) and influence on the pooled result (y-axis). These warrant careful examination.
+
+```{r re-gosh, fig.width=10, fig.height=6}
+safe_run(gosh_plot(params$random_results))
 ```
 
-## Model Diagnostics
-
-```{r re-qq-blups, fig.width=10, fig.height=6}
-safe_run(qq_plot_random_blups(params$random_results))
-```
-
-```{r re-qq-deleted, fig.width=10, fig.height=6}
-safe_run(qq_plot_random_deleted_residuals(params$random_results))
-```
-
-```{r re-outlier, fig.width=10, fig.height=6}
-safe_run(outlier_detection_plot(params$random_results))
-```
-
-```{r re-effect-dist, fig.width=10, fig.height=6}
-safe_run(effect_distribution_plot(params$random_results))
-```
-
-```{r re-normality}
-safe_run({
-  diag_results <- run_all_normality_diagnostics("random", params$random_results)
-  print_normality_summary(diag_results, "random")
-})
-```
+**Interpretation:** The GOSH plot shows the distribution of pooled estimates across all possible study subsets. Multiple peaks suggest distinct subgroups with different true effects.
 
 ## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
 
@@ -1371,32 +1212,43 @@ if (params$include_subgroup && !is.null(params$random_subgroup_results)) {
            test.overall.random = TRUE,
            test.subgroup.random = TRUE,
            print.byvar = FALSE)
-    cat("\nSubgroup Analysis Results:\n")
-    cat("Q-statistic between groups:", params$random_subgroup_results$Q.b.random, "\n")
-    cat("P-value:", params$random_subgroup_results$pval.Q.b.random, "\n")
   })
 }
 ```
+
+---
 
 # Fixed Effects Analysis
 
 ## Effect Size & Heterogeneity
 
 ```{r fe-forest, fig.width=12, fig.height=8}
-safe_run(fixed_forest_plot(params$fixed_results))
+safe_run(invisible(fixed_forest_plot(params$fixed_results)))
 ```
+
+**What it is:** The fixed effects forest plot shows individual study effect sizes assuming all studies estimate the same true underlying effect. Study weights are based solely on precision (inverse variance).
+
+**How to interpret:** This model is appropriate when heterogeneity is low (I² < 25%). If studies show significant heterogeneity, interpret with caution and consider the random effects model.
+
+## Model Diagnostics
+
+```{r fe-qq, fig.width=10, fig.height=6}
+safe_run(qq_plot_fixed_residuals(params$fixed_results))
+```
+
+**Interpretation:** This Q-Q plot tests whether standardized residuals r_i = (Y_i - θ̂)/σ_i follow N(0,1). Points within the gray envelope support the fixed effects assumption. Systematic deviations suggest the sampling model may be misspecified.
 
 ```{r fe-radial, fig.width=10, fig.height=6}
 safe_run(radial(params$fixed_results))
 ```
 
-```{r fe-summary}
-safe_run(cat(capture.output(summary(params$fixed_results)), sep="\n"))
+**Interpretation:** The radial (Galbraith) plot displays standardized effects against precision. Studies should scatter randomly around the regression line. Outliers far from the line contribute disproportionately to heterogeneity.
+
+```{r fe-outlier, fig.width=10, fig.height=6}
+safe_run(outlier_detection_plot(params$fixed_results))
 ```
 
-```{r fe-fit-stats}
-safe_run(model_fit_statistics(params$fixed_results))
-```
+**Interpretation:** Studies beyond ±1.96 are potential outliers under the fixed effects model. Given the models strict assumptions, outliers may indicate true between-study heterogeneity.
 
 ## Publication Bias
 
@@ -1404,16 +1256,16 @@ safe_run(model_fit_statistics(params$fixed_results))
 safe_run(funnel(params$fixed_results))
 ```
 
+**Interpretation:** The funnel plot under fixed effects. Interpretation is similar to random effects - look for asymmetry suggesting missing studies.
+
 ```{r fe-trimfill, fig.width=10, fig.height=6}
 safe_run({
-    tf <- trimfill(params$fixed_results)
+  tf <- trimfill(params$fixed_results)
   funnel(tf, yaxis="se")
 })
 ```
 
-```{r fe-egger}
-safe_run(cat(capture.output(metabias(params$fixed_results, method="Egger")), sep="\n"))
-```
+**Interpretation:** The trim-and-fill method imputes missing studies to assess the impact of potential publication bias.
 
 ## Sensitivity Analysis
 
@@ -1425,30 +1277,11 @@ safe_run({
   if (nrow(inf_df_clean) > 0) {
     m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
     meta::forest(m_clean, leftlabs = c("Omitted Study"), main = "Leave-One-Out Analysis (Fixed Effects)")
-    }
+  }
 })
 ```
 
-## Model Diagnostics
-
-```{r fe-qq, fig.width=10, fig.height=6}
-safe_run(qq_plot_fixed_residuals(params$fixed_results))
-```
-
-```{r fe-outlier, fig.width=10, fig.height=6}
-safe_run(outlier_detection_plot(params$fixed_results))
-```
-
-```{r fe-effect-dist, fig.width=10, fig.height=6}
-safe_run(effect_distribution_plot(params$fixed_results))
-```
-
-```{r fe-normality}
-  safe_run({
-  diag_results <- run_all_normality_diagnostics("fixed", params$fixed_results)
-  print_normality_summary(diag_results, "fixed")
-})
-```
+**Interpretation:** Leave-one-out influence analysis for the fixed effects model. Studies whose removal causes large shifts in the estimate warrant attention.
 
 ## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
 
@@ -1459,24 +1292,51 @@ if (params$include_subgroup && !is.null(params$fixed_subgroup_results)) {
            test.overall = TRUE,
            test.subgroup = TRUE,
            print.byvar = FALSE)
-    cat("\nSubgroup Analysis Results:\n")
-    cat("Q-statistic between groups:", params$fixed_subgroup_results$Q.b, "\n")
-    cat("P-value:", params$fixed_subgroup_results$pval.Q.b, "\n")
   })
 }
 ```
 
-# Bivariate Approach
+---
+
+# JCR (Bivariate) Analysis
+
+The Joint Confidence Region (JCR) approach uses maximum likelihood estimation (MLE) to jointly estimate the overall effect (μ) and heterogeneity (τ). This provides more accurate confidence regions and inference than standard random effects.
 
 ## Effect Size & Heterogeneity
 
 ```{r biv-forest, fig.width=12, fig.height=8}
-safe_run(if(exists("forest.metabiv")) forest.metabiv(params$bivariate_results))
+safe_run({
+  if(exists("forest.metabiv") && !is.null(params$bivariate_results)) {
+    invisible(forest.metabiv(params$bivariate_results))
+  }
+})
 ```
+
+**What it is:** This forest plot displays the results from the Joint Confidence Region (JCR) method. It shows the individual study effect sizes and the overall pooled estimate (diamond) calculated using Maximum Likelihood Estimation (MLE) that jointly estimates the overall effect (μ) and the between-study heterogeneity (τ).
+
+**How to interpret:** The JCR method often provides a more precise and reliable estimate than standard random-effects models, especially with sparse data. The interpretation is similar to a standard forest plot, but the underlying statistical approach uses joint MLE estimation for both parameters simultaneously.
+
+```{r biv-confidence-region, fig.width=10, fig.height=8}
+safe_run({
+  if (!is.null(params$bivariate_results)) {
+    conf_region <- compute_confidence_region(params$bivariate_results)
+    plot(conf_region$mu_vals, conf_region$tau_vals, type = "l",
+         xlab = expression(mu), ylab = expression(tau),
+         main = "95% Confidence Region for (μ, τ)")
+    points(params$bivariate_results$mu, params$bivariate_results$tau, pch = 19, col = "red", cex = 1.5)
+    legend("topright", legend = c("95% CR", "MLE"), 
+           lty = c(1, NA), pch = c(NA, 19), col = c("black", "red"))
+  }
+})
+```
+
+**What it is:** This is the signature plot of the Joint Confidence Region (JCR) method. It shows the joint confidence region for the two main parameters: the overall effect size (μ) and the between-study heterogeneity (τ). The different colored regions represent the 50%, 90%, 95%, and 99% confidence levels.
+
+**How to interpret:** The plot illustrates the uncertainty in the estimates of μ and τ simultaneously. A wide region indicates greater uncertainty. The shape of the region shows the correlation between the estimates of the two parameters. The maximum likelihood estimates (MLE) for both are marked. This joint estimation approach is what distinguishes the JCR method from traditional meta-analysis.
 
 ```{r biv-efficacy-harm, fig.width=10, fig.height=6}
 safe_run({
-  if (!is.null(params$bivariate_results)) {
+  if (!is.null(params$bivariate_results) && !is.null(params$bivariate_results$dev_pvals)) {
     CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals, sm = params$bivariate_results$sm)
     comp.eff.harm.plot(CDF.ci.obj,
                       efficacy.is.OR.le1 = (params$bivariate_results$sm == "OR"),
@@ -1487,47 +1347,80 @@ safe_run({
 })
 ```
 
-## Model Diagnostics
+**What it is:** The Efficacy-Harm plot shows the probability of observing a true effect size that is more extreme than a certain threshold. It plots the cumulative distribution function (CDF) for the treatment effect, showing probabilities for both benefit (efficacy) and harm.
 
-```{r biv-qq-std, fig.width=10, fig.height=6}
-safe_run(qq_plot_bivariate_blups(params$bivariate_results))
+**How to interpret:** This plot helps in making clinical decisions. For example, you can use it to determine the probability that the true effect is greater than a minimal clinically important difference, or the probability that it falls into a range considered harmful. The steepness of the curve indicates the level of certainty.
+
+### Probability Table for Key Clinical Thresholds
+
+```{r biv-prob-table}
+safe_run({
+  if (!is.null(params$bivariate_results) && !is.null(params$bivariate_results$dev_pvals)) {
+    CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals, sm = params$bivariate_results$sm)
+    prob_table <- calculate_threshold_probabilities_from_cdf(CDF.ci.obj, NULL, params$bivariate_results$sm, direction = "greater")
+    prob_table$`P(θ ≥ T)` <- sprintf("%.3f", prob_table$Probability)
+    prob_table$`95% CI Lower` <- sprintf("%.3f", prob_table$CI_Lower)
+    prob_table$`95% CI Upper` <- sprintf("%.3f", prob_table$CI_Upper)
+    prob_table$`Threshold (T)` <- sprintf("%.3f", prob_table$Threshold)
+    display_table <- prob_table[, c("Threshold (T)", "P(θ ≥ T)", "95% CI Lower", "95% CI Upper")]
+    knitr::kable(display_table, row.names = FALSE)
+  }
+})
 ```
 
-```{r biv-qq-deleted, fig.width=10, fig.height=6}
+**What it shows:** This table mirrors the Efficacy/Harm plot. For each threshold value T, it reports P(θ ≥ T) - the probability that the true effect exceeds that threshold, along with 95% confidence intervals.
+
+## Model Diagnostics
+
+```{r biv-qq-comparison, fig.width=12, fig.height=6}
 safe_run({
-  if(exists("qq_plot_bivariate_deleted_residuals")) {
+  if(exists("qq_plot_bivariate_vs_fixed_deleted")) {
     input_stub <- list(
       data_type = ifelse(is.null(params$data), "binary", ifelse("smd" %in% names(params$data), "smd", "binary")),
       effect_measure = params$bivariate_results$sm
     )
-    qq_plot_bivariate_deleted_residuals(params$bivariate_results, params$data, input_stub)
+    qq_plot_bivariate_vs_fixed_deleted(params$bivariate_results, params$fixed_results, params$data, input_stub)
   }
 })
 ```
+
+**Interpretation:** Side-by-side comparison of Fixed Effects (left) vs JCR (right) deleted residuals. The JCR method often shows better behavior in the tails due to joint MLE estimation. Compare which models assumptions are better supported.
+
+```{r biv-qq-blups, fig.width=10, fig.height=6}
+safe_run(qq_plot_bivariate_blups(params$bivariate_results))
+```
+
+**Interpretation:** Q-Q plot for JCR BLUPs using jointly estimated μ̂ and τ̂. Points within the envelope support the random effects normality assumption.
 
 ## Sensitivity Analysis
 
-```{r biv-confidence, fig.width=10, fig.height=6}
+```{r biv-confidence-shift, fig.width=10, fig.height=8}
 safe_run({
   if(exists("confidence_region_shift_plot")) {
-    confidence_region_shift_plot(params$bivariate_results)
+    p <- confidence_region_shift_plot(params$bivariate_results)
+    print(p)
   }
 })
 ```
+
+**Interpretation:** This plot shows how the joint confidence region shifts when each study is removed. Large shifts indicate influential studies whose inclusion/exclusion substantially affects conclusions.
 
 ```{r biv-baujat, fig.width=10, fig.height=6}
 safe_run({
   if(exists("enhanced_baujat_plot")) {
-    enhanced_baujat_plot(params$bivariate_results)
+    p <- enhanced_baujat_plot(params$bivariate_results)
+    print(p)
   }
 })
 ```
+
+**Interpretation:** Enhanced Baujat plot for JCR. Studies in the top-right are most influential on both heterogeneity and the pooled effect estimate.
 
 ## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
 
 ```{r biv-subgroup, fig.width=12, fig.height=8}
 if (params$include_subgroup && !is.null(params$bivariate_subgroup_results)) {
-safe_run({
+  safe_run({
     results <- params$bivariate_subgroup_results$results
     plots <- lapply(names(results), function(nm) {
       grid::grid.grabExpr({
@@ -1539,6 +1432,8 @@ safe_run({
 }
 ```
 
+---
+
 # Meta-Regression Analysis `r if(!params$include_metareg || is.null(params$metaregression_results)) "(skipped)" else ""`
 
 ```{r metareg-bubble, fig.width=10, fig.height=6}
@@ -1547,9 +1442,11 @@ if(params$include_metareg && !is.null(params$metaregression_results)) {
 }
 ```
 
+**Interpretation:** The bubble plot shows the relationship between the moderator variable and effect size. Bubble size reflects study precision. The regression line indicates the estimated relationship.
+
 ```{r metareg-residuals, fig.width=10, fig.height=6}
 if(params$include_metareg && !is.null(params$metaregression_results)) {
-safe_run({
+  safe_run({
     model <- params$metaregression_results$model
     residuals <- resid(model)
     fitted <- fitted(model)
@@ -1561,6 +1458,8 @@ safe_run({
 }
 ```
 
+**Interpretation:** The residual plot checks meta-regression assumptions. Random scatter suggests the model fits well; patterns indicate potential issues.
+
 ```{r metareg-influence, fig.width=10, fig.height=6}
 if(params$include_metareg && !is.null(params$metaregression_results)) {
   safe_run({
@@ -1571,41 +1470,7 @@ if(params$include_metareg && !is.null(params$metaregression_results)) {
 }
 ```
 
-```{r metareg-summary}
-if(params$include_metareg && !is.null(params$metaregression_results)) {
-  safe_run({
-    cat("Meta-Regression Results\n")
-    cat("======================\n\n")
-    cat(capture.output(summary(params$metaregression_results$model)), sep="\n")
-    cat("\nInterpretation:\n")
-    cat("---------------\n")
-    results <- params$metaregression_results
-    model <- results$model
-    moderator_significant <- any(model$pval[-1] < 0.05, na.rm = TRUE)
-    
-    if (moderator_significant) {
-      cat("The moderator variable significantly explains heterogeneity (p < 0.05).\n")
-  } else {
-      cat("The moderator does not significantly explain heterogeneity.\n")
-    }
-    
-    if (!is.null(model$QM)) {
-      cat("\nTest of Moderator (QM):", round(model$QM,3), 
-          "on", model$df.QM, "df (p =", sprintf("%.3f", model$pval.QM), ")\n")
-    }
-    if (!is.null(model$QE)) {
-      cat("Residual Heterogeneity (QE):", round(model$QE,3),
-          "on", model$df.QE, "df (p =", sprintf("%.3f", model$pval.QE), ")\n")
-    }
-  })
-}
-```
-
-# Session Information
-
-```{r session-info}
-safe_run(sessionInfo())
-```
+**Interpretation:** This plot identifies influential studies in the meta-regression. Studies with high influence may disproportionately affect the moderator relationship.
 ')
 }
 
