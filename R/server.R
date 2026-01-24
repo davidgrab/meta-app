@@ -1065,8 +1065,8 @@ server <- function(input, output, session) {
     results <- data.frame(
       Method = c("Fixed Effects", "Random Effects", "JCR Method"),
       Estimate = c(trad_meta_fixed$TE.common, trad_meta_random$TE.random, bivariate_result()$mu),
-      Lower = c(trad_meta_fixed$lower.common, trad_meta_random$lower.random, bivariate_result()$lower),
-      Upper = c(trad_meta_fixed$upper.common, trad_meta_random$upper.random, bivariate_result()$upper)
+      Lower = c(trad_meta_fixed$lower.common, trad_meta_random$lower.random, bivariate_result()$lower.mu),
+      Upper = c(trad_meta_fixed$upper.common, trad_meta_random$upper.random, bivariate_result()$upper.mu)
     )
     
     
@@ -2199,7 +2199,7 @@ server <- function(input, output, session) {
       
       cat("Subgroup:", level_name, "\n")
       cat("Effect estimate (μ):", round(result$mu, 4), "\n")
-      cat("95% CI: [", round(result$lower, 4), ", ", round(result$upper, 4), "]\n")
+      cat("95% CI: [", round(result$lower.mu, 4), ", ", round(result$upper.mu, 4), "]\n")
       cat("Heterogeneity (τ):", round(result$tau, 4), "\n")
       cat("I²:", round(result$I2, 1), "%\n\n")
     }

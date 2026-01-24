@@ -1440,7 +1440,7 @@ print.metabiv <- function(x, ...) {
   cat("Random effects model:\n")
   cat("  μ estimate:", round(x$mu, 4), "\n")
   cat("  τ estimate:", round(x$tau, 4), "\n")
-  cat("  95% Confidence Interval for μ: [", round(x$lower, 4), ", ", round(x$upper, 4), "]\n")
+  cat("  95% Confidence Interval for μ: [", round(x$lower.mu, 4), ", ", round(x$upper.mu, 4), "]\n")
   cat("  95% Confidence Region:\n")
   cat("    μ range: [", round(min(x$conf_region$mu), 4), ", ", round(max(x$conf_region$mu), 4), "]\n")
   cat("    τ range: [", round(min(x$conf_region$tau), 4), ", ", round(max(x$conf_region$tau), 4), "]\n\n")
@@ -1462,7 +1462,7 @@ summary.metabiv <- function(object, ...) {
     k = length(object$y.k),
     mu = object$mu,
     tau = object$tau,
-    ci_mu = c(object$lower, object$upper),
+    ci_mu = c(object$lower.mu, object$upper.mu),
     conf_region = object$conf_region,
     Q = object$Q,
     I2 = object$I2,
@@ -1485,8 +1485,8 @@ print.summary.metabiv <- function(x, ...) {
   cat("Random effects model:\n")
   cat("  μ estimate:", round(x$mu, 4), "\n")
   cat("  τ estimate:", round(x$tau, 4), "\n")
-  if (is.numeric(x$lower.mu) && is.numeric(x$upper.mu)) {
-    cat("  95% Confidence Interval for μ: [", round(x$lower.mu, 4), ", ", round(x$upper.mu, 4), "]\n")
+  if (is.numeric(x$ci_mu) && length(x$ci_mu) == 2) {
+    cat("  95% Confidence Interval for μ: [", round(x$ci_mu[1], 4), ", ", round(x$ci_mu[2], 4), "]\n")
   } else {
     cat("  95% Confidence Interval for μ: [Not available]\n")
   }
@@ -2063,4 +2063,3 @@ comp.tau.mu.log.OR.dev.pvals.exact <- function(data.tbl, mu.vec.tst, tau.vec.tst
   
   return(list(dev.mat, pval.mat))
 }
-
