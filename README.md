@@ -18,7 +18,7 @@ Try the app in your browser:
 ### Effect Size Measures
 - Risk Ratio (RR)
 - Odds Ratio (OR)
-- Standardized Mean Difference (SMD)
+- Continuous effect sizes (SMD or MD)
 
 ### Diagnostics & Visualization
 - **Forest Plots**: Interactive visualizations with study weights and confidence intervals
@@ -70,11 +70,11 @@ Try the app in your browser:
 | `pe` | Placebo/control events |
 | `pt` | Placebo/control total |
 
-**Continuous (SMD) data:**
+**Continuous data:**
 | Column | Description |
 |--------|-------------|
 | `study` | Study identifier |
-| `smd` | Standardized mean difference |
+| `smd` | Effect size (SMD or MD) |
 | `ci_lower` | Lower confidence interval |
 | `ci_upper` | Upper confidence interval |
 

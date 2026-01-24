@@ -229,9 +229,11 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
                 mu - 1.96 * tau, mu + 1.96 * tau))
   }
   
-  # Calculate Q statistic
+  # Calculate Q statistic using FIXED EFFECTS estimate (standard approach)
+  # This ensures I² matches what is reported by meta/metafor packages
   w <- 1 / pmax(sigma.2.k, 1e-10)
-  Q <- sum(w * (y.k - mu)^2)
+  mu_FE <- sum(w * y.k) / sum(w)  # Fixed effects pooled estimate
+  Q <- sum(w * (y.k - mu_FE)^2)   # Q centered at fixed effects estimate
   df <- k.All - 1
   
   # Calculate p-value for Q
@@ -1283,42 +1285,6 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
 ")
   return(p)
 }
-
-#' @title Bivariate GOSH Plot
-#' @description Creates a Graphical Display of Study Heterogeneity (GOSH) plot for bivariate meta-analysis
-#' @param bivariate_result A metabiv object
-#' @param n_subsets Number of subsets to generate
-#' @param subset_size Size of each subset (if NULL, uses half of total studies)
-#' @return A plotly object representing the GOSH plot
-#' @export
-# bivariate_gosh_plot <- function(bivariate_result, n_subsets = 1000, subset_size = NULL) {
-#   data <- bivariate_result$tbl
-#   k <- nrow(data)
-#   
-#   if (is.null(subset_size)) subset_size <- max(2, floor(k/2))
-#   
-#   subsets <- replicate(n_subsets, sample(1:k, size = subset_size, replace = FALSE))
-#   
-#   gosh_results <- apply(subsets, 2, function(subset) {
-#     res <- metabiv(event.e = data$event.e[subset], 
-#                    n.e = data$n.e[subset], 
-#                    event.c = data$event.c[subset], 
-#                    n.c = data$n.c[subset],
-#                    studlab = data$studlab[subset],
-#                    sm = bivariate_result$sm)
-#     c(mu = res$mu, tau = res$tau)
-#   })
-#   
-#   gosh_df <- as.data.frame(t(gosh_results))
-#   
-#   p <- plot_ly(data = gosh_df, x = ~mu, y = ~tau, type = "scatter", mode = "markers",
-#                marker = list(size = 3, opacity = 0.5)) %>%
-#     layout(title = paste("GOSH Plot for", bivariate_result$sm),
-#            xaxis = list(title = "μ"),
-#            yaxis = list(title = "τ"))
-#   
-#   return(p)
-# }
 
 #' @title Bivariate GRADE Assessment
 #' @description Performs a GRADE assessment for bivariate meta-analysis results

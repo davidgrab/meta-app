@@ -425,12 +425,6 @@ effect_distribution_plot <- function(model) {
     labs(title = "Distribution of Effect Sizes", x = "Effect Size", y = "Count")
 }
 
-gosh_plot <- function(model) {
-  # We'll create a simple scatter plot of effect sizes vs. standard errors as an alternative
-  ggplot(data.frame(TE = model$TE, seTE = model$seTE), aes(x = seTE, y = TE)) +
-    geom_point() +
-    labs(title = "Effect Sizes vs. Standard Errors", x = "Standard Error", y = "Effect Size")
-}
 
 model_fit_plot <- function(model) {
   # For metabin objects, we'll plot observed vs. pooled effect size
@@ -873,94 +867,6 @@ ggplot_metainf <- function(metainf_result) {
   return(p)
 }
 
-# qq_plot_with_ci_raw <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE, 
-#                             title = "Q-Q Plot for Residuals") {
-#   # Transform data if log odds required
-#   if (log_odds) {
-#     y_k <- log(y_k / (1 - y_k))
-#     mu <- log(mu / (1 - mu))
-#   }
-#   
-#   # Calculate **regular residuals** instead of standardized residuals
-#   residuals <- y_k - mu  # Use raw residuals
-#   
-#   # Remove any infinite or NA values
-#   valid_indices <- is.finite(residuals)
-#   residuals <- residuals[valid_indices]
-#   
-#   # Sort residuals for proper quantile computation
-#   sorted_residuals <- sort(residuals)
-#   n_points <- length(sorted_residuals)
-#   
-#   # Calculate theoretical quantiles using (i - 0.5)/n formula
-#   p <- (1:n_points - 0.5) / n_points
-#   theoretical_quantiles <- qnorm(p, mean = mean(mu), sd = sqrt(tau_2))  # Adjusted for empirical distribution
-#   
-#   # Calculate empirical standard error for CI
-#   se_residuals <- sd(residuals)
-#   
-#   # Calculate pointwise confidence intervals
-#   z_alpha <- qnorm(0.975)  # 95% CI
-#   ci_width <- z_alpha * se_residuals * sqrt(p * (1 - p) / (n_points * dnorm(theoretical_quantiles)^2))
-#   
-#   ci_lower <- sorted_residuals - ci_width
-#   ci_upper <- sorted_residuals + ci_width
-#   
-#   # Set up plot margins to accommodate title and subtitle
-#   par(mar = c(5, 5, 4, 2) + 0.1)
-#   
-#   # Create the plot
-#   plot(theoretical_quantiles, sorted_residuals,
-#        main = title,
-#        xlab = "Theoretical Quantiles",
-#        ylab = if(log_odds) "Log-Odds Residuals" else "Residuals",
-#        pch = 19,
-#        col = "blue",
-#        ylim = range(c(ci_lower, ci_upper, sorted_residuals), na.rm = TRUE))
-#   
-#   # **Modify reference line to use estimated μ and τ² (Upline)**
-#   abline(a = mean(mu), b = sqrt(tau_2), col = "blue", lty = 2)  # Custom upline
-#   
-#   # **Add Q-Q Line (Least Squares Fit)**
-#   qqline(residuals, distribution = function(p) qnorm(p, mean = mean(mu), sd = sqrt(tau_2)), col = "darkgreen", lwd = 2)
-#   
-#   # Add confidence intervals
-#   polygon(c(theoretical_quantiles, rev(theoretical_quantiles)),
-#           c(ci_lower, rev(ci_upper)),
-#           col = rgb(0.8, 0.8, 0.8, 0.3),
-#           border = NA)
-#   
-#   # Add points again to ensure they're visible above the CI region
-#   points(theoretical_quantiles, sorted_residuals, pch = 19, col = "blue")
-#   
-#   # Add model information as subtitle
-#   if (!is.null(tau_2) && !is.null(mu)) {
-#     mtext(sprintf("τ² = %.3f, μ = %.3f", tau_2, mean(mu)), 
-#           side = 3, line = 0.5, cex = 0.8)
-#   }
-#   
-#   # Add legend
-#   legend("topleft",
-#          legend = c("Observed Quantiles", 
-#                     "Reference Line (Estimated μ, τ²)", 
-#                     "Q-Q Line (Regression Fit)",
-#                     "95% Confidence Band"),
-#          pch = c(19, NA, NA, 15),
-#          lty = c(NA, 2, 1, NA),
-#          col = c("blue", "blue", "darkgreen", rgb(0.8, 0.8, 0.8, 0.3)),
-#          bg = "white")
-#   
-#   # Return invisibly the plot data for potential further use
-#   invisible(list(
-#     theoretical_quantiles = theoretical_quantiles,
-#     empirical_quantiles = sorted_residuals,
-#     ci_lower = ci_lower,
-#     ci_upper = ci_upper,
-#     se_residuals = se_residuals
-#   ))
-# }
-
-
 qq_plot_with_ci <- function(y_k, mu, sigma_2_k, tau_2, log_odds = FALSE, 
                            title = "Q-Q Plot for Standardized Residuals",
                            n_sim = 1000) {
@@ -1197,12 +1103,6 @@ safe_run(baujat(params$random_results))
 
 **Interpretation:** The Baujat plot identifies influential studies. Studies in the top-right contribute most to both heterogeneity (x-axis) and influence on the pooled result (y-axis). These warrant careful examination.
 
-```{r re-gosh, fig.width=10, fig.height=6}
-safe_run(gosh_plot(params$random_results))
-```
-
-**Interpretation:** The GOSH plot shows the distribution of pooled estimates across all possible study subsets. Multiple peaks suggest distinct subgroups with different true effects.
-
 ## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
 
 ```{r re-subgroup, fig.width=12, fig.height=8}
@@ -1414,7 +1314,7 @@ safe_run({
 })
 ```
 
-**Interpretation:** Enhanced Baujat plot for JCR. Studies in the top-right are most influential on both heterogeneity and the pooled effect estimate.
+**Interpretation:** Baujat plot for JCR. Studies in the top-right are most influential on both heterogeneity and the pooled effect estimate.
 
 ## Subgroup Analysis `r if(params$include_subgroup) "" else "(skipped)"`
 
@@ -1492,7 +1392,7 @@ enhanced_baujat_plot <- function(bivariate_model) {
   if(is.null(bivariate_model$studlab) || is.null(bivariate_model$y.k) || 
      is.null(bivariate_model$sigma.2.k) || is.null(bivariate_model$mu) || 
      is.null(bivariate_model$tau)) {
-    plot(1, type="n", main="Enhanced Baujat plot unavailable", xlab="", ylab="")
+    plot(1, type="n", main="Baujat plot unavailable", xlab="", ylab="")
     return(invisible(NULL))
   }
   
@@ -1524,7 +1424,7 @@ enhanced_baujat_plot <- function(bivariate_model) {
                              "<br>Influence on result:", round(influence, 3),
                              "<br>Weight:", round(weight, 3)),
                hoverinfo = "text") %>%
-    layout(title = "Enhanced Baujat Plot",
+    layout(title = "Baujat Plot",
            xaxis = list(title = "Contribution to heterogeneity"),
            yaxis = list(title = "Influence on overall result"),
            showlegend = FALSE)

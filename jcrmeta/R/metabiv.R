@@ -196,9 +196,11 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
                 mu - 1.96 * tau, mu + 1.96 * tau))
   }
   
-  # Calculate Q statistic
+  # Calculate Q statistic using FIXED EFFECTS estimate (standard approach)
+  # This ensures I² matches what is reported by meta/metafor packages
   w <- 1 / pmax(sigma.2.k, 1e-10)
-  Q <- sum(w * (y.k - mu)^2)
+  mu_FE <- sum(w * y.k) / sum(w)  # Fixed effects pooled estimate
+  Q <- sum(w * (y.k - mu_FE)^2)   # Q centered at fixed effects estimate
   df <- k.All - 1
   
   # Calculate p-value for Q

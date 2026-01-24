@@ -161,7 +161,7 @@ server <- function(input, output, session) {
     
     smd_instructions <- HTML(
       paste0(
-        "<h4>Continuous (SMD) Data</h4>",
+        "<h4>Continuous Data</h4>",
         "1. Prepare your CSV or Excel file with the following columns:<br>",
         "<b>Required columns:</b> <b>study, smd, ci_lower, ci_upper</b><br>",
         "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
@@ -205,8 +205,8 @@ server <- function(input, output, session) {
           "<p>This dataset comes from a Cochrane systematic review of randomized controlled trials comparing Hypericum extracts (St. John's Wort) to placebo in patients with major depressive disorder. It includes ", nrow(exampleData), " RCTs with binary outcomes measuring response to treatment (responder vs. non-responder) reported as relative risk (RR).</p>",
           "<p>Hypericum extracts are herbal remedies used for treating depression symptoms, and this dataset demonstrates the effectiveness comparison against placebo treatments.</p>",
           "<hr>",
-          "<h4>CBT for Depression (SMD) Dataset</h4>",
-          "<p>This dataset contains ", nrow(smdData), " studies comparing cognitive-behavioral therapy (CBT) to control conditions in depression, reported as standardized mean differences (SMD) with 95% confidence intervals.</p>",
+          "<h4>CBT for Depression (Continuous) Dataset</h4>",
+          "<p>This dataset contains ", nrow(smdData), " studies comparing cognitive-behavioral therapy (CBT) to control conditions in depression, reported as continuous effect sizes with 95% confidence intervals.</p>",
           "<p>Source: Included with the app as an Excel file (data/CBT_versus_other_therapies_formatted.xlsx).</p>"
         )
       ),
@@ -272,7 +272,7 @@ server <- function(input, output, session) {
       "colditz" = paste(nrow(colditzData), "studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude)."),
       "yusuf" = paste(nrow(yusufData), "studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes."),
       "default" = paste("Cochrane review of", nrow(exampleData), "RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR)."),
-      "smd" = paste(nrow(smdData), "studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as Hedges' g standardized mean difference (SMD).")
+      "smd" = paste(nrow(smdData), "studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as continuous effect sizes with 95% confidence intervals.")
     )
     
     HTML(paste("<div style='font-size: 0.85em; margin-bottom: 10px; color: #666;'>", description, "</div>"))
@@ -293,7 +293,7 @@ server <- function(input, output, session) {
     } else if (dataset_choice == "smd") {
       currentData(smdData)
       updateRadioButtons(session, "data_type", selected = "smd")
-      showNotification("Loaded CBT for Depression (SMD) Dataset", type = "message")
+      showNotification("Loaded CBT for Depression (Continuous) Dataset", type = "message")
     } else {
       currentData(exampleData)
       updateRadioButtons(session, "data_type", selected = "binary")
@@ -350,7 +350,7 @@ server <- function(input, output, session) {
     moderator2 = c("High", "Low", "Medium"),
     stringsAsFactors = FALSE
   )
-  attr(sampleDataStructure_continuous, "note") <- "Note: The 'smd' column may also appear as 'CoNC' or 'HeadGrid-G'. All are interpreted as SMD for now."
+  attr(sampleDataStructure_continuous, "note") <- "Note: The 'smd' column contains continuous effect sizes (SMD or MD) with their confidence intervals."
   
   # Example dataset
   # exampleData <- read.csv(text = "study,Intervention_effected,Intervention_total,Placebo_effected,Placebo_total
@@ -478,16 +478,8 @@ server <- function(input, output, session) {
     
     list(random = random_model, fixed = fixed_model, bivariate = bivariate_model)
   })  
+  
   # Overall Results Tab
-  
-  # output$methodComparisonPlot <- renderPlot({
-  #   req(combinedResults())
-  #   method_comparison_plot(combinedResults()$random, 
-  #                          combinedResults()$fixed, 
-  #                          combinedResults()$bivariate)
-  # })
-  
-  
   output$overallSummaryTable <- renderTable({
     req(combinedResults())
     compare_models(combinedResults())
@@ -552,7 +544,9 @@ server <- function(input, output, session) {
         plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Leave-One-Out plot cannot be generated\n(no valid studies to plot)")
       } else {
         # Create a new meta-object from the cleaned data for robust plotting
-        m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+        # Pass sm parameter so forest plot displays values on correct scale (exp for RR/OR)
+        sm_param <- if (input$data_type == "smd") "SMD" else input$effect_measure
+        m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean, sm = sm_param)
         meta::forest(m_clean, 
                leftlabs = c("Omitted Study"),
                xlab = paste0("Effect Size (", effect_measure_label(), ")"),
@@ -599,11 +593,6 @@ server <- function(input, output, session) {
   output$effectDistributionPlot <- renderPlot({
     req(combinedResults()$random)
     effect_distribution_plot(combinedResults()$random)
-  })
-  
-  output$randomGOSHPlot <- renderPlot({
-    req(combinedResults()$random)
-    gosh_plot(combinedResults()$random)
   })
   
   output$randomFunnelPlot <- renderPlot({
@@ -673,7 +662,9 @@ server <- function(input, output, session) {
         plot(1, type="n", axes=FALSE, xlab="", ylab="", main="Leave-One-Out plot cannot be generated\n(no valid studies to plot)")
       } else {
         # Create a new meta-object from the cleaned data for robust plotting
-        m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean)
+        # Pass sm parameter so forest plot displays values on correct scale (exp for RR/OR)
+        sm_param <- if (input$data_type == "smd") "SMD" else input$effect_measure
+        m_clean <- metagen(TE = TE, seTE = seTE, studlab = studlab, data = inf_df_clean, sm = sm_param)
         meta::forest(m_clean, 
                leftlabs = c("Omitted Study"),
                xlab = paste0("Effect Size (", effect_measure_label(), ")"),
@@ -805,23 +796,13 @@ server <- function(input, output, session) {
                    sm = bivariate_result()$sm)
   }, height = 600)  # Set explicit height for better visibility
   
-  
-  # JCR Overall Summary
-  # COMMENTED OUT: The summary shows mu and tau values that don't match what's displayed in plots
-  # TODO: Fix the scale consistency - should use same scale as plots (exponentiated for OR/RR)
-  # The mu estimate here appears to be in log scale while plots show exponentiated values
-  # output$bivariateOverallSummary <- renderPrint({
-  #   req(bivariate_result())
-  #   summary(bivariate_result())
-  # })
-  
   # Confidence Region Shift Plot
   output$confidenceRegionShiftPlot <- renderPlotly({
     req(bivariate_result())
     confidence_region_shift_plot(bivariate_result())
   })
   
-  # Enhanced Baujat Plot
+  # Baujat Plot for JCR Method
   output$enhancedBaujatPlot <- renderPlotly({
     req(bivariate_result())
     
@@ -835,7 +816,7 @@ server <- function(input, output, session) {
                  mode = "markers+text",
                  textposition = "top right",
                  marker = list(size = 10, opacity = 0.7, line = list(width=1, color = 'black'))) %>%
-      layout(title = paste("Enhanced Baujat Plot (", effect_measure_label(), ")"),
+      layout(title = paste("Baujat Plot (", effect_measure_label(), ")"),
              xaxis = list(title = "Contribution to Q (Heterogeneity)"),
              yaxis = list(title = "Influence on Pooled Estimate"),
              shapes = list(
@@ -881,29 +862,6 @@ server <- function(input, output, session) {
     influence_df$study <- studylab
     return(influence_df)
   }
-  
-  # JCR Influence Summary
-  # COMMENTED OUT: Removed as requested - not needed for now
-  # output$bivariateInfluenceSummary <- renderPrint({
-  #   req(bivariate_result())
-  #   cat("Bivariate Influence Summary\n")
-  #   influence <- lapply(1:length(bivariate_result()$y.k), function(i) {
-  #       df <- data()[-i, ]
-  #       if (input$data_type == "smd") {
-  #           se <- (df$ci_upper - df$ci_lower) / (2 * 1.96)
-  #           var <- se^2
-  #           res_i <- metabiv(studlab = df$study, sm = "SMD", y = df$smd, sigma2 = var, verbose = FALSE)  # No logs
-  #       } else {
-  #           res_i <- metabiv(event.e = df$ie, n.e = df$it, event.c = df$pe, n.c = df$pt,
-  #                            studlab = df$study, sm = input$effect_measure, verbose = FALSE)  # No logs
-  #       }
-  #     c(mu_change = res_i$mu - bivariate_result()$mu,
-  #       tau_change = res_i$tau - bivariate_result()$tau)
-  #   })
-  #   influence_df <- do.call(rbind, influence)
-  #   rownames(influence_df) <- bivariate_result()$studlab
-  #   print(influence_df)
-  # })
   
   # Q-Q Plot for μ
   output$qqPlotMu <- renderPlot({
@@ -1000,55 +958,35 @@ server <- function(input, output, session) {
     return(display_table)
   }, striped = TRUE, hover = TRUE, bordered = TRUE)
   
-  # JCR GOSH Plot
-  output$bivariateGOSHPlot <- renderPlotly({
-    req(bivariate_result())
-    # Implement GOSH plot
-    df <- data()
-    subsets <- replicate(1000, sample(1:nrow(df), size = nrow(df)/2, replace = FALSE))
-    gosh_results <- apply(subsets, 2, function(subset) {
-        df_sub <- df[subset, ]
-        if (input$data_type == "smd") {
-            se <- (df_sub$ci_upper - df_sub$ci_lower) / (2 * 1.96)
-            var <- se^2
-            res <- metabiv(studlab = df_sub$study, sm = "SMD", y = df_sub$smd, sigma2 = var)
-        } else {
-            res <- metabiv(event.e = df_sub$ie, n.e = df_sub$it, event.c = df_sub$pe, n.c = df_sub$pt,
-                           studlab = df_sub$study, sm = input$effect_measure)
-        }
-      c(mu = res$mu, tau = res$tau)
-    })
-    gosh_df <- as.data.frame(t(gosh_results))
-    plot_ly(data = gosh_df, x = ~mu, y = ~tau, type = "scatter", mode = "markers",
-            marker = list(size = 3, opacity = 0.5)) %>%
-      layout(title = "GOSH Plot",
-             xaxis = list(title = "μ"),
-             yaxis = list(title = "τ"))
-  })
-  
-  # JCR Adapted Funnel Plot
+  # JCR Funnel Plot
+  # Uses ML heterogeneity estimator to match JCR method
+  # Centers funnel around the JCR MLE pooled estimate (mu)
   output$bivariateAdaptedFunnelPlot <- renderPlot({
     req(bivariate_result())
     
     y.k <- bivariate_result()$y.k
     se.k <- sqrt(bivariate_result()$sigma.2.k) # Standard errors
+    jcr_mu <- bivariate_result()$mu  # JCR pooled estimate
     
     # Use effect measure for sm and xlab
     effect_label <- effect_measure_label()
+    sm_type <- if (bivariate_result()$sm %in% c("OR", "RR")) bivariate_result()$sm else "SMD"
     
-    # Create a meta-analysis object
-    # For OR and RR, we exponentiate for the plot
-    if (bivariate_result()$sm %in% c("OR", "RR")) {
-      meta_analysis <- metagen(TE = y.k, seTE = se.k, sm = bivariate_result()$sm)
-      funnel(meta_analysis, 
-             xlab = paste("Effect Size (", effect_label, ")"),
-             main = paste("Funnel Plot (", effect_label, ")"))
-    } else { # For SMD, plot on original scale
-      meta_analysis <- metagen(TE = y.k, seTE = se.k, sm = "SMD")
-      funnel(meta_analysis, 
-             xlab = paste("Effect Size (", effect_label, ")"),
-             main = paste("Funnel Plot (", effect_label, ")"))
-    }
+    # Create a meta-analysis object with ML heterogeneity estimator (matches JCR)
+    meta_analysis <- metagen(
+      TE = y.k, 
+      seTE = se.k, 
+      sm = sm_type,
+      method.tau = "ML"  # Maximum Likelihood to match JCR
+    )
+    
+    # Draw funnel plot - since metagen uses ML (matching JCR), the random effects
+    # estimate will match the JCR MLE pooled estimate
+    # Only show random effects (not fixed) to avoid two vertical lines
+    funnel(meta_analysis, 
+           common = FALSE,        # Don't show fixed-effect line
+           xlab = paste("Effect Size (", effect_label, ")"),
+           main = paste("Funnel Plot (", effect_label, ")"))
   })
   
   # JCR Bias Test Results
@@ -1169,14 +1107,14 @@ server <- function(input, output, session) {
         "- Upload your data CSV file using the 'Upload Data' button in the sidebar.<br>",
         "- Supported data types:<br>",
         "&nbsp;&nbsp;• <b>Binary (2x2):</b> Columns: study, ie, it, pe, pt<br>",
-        "&nbsp;&nbsp;• <b>Continuous (SMD):</b> Columns: study, smd, ci_lower, ci_upper<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>Note:</b> The SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br>",
+        "&nbsp;&nbsp;• <b>Continuous:</b> Columns: study, smd, ci_lower, ci_upper<br>",
+        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>Note:</b> The effect size column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>.<br>",
         "- You can use the 'Download Sample Structure' button to see the required format for each data type.<br><br>",
         
         "<b>2. Analysis Settings:</b><br>",
         "- Choose your heterogeneity estimator and effect measure in the sidebar.<br>",
         "- For binary data, select the effect measure (Odds Ratio, Risk Ratio, etc.).<br>",
-        "- For continuous data, the effect measure is always SMD (regardless of column label).<br>",
+        "- For continuous data, enter your effect sizes (SMD or MD) directly with confidence intervals.<br>",
         "- Click 'Analyze' to run the meta-analysis.<br><br>",
         
         "<b>3. Results Tabs:</b><br>",
@@ -1212,8 +1150,8 @@ server <- function(input, output, session) {
         "   - Standard errors or confidence intervals<br><br>",
         "Expected column names:<br>",
         "<b>Binary (2x2):</b> study, ie, it, pe, pt<br>",
-        "<b>Continuous (SMD):</b> study, smd, ci_lower, ci_upper<br>",
-        "<b>Note:</b> For continuous data, the SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br><br>",
+        "<b>Continuous:</b> study, smd, ci_lower, ci_upper<br>",
+        "<b>Note:</b> For continuous data, the effect size column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>.<br><br>",
         "If your data doesn't match this format, please reformat it before proceeding with the analysis."
       )),
       easyClose = TRUE,
@@ -1342,18 +1280,14 @@ server <- function(input, output, session) {
       title = "Random Effects: Stability and Publication Bias",
       HTML(paste0(
         "This section assesses the stability of results and potential publication bias:<br><br>",
-        "1. GOSH Plot:<br>",
-        "   - Graphical Display of Study Heterogeneity<br>",
-        "   - Shows stability of results across different subsets of studies<br>",
-        "   - Clustering suggests robust results<br><br>",
-        "2. Funnel Plot:<br>",
+        "1. Funnel Plot:<br>",
         "   - Helps visualize potential publication bias<br>",
         "   - X-axis: Effect size; Y-axis: Standard error or precision<br>",
         "   - Asymmetry may indicate presence of bias<br><br>",
-        "3. Egger's Test Results:<br>",
+        "2. Egger's Test Results:<br>",
         "   - Statistical test for funnel plot asymmetry<br>",
         "   - Significant p-value suggests potential publication bias<br><br>",
-        "4. Trim and Fill Plot:<br>",
+        "3. Trim and Fill Plot:<br>",
         "   - Adjusts for potential publication bias by imputing missing studies<br>",
         "   - Provides an adjusted effect size estimate"
       )),
@@ -1524,8 +1458,8 @@ server <- function(input, output, session) {
         "1. Confidence Region Shift Plot:<br>",
         "   - Novel plot showing how the confidence region changes when each study is removed<br>",
         "   - Helps identify influential studies in the bivariate context<br><br>",
-        "2. Enhanced Baujat Plot:<br>",
-        "   - Adapted for the JCR method<br>",
+        "2. Baujat Plot:<br>",
+        "   - Standard Baujat plot using JCR method estimates<br>",
         "   - Shows each study's contribution to heterogeneity and influence on results<br><br>",
         "3. Influence Summary:<br>",
         "   - Provides numerical details on the influence of each study<br>",
@@ -1561,13 +1495,10 @@ server <- function(input, output, session) {
       title = "JCR Method: Stability and Publication Bias",
       HTML(paste0(
         "This section assesses result stability and potential publication bias in the bivariate context:<br><br>",
-        "1. JCR GOSH Plot:<br>",
-        "   - Assesses stability of results across different subsets of studies<br>",
-        "   - Adapted for the JCR method<br><br>",
-        "2. Adapted Funnel Plot:<br>",
+        "1. Adapted Funnel Plot:<br>",
         "   - Visualizes potential publication bias in the bivariate context<br>",
         "   - Interpretation may differ from traditional funnel plots<br><br>",
-        "3. JCR Bias Test Results:<br>",
+        "2. JCR Bias Test Results:<br>",
         "   - Provides statistical assessment of potential bias<br>",
         "   - Adapted for the bivariate meta-analysis framework"
       )),

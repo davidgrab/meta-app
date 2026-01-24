@@ -13,7 +13,7 @@ This document outlines potential features and enhancements for the Modern Meta-A
 - **Data Transformation Tools:** Provide tools for data cleaning and transformation within the app (e.g., calculating effect sizes from raw data).
 
 ## Visualization
-- **Advanced Plotting Options:** Include more visualization types, such as bubble plots for meta-regression, GOSH plots for influence analysis, and caterpillar plots.
+- **Advanced Plotting Options:** Include more visualization types, such as bubble plots for meta-regression and caterpillar plots.
 - **Customizable Plots:** Give users more control over plot aesthetics (e.g., colors, fonts, labels).
 
 ## Quality of Life and User Experience

@@ -110,8 +110,8 @@ The implementation is based on the unified overview of normality assumptions in 
 - **Processing**: Raw counts converted to log effect sizes and variances
 - **Example**: Hypericum depression trials (response vs. non-response)
 
-### Continuous Data (Standardized Mean Difference)
-- **Supported Effect Measures**: SMD (Standardized Mean Difference)
+### Continuous Data
+- **Supported Effect Measures**: SMD (Standardized Mean Difference) or MD (Mean Difference)
 - **Input Format**: study, smd, ci_lower, ci_upper columns
 - **Processing**: Standard errors calculated from 95% CIs: se = (ci_upper - ci_lower)/(2×1.96)
 - **Example**: Treatment efficacy measured on continuous scales
@@ -193,7 +193,7 @@ The implementation is based on the unified overview of normality assumptions in 
 
 ### Example Datasets:
 1. **Hypericum Depression Data**: Binary outcomes (18 RCTs)
-2. **SMD Example Data**: Continuous outcomes (multiple studies)
+2. **CBT for Depression Data**: Continuous outcomes (multiple studies)
 
 ### Validation Results:
 - All diagnostic functions execute successfully

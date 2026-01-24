@@ -79,7 +79,7 @@ ui <- page_fillable(
     sidebar = sidebar(
       radioButtons("data_type", "Select Data Type:",
                    choices = list("Binary (2x2)" = "binary", 
-                                  "Continuous (SMD)" = "smd"),
+                                  "Continuous" = "smd"),
                    selected = "binary"),
       fileInput("datafile", "Upload Data", accept = c(".csv", ".xlsx")),
       selectInput("het_estimator", "Heterogeneity Estimator", choices = c("DL", "PM", "REML", "ML"), selected = "DL"),
@@ -113,7 +113,7 @@ ui <- page_fillable(
                                           "Hypericum (St. John's Wort) - Depression (Default)" = "default",
                                           "Colditz et al. (1994) - BCG Vaccine" = "colditz",
                                           "Yusuf et al. (1985) - Beta-Blockers" = "yusuf",
-                                          "CBT for Depression (SMD)" = "smd"
+                                          "CBT for Depression (Continuous)" = "smd"
                                         ), 
                                         selected = "default"),
                             actionButton("dataset_info", "", icon = icon("info-circle"), 
@@ -313,14 +313,9 @@ ui <- page_fillable(
                            div(class = "plot-container",
                                withSpinner(plotOutput("baujatPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> A Baujat plot helps to identify studies that are influential in the meta-analysis. It plots the contribution of each study to the overall heterogeneity statistic (Q) against its influence on the pooled effect estimate.<br>
-                                      <strong>How to interpret:</strong> Studies in the top-right quadrant are the most influential, as they contribute highly to both heterogeneity and the overall result. These studies are candidates for further investigation as potential sources of heterogeneity or as outliers."), class = "plot-explanation"),
+                          p(HTML("<strong>What it is:</strong> A Baujat plot helps to identify studies that are influential in the meta-analysis. It plots the contribution of each study to the overall heterogeneity statistic (Q) against its influence on the pooled effect estimate.<br>
+                                     <strong>How to interpret:</strong> Studies in the top-right quadrant are the most influential, as they contribute highly to both heterogeneity and the overall result. These studies are candidates for further investigation as potential sources of heterogeneity or as outliers."), class = "plot-explanation"),
 
-                           div(class = "plot-container",
-                               withSpinner(plotOutput("randomGOSHPlot")),
-                               p(HTML("<strong>What it is:</strong> A GOSH (Graphical Display of Heterogeneity) plot analyzes the distribution of heterogeneity by fitting the meta-analysis model to all possible subsets of studies. It plots the overall effect size against a heterogeneity measure (like I-squared) for each subset.<br>
-                                      <strong>How to interpret:</strong> A unimodal, symmetrical distribution suggests a homogeneous set of studies. Multiple clusters or a scattered plot indicate that certain subsets of studies have very different effects or levels of heterogeneity, suggesting that a single pooled estimate may not be appropriate for all studies."), class = "plot-explanation")
-                           ),
                            verbatimTextOutput("influenceSummary")
                   ),
                   # tabPanel("Quality Assessment",
@@ -519,9 +514,6 @@ ui <- page_fillable(
                               p(HTML("<strong>What it shows:</strong> This table mirrors the Efficacy/Harm plot. For each threshold value T, it reports whichever probability you selected above (either P(θ ≥ T) or P(θ ≤ T)), along with 95% confidence intervals.<br>
                                          <strong>How to use:</strong> Toggle the probability direction to switch between \"benefit\" and \"harm\" perspectives and use custom thresholds to pull precise numbers from the curve."), class = "plot-explanation")
                            )
-                           # COMMENTED OUT: Summary removed - mu/tau values don't match plot scales
-                           # TODO: Fix scale consistency before re-enabling
-                           # verbatimTextOutput("bivariateOverallSummary")
                   ),
                   tabPanel("Subgroup Analysis",
                            actionButton("biv_subgroup_info", "", icon = icon("info-circle"), class = "help-text"),
@@ -623,30 +615,12 @@ ui <- page_fillable(
                              column(6,
                                     div(class = "plot-container", style = "width: 100%;",
                                         withSpinner(plotlyOutput("enhancedBaujatPlot", height = "600px")),
-                                        p(HTML("<strong>What it is:</strong> This is an enhanced Baujat plot specifically for the JCR method. It identifies influential studies by plotting each study's contribution to heterogeneity against its influence on the pooled effect estimate, using values derived from the joint MLE estimation.<br>
-                                                  <strong>How to interpret:</strong> Studies in the top-right quadrant are the most influential. Because this plot uses estimates from the JCR method's joint MLE approach, it can provide a more accurate identification of influential studies than a standard Baujat plot. These studies should be reviewed to understand their impact on the overall findings."), class = "plot-explanation")
+                                        p(HTML("<strong>What it is:</strong> A Baujat plot identifies influential studies by plotting each study's contribution to heterogeneity (Q statistic) against its influence on the pooled effect estimate.<br>
+                                                  <strong>How to interpret:</strong> Studies in the top-right quadrant contribute most to both heterogeneity and influence on the pooled result. These studies should be carefully examined to understand their impact on the overall findings."), class = "plot-explanation")
                                     )
                              )
                            )
-                           # COMMENTED OUT: Influence summary removed as requested
-                           # verbatimTextOutput("bivariateInfluenceSummary")
-                  ),
-                  # tabPanel("Quality Assessment",
-                  #          actionButton("quality_assessment_info", "", icon = icon("info-circle"), class = "help-text"),
-                  #          fluidRow(
-                  #            column(6,
-                  #                   selectInput("risk_of_bias", "Risk of Bias:",
-                  #                               choices = c("Low", "Unclear", "High"),
-                  #                               selected = "Unclear")
-                  #            ),
-                  #            column(6,
-                  #                   selectInput("indirectness", "Indirectness:",
-                  #                               choices = c("Low", "Unclear", "High"),
-                  #                               selected = "Low")
-                  #            )
-                  #          ),
-                  #          verbatimTextOutput("bivariateGRADESummary")
-                  # )
+                  )
                 )
       ),
       nav_panel("Meta-Regression",
