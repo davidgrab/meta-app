@@ -112,7 +112,6 @@ ui <- page_fillable(
                                         choices = list(
                                           "Hypericum (St. John's Wort) - Depression (Default)" = "default",
                                           "Colditz et al. (1994) - BCG Vaccine" = "colditz",
-                                          "Yusuf et al. (1985) - Beta-Blockers" = "yusuf",
                                           "CBT for Depression (Continuous)" = "smd"
                                         ), 
                                         selected = "default"),
@@ -173,8 +172,7 @@ ui <- page_fillable(
                                style = "max-height: 600px; overflow-y: auto;",
                                withSpinner(plotOutput("randomForestPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> A forest plot visualizes the effect sizes and confidence intervals for each individual study, along with the overall pooled estimate from the random-effects model. The size of the square for each study is proportional to its weight in the analysis.<br>
-                                      <strong>How to interpret:</strong> Look for the overall effect estimate (the diamond) and its confidence interval to understand the main finding. If the diamond does not cross the line of no effect (e.g., 1 for OR/RR), the result is statistically significant. The spread of the individual studies shows the extent of heterogeneity."), class = "plot-explanation"),
+                           p(HTML("<strong>Forest Plot:</strong> Displays effect sizes and confidence intervals for each study, with the pooled random-effects estimate shown as a diamond. Square sizes are proportional to study weights. If the diamond does not cross the line of no effect (1 for OR/RR, 0 for SMD), the pooled result is statistically significant."), class = "plot-explanation"),
                            actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("randomOverallSummary"),
                            verbatimTextOutput("randomHeterogeneitySummary")
@@ -232,50 +230,23 @@ ui <- page_fillable(
                            h5("Deleted Residuals Comparison"),
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("randomDeletedResidualsComparisonPlot", height = "400px")),
-                              p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
-                                     <em>Left panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
-                                     <em>Right panel:</em> Random Effects deleted residuals - each point represents the residual when that study is removed and the random effects model is refitted.<br>
-                                     <strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with a standard normal distribution. The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles, showing the actual trend of the data. Comparing this regression line to the identity line reveals systematic deviations from normality.
-                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope - points should fall within this band if the data are normally distributed.
-                                     <br><em>Interpretation:</em> Compare tail behavior between models. If points deviate similarly from the identity line in both panels, 
-                                     it suggests the deviations are due to the data rather than the choice of model. Different patterns suggest model-specific issues."), 
-                                class = "plot-explanation")
+                              p(HTML("<strong>Deleted Residuals Q-Q:</strong> Compares fixed effects (left) vs random effects (right) deleted residuals against N(0,1). Red dashed line = identity; gray region = 95% simulation envelope. If RE residuals align better than FE residuals, this provides informal evidence that heterogeneity is present and the RE model may be more appropriate."), 
+                               class = "plot-explanation")
                            ),
                            
                            # BLUPs Q-Q plot (moved down)
                            h5("Best Linear Unbiased Predictors (BLUPs)"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("randomQQPlot")),
-                              p(HTML("<strong>Q-Q Plot of BLUPs:</strong><br>
-                                     This plot tests whether the study-specific effect estimates follow a normal distribution under the random effects model. 
-                                     <br><strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
-                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
-                                     <br><em>Interpretation:</em> S-shaped curves indicate tail deviations, systematic curvature suggests skewness, 
-                                     and points outside the envelope may indicate outliers or model misspecification."), class = "plot-explanation")
+                              p(HTML("<strong>BLUPs Q-Q:</strong> An informal diagnostic for whether study-specific effects follow a normal distribution. Red dashed line = identity; gray region = 95% envelope. S-shaped curves or points outside the envelope may suggest departures from normality, potential outliers, or unmodeled subgroups."), class = "plot-explanation")
                            ),
                            
                            h4("Formal Statistical Tests"),
                            verbatimTextOutput("randomNormalityTestSummary"),
                            h4("Additional Diagnostics"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("outlierDetectionPlot")),
-                                        p(HTML("<strong>Outlier Detection Plot:</strong><br>
-                                               Displays standardized residuals for each study with reference lines at ±1.96. 
-                                               Studies outside these bounds may be outliers affecting the meta-analysis.
-                                               <br><em>Interpretation:</em> Values beyond ±1.96 suggest potential outliers that may need investigation."), class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("effectDistributionPlot")),
-                                        p(HTML("<strong>Effect Distribution Plot:</strong><br>
-                                               Histogram showing the distribution of effect sizes across studies with the pooled effect size (red dashed line).
-                                               <br><em>Interpretation:</em> Shows the spread of individual study effects around the overall estimate. 
-                                               Bimodal or highly skewed distributions may indicate subgroup effects."), class = "plot-explanation")
-                                    )
-                             )
+                           div(class = "plot-container",
+                               withSpinner(plotOutput("outlierDetectionPlot")),
+                               p(HTML("<strong>Outlier Detection:</strong> Displays standardized residuals for each study with reference lines at ±1.96. Studies outside these bounds may be outliers that warrant investigation."), class = "plot-explanation")
                            )
                   ),
                   tabPanel("Publication Bias",
@@ -284,15 +255,13 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         withSpinner(plotOutput("randomFunnelPlot")),
-                                        p(HTML("<strong>What it is:</strong> A funnel plot is a scatterplot of treatment effect against a measure of study precision. It is used primarily as a visual aid to detecting publication bias.<br>
-                                                  <strong>How to interpret:</strong> In the absence of bias, the plot should resemble a symmetrical inverted funnel. An asymmetrical funnel suggests that studies with certain results (usually small, non-significant ones) may be missing from the analysis, which indicates potential publication bias."), class = "plot-explanation")
+                                        p(HTML("<strong>Funnel Plot:</strong> Plots effect sizes against precision (1/SE). In the absence of bias, studies should scatter symmetrically around the pooled effect. Asymmetry may suggest publication bias or other small-study effects, though it can also arise from genuine heterogeneity."), class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         withSpinner(plotOutput("randomTrimFillPlot")),
-                                        p(HTML("<strong>What it is:</strong> The trim and fill method is a non-parametric method for estimating the number of missing studies in a meta-analysis and adjusting the overall estimate for their absence. Missing studies are shown as open circles.<br>
-                                                  <strong>How to interpret:</strong> This plot shows the original studies (solid circles) and the imputed missing studies (open circles). The adjusted overall estimate (the new diamond) shows how the result might change if the suspected missing studies were included. A large difference between the original and adjusted estimates suggests that publication bias may be affecting the results."), class = "plot-explanation")
+                                        p(HTML("<strong>Trim & Fill:</strong> Estimates and imputes potentially missing studies (shown as open circles) to restore funnel symmetry. The adjusted pooled estimate shows how results might change if suspected missing studies were included. Large differences between original and adjusted estimates suggest sensitivity to potential publication bias."), class = "plot-explanation")
                                     )
                              )
                            ),
@@ -306,15 +275,13 @@ ui <- page_fillable(
                                style = "max-height: 600px; overflow-y: auto;",
                                withSpinner(plotOutput("leaveOneOutPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> A leave-one-out analysis recalculates the pooled effect estimate by removing one study at a time. This plot shows how the overall estimate changes when each study is omitted.<br>
-                                      <strong>How to interpret:</strong> Look for studies whose removal causes a large shift in the overall estimate or its confidence interval. If the overall conclusion changes when a particular study is removed, the results are sensitive to that study, which may warrant further investigation."), class = "plot-explanation"),
+                           p(HTML("<strong>Leave-One-Out:</strong> Recalculates the pooled effect by sequentially removing each study. If removing a study substantially changes the overall estimate or its significance, the results may be sensitive to that study, which warrants further investigation."), class = "plot-explanation"),
 
                            # Baujat Plot (full width)
                            div(class = "plot-container",
                                withSpinner(plotOutput("baujatPlot"))
                            ),
-                          p(HTML("<strong>What it is:</strong> A Baujat plot helps to identify studies that are influential in the meta-analysis. It plots the contribution of each study to the overall heterogeneity statistic (Q) against its influence on the pooled effect estimate.<br>
-                                     <strong>How to interpret:</strong> Studies in the top-right quadrant are the most influential, as they contribute highly to both heterogeneity and the overall result. These studies are candidates for further investigation as potential sources of heterogeneity or as outliers."), class = "plot-explanation"),
+                          p(HTML("<strong>Baujat Plot:</strong> Plots each study's contribution to the overall heterogeneity (Q statistic) against its influence on the pooled effect. Studies in the top-right quadrant contribute most to both heterogeneity and the overall result, and may warrant closer examination."), class = "plot-explanation"),
 
                            verbatimTextOutput("influenceSummary")
                   ),
@@ -331,8 +298,7 @@ ui <- page_fillable(
                                style = "max-height: 600px; overflow-y: auto;",
                                withSpinner(plotOutput("fixedForestPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> This forest plot visualizes the effect sizes from individual studies under the fixed-effect model, which assumes all studies share a single, common true effect. The pooled estimate is represented by the diamond.<br>
-                                      <strong>How to interpret:</strong> The key assumption is that any differences between studies are due to chance alone. If the confidence intervals of the studies overlap significantly and the heterogeneity test (Q-statistic) is not significant, the fixed-effect model may be appropriate. The diamond represents the best estimate of the common true effect."), class = "plot-explanation"),
+                           p(HTML("<strong>Fixed Effects Forest Plot:</strong> Displays effect sizes under the fixed-effect model, which assumes all studies share a single true effect. The diamond represents the pooled estimate. This model may be appropriate when heterogeneity is low (non-significant Q-test, low I²) and study confidence intervals largely overlap."), class = "plot-explanation"),
                            actionButton("fe_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
                            verbatimTextOutput("fixedOverallSummary"),
                            verbatimTextOutput("modelFitStatistics")
@@ -387,35 +353,14 @@ ui <- page_fillable(
                            p("This plot assesses whether the fixed effects model assumptions are met:", class = "section-explanation"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("fixedQQPlot")),
-                              p(HTML("<strong>Q-Q Plot of Standardized Residuals:</strong><br>
-                                     This plot tests whether the residuals r<sub>i</sub> = (Y<sub>i</sub> - θ̂)/σ<sub>i</sub> follow a standard normal distribution. 
-                                     <br><strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
-                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
-                                     <br><em>Interpretation:</em> If points systematically deviate from the line, this suggests the sampling errors 
-                                     do not follow the assumed normal distribution, which may invalidate the fixed effects model."), class = "plot-explanation")
+                              p(HTML("<strong>Standardized Residuals Q-Q:</strong> An informal diagnostic for whether residuals follow a standard normal distribution. Red dashed line = identity; gray region = 95% envelope. Systematic deviations from the diagonal may suggest non-normality or the presence of heterogeneity not captured by the fixed-effect model."), class = "plot-explanation")
                            ),
                            h4("Formal Statistical Test"),
                            verbatimTextOutput("fixedNormalityTestSummary"),
-                           h4("Model Fit and Outlier Detection"),
-                           fluidRow(
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("fixedModelFitPlot")),
-                                        p(HTML("<strong>Radial Plot:</strong><br>
-                                               Visualizes the fit of the fixed effects model. Points closer to the central line indicate better fit to the model.
-                                               <br><em>Interpretation:</em> Studies far from the line contribute more to heterogeneity and may not fit 
-                                               the fixed effects assumption of a common true effect size."), class = "plot-explanation")
-                                    )
-                             ),
-                             column(6, 
-                                    div(class = "plot-container",
-                                        withSpinner(plotOutput("fixedOutlierDetectionPlot")),
-                                        p(HTML("<strong>Outlier Detection:</strong><br>
-                                               Identifies potential outliers based on standardized residuals. Studies with large residuals may be outliers.
-                                               <br><em>Interpretation:</em> Outliers may indicate studies that don't follow the fixed effects assumption 
-                                               or have measurement errors that should be investigated."), class = "plot-explanation")
-                                    )
-                             )
+                           h4("Outlier Detection"),
+                           div(class = "plot-container",
+                               withSpinner(plotOutput("fixedOutlierDetectionPlot")),
+                               p(HTML("<strong>Outlier Detection:</strong> Identifies potential outliers based on standardized residuals. Studies with large residuals may be outliers or may not follow the fixed-effect assumption."), class = "plot-explanation")
                            )
                   ),
                   tabPanel("Publication Bias",
@@ -424,15 +369,13 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container",
                                         withSpinner(plotOutput("fixedFunnelPlot")),
-                                        p(HTML("<strong>What it is:</strong> A funnel plot under a fixed-effect model plots the study effect sizes against their standard errors. It's a visual tool to check for publication bias.<br>
-                                                  <strong>How to interpret:</strong> For a fixed-effect model, the plot should be symmetrical around the pooled effect estimate (the vertical line). Asymmetry, particularly a gap in the bottom-left or bottom-right of the funnel, suggests that small, non-significant studies may be missing, which could indicate publication bias."), class = "plot-explanation")
+                                        p(HTML("<strong>Funnel Plot:</strong> Plots effect sizes against precision. For a fixed-effect model, the plot should be symmetrical around the pooled estimate. Asymmetry, particularly gaps in the bottom corners, may suggest publication bias or small-study effects."), class = "plot-explanation")
                                     )
                              ),
                              column(6, 
                                     div(class = "plot-container",
                                         withSpinner(plotOutput("fixedTrimFillPlot")),
-                                        p(HTML("<strong>What it is:</strong> This plot applies the trim and fill method to the fixed-effect model to estimate and adjust for potentially missing studies due to publication bias.<br>
-                                                  <strong>How to interpret:</strong> The plot shows the original studies (solid circles) and imputes missing ones (open circles) to create a symmetrical funnel. The adjusted overall estimate (the new diamond) shows how the result might change if publication bias were accounted for. A significant difference between the original and adjusted estimates suggests that the fixed-effect result is sensitive to publication bias."), class = "plot-explanation")
+                                        p(HTML("<strong>Trim & Fill:</strong> Imputes potentially missing studies (open circles) to restore funnel symmetry. The adjusted estimate shows how results might change if publication bias were present. Large differences between original and adjusted estimates suggest sensitivity to potential bias."), class = "plot-explanation")
                                     )
                              )
                            ),
@@ -446,15 +389,13 @@ ui <- page_fillable(
                                style = "max-height: 600px; overflow-y: auto;",
                                withSpinner(plotOutput("fixedLeaveOneOutPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> This plot shows how the overall fixed-effect estimate changes when each study is sequentially removed from the meta-analysis.<br>
-                                      <strong>How to interpret:</strong> This analysis assesses the robustness of the results. If removing a single study drastically changes the overall estimate or its significance, the findings are considered sensitive to that study. Such influential studies should be examined more closely."), class = "plot-explanation"),
+                           p(HTML("<strong>Leave-One-Out:</strong> Shows how the fixed-effect estimate changes when each study is sequentially removed. If removing a study substantially changes the overall estimate or significance, the results are sensitive to that study."), class = "plot-explanation"),
 
                            # Influence Plot (Baujat) (full width)
                            div(class = "plot-container",
                                withSpinner(plotOutput("fixedInfluencePlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> This is a Baujat plot adapted for a fixed-effect model. It identifies influential studies by plotting each study's contribution to the overall heterogeneity statistic (Q) against its influence on the pooled effect estimate.<br>
-                                      <strong>How to interpret:</strong> Since the fixed-effect model assumes no heterogeneity, any study contributing significantly to the Q statistic (x-axis) is a potential outlier or violates the model assumptions. Studies with high influence (y-axis) are those that disproportionately affect the pooled estimate. Studies in the top-right are the most influential overall."), class = "plot-explanation"),
+                           p(HTML("<strong>Baujat Plot:</strong> Plots each study's contribution to the Q statistic (heterogeneity) against its influence on the pooled effect. Since the fixed-effect model assumes no heterogeneity, studies contributing significantly to Q may be potential outliers or violate model assumptions."), class = "plot-explanation"),
 
                            verbatimTextOutput("fixedInfluenceSummary")
                   ),
@@ -474,20 +415,30 @@ ui <- page_fillable(
                                style = "max-height: 600px; overflow-y: auto;",
                                withSpinner(plotOutput("bivariateForestPlot"))
                            ),
-                           p(HTML("<strong>What it is:</strong> This forest plot displays the results from the Joint Confidence Region (JCR) method. It shows the individual study effect sizes and the overall pooled estimate (diamond) calculated using Maximum Likelihood Estimation (MLE) that jointly estimates the overall effect (μ) and the between-study heterogeneity (τ).<br>
-                                      <strong>How to interpret:</strong> The JCR method often provides a more precise and reliable estimate than standard random-effects models, especially with sparse data. The interpretation is similar to a standard forest plot, but the underlying statistical approach uses joint MLE estimation for both parameters simultaneously."), class = "plot-explanation"),
+                           p(HTML("<strong>Forest Plot:</strong> Displays individual study effect sizes and the pooled estimate (diamond). The pooled estimate is derived from Maximum Likelihood Estimation, which jointly estimates μ and τ."), class = "plot-explanation"),
                            
                            # Confidence Region Plot (full width)
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("confidenceRegionPlot", height = "600px"))
                            ),
-                           p(HTML("<strong>What it is:</strong> This is the signature plot of the Joint Confidence Region (JCR) method. It shows the joint confidence region for the two main parameters: the overall effect size (μ) and the between-study heterogeneity (τ). The different colored regions represent the 50%, 90%, 95%, and 99% confidence levels.<br>
-                                      <strong>How to interpret:</strong> The plot illustrates the uncertainty in the estimates of μ and τ simultaneously. A wide region indicates greater uncertainty. The shape of the region shows the correlation between the estimates of the two parameters. The maximum likelihood estimates (MLE) for both are marked with a cross. This joint estimation approach is what distinguishes the JCR method from traditional meta-analysis."), class = "plot-explanation"),
+                           p(HTML("<strong>Joint Confidence Region:</strong> Shows the joint confidence region for the overall effect (μ) and heterogeneity (τ) at multiple confidence levels (50%, 90%, 95%, 99%). The cross marks the MLE. A wider region indicates greater uncertainty. Unlike traditional methods that treat τ as fixed, this visualizes how uncertainty in μ and τ are interrelated."), class = "plot-explanation"),
                            
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("efficacyHarmPlot", height = "500px")),
-                               p(HTML("<strong>What it is:</strong> The Efficacy-Harm plot shows the probability of observing a true effect size that is more extreme than a certain threshold. It plots the cumulative distribution function (CDF) for the treatment effect, showing probabilities for both benefit (efficacy) and harm.<br>
-                                          <strong>How to interpret:</strong> This plot helps in making clinical decisions. For example, you can use it to determine the probability that the true effect is greater than a minimal clinically important difference, or the probability that it falls into a range considered harmful. The steepness of the curve indicates the level of certainty."), class = "plot-explanation"),
+                               p(HTML("<strong>Efficacy-Harm Plot:</strong> Shows the probability that a new study's true effect exceeds (or falls below) clinical thresholds, with confidence bands derived from the joint (μ, τ) uncertainty. The steepness of the curve indicates certainty. This translates statistical uncertainty into clinically interpretable probabilities."), class = "plot-explanation"),
+                               
+                               # Color configuration for beneficial direction
+                               div(style = "margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px;",
+                                   radioButtons(
+                                     "efficacy_direction",
+                                     label = "Which direction indicates benefit (shown in green)?",
+                                     choices = c("Lower values are beneficial (e.g., RR < 1 means treatment reduces risk)" = "left",
+                                                 "Higher values are beneficial (e.g., SMD > 0 means treatment improves outcome)" = "right"),
+                                     selected = "left",
+                                     inline = FALSE
+                                   ),
+                                   helpText("Choose which side of the plot represents a beneficial outcome. The beneficial side will be shown in green, and the harmful side in red.")
+                               ),
                                
                                # Custom thresholds input
                                br(),
@@ -544,7 +495,7 @@ ui <- page_fillable(
                                           style = "max-height: 700px; overflow-y: auto;",
                                           withSpinner(plotOutput("bivariateSubgroupForestPlot"))
                                       ),
-                                      p(HTML("<strong>JCR Subgroup Analysis:</strong> Forest plot showing studies grouped by the selected variable, with JCR (joint MLE) estimates for each subgroup."), class = "plot-explanation"),
+                                      p(HTML("<strong>Subgroup Analysis:</strong> Forest plot showing studies grouped by the selected variable, with pooled estimates for each subgroup derived from joint MLE."), class = "plot-explanation"),
                                       br(),
                                       h4("Subgroup Comparison"),
                                       verbatimTextOutput("bivariateSubgroupTest")
@@ -568,26 +519,15 @@ ui <- page_fillable(
                            h5("Deleted Residuals Comparison"),
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("bivariateDeletedResidualsComparisonPlot", height = "400px")),
-                              p(HTML("<strong>Side-by-Side Q-Q Plots of Deleted Residuals:</strong><br>
-                                     <em>Left panel:</em> Fixed Effects deleted residuals - each point represents the residual when that study is removed and the fixed effect is recalculated.<br>
-                                     <em>Right panel:</em> JCR (joint MLE) deleted residuals - each point represents the residual when that study is removed and the JCR model is refitted.<br>
-                                     <strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
-                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
-                                     <br><em>Interpretation:</em> Compare tail behavior between the fixed effects and JCR approaches. The JCR method often shows better 
-                                     behavior in the tails due to its joint estimation of μ and τ. Different patterns suggest model-specific strengths and weaknesses."), 
-                                class = "plot-explanation")
+                              p(HTML("<strong>Deleted Residuals Q-Q:</strong> Compares fixed effects (left) vs MLE (right) deleted residuals against N(0,1). Red dashed line = identity; gray region = 95% simulation envelope. Comparing the two panels may reveal differences in how well each model captures the data structure."), 
+                               class = "plot-explanation")
                            ),
                            
                            # BLUPs Q-Q plot (moved down)
                            h5("Best Linear Unbiased Predictors (BLUPs)"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("qqPlotMu")),
-                              p(HTML("<strong>Q-Q Plot of BLUPs (JCR Method):</strong><br>
-                                     This plot tests normality of Best Linear Unbiased Predictors using jointly estimated μ̂<sub>MLE</sub> and τ̂<sub>MLE</sub> parameters from the JCR method. 
-                                     <br><strong>Lines:</strong> The red dashed line is the <em>identity line (y = x)</em>, representing perfect agreement with N(0,1). The subtle gray solid line is a <em>linear regression fit</em> (OLS) between the theoretical quantiles and sample quantiles. Comparing this regression line to the identity line reveals systematic deviations from normality.
-                                     <br><strong>Envelope:</strong> The gray shaded region is a 95% simulation-based confidence envelope.
-                                     <br><em>Interpretation:</em> The JCR approach provides more precise estimates than standard random effects due to joint MLE estimation. 
-                                     Deviations suggest the random effects may not follow the assumed normal distribution."), class = "plot-explanation")
+                              p(HTML("<strong>BLUPs Q-Q:</strong> An informal diagnostic for whether study-specific effects follow a normal distribution. Red dashed line = identity; gray region = 95% envelope. Deviations may suggest departures from the assumed normal distribution."), class = "plot-explanation")
                            ),
                            
                            h4("Formal Statistical Tests"),
@@ -597,8 +537,7 @@ ui <- page_fillable(
                            actionButton("publication_bias_info", "", icon = icon("info-circle"), class = "help-text"),
                            div(class = "plot-container",
                                withSpinner(plotOutput("bivariateAdaptedFunnelPlot")),
-                               p(HTML("<strong>What it is:</strong> This is a funnel plot adapted for the results of the JCR meta-analysis. It plots the study-specific effect sizes (from the JCR model) against their standard errors.<br>
-                                          <strong>How to interpret:</strong> Similar to a standard funnel plot, it should be symmetrical in the absence of publication bias. Asymmetry may suggest that small studies with non-significant results are missing. Because the JCR method provides more precise standard errors through joint MLE estimation, this plot can sometimes provide a clearer picture of potential bias than a standard funnel plot."), class = "plot-explanation")
+                               p(HTML("<strong>Funnel Plot:</strong> Plots study-specific effect sizes against their standard errors. The plot should be symmetrical in the absence of publication bias. Asymmetry may suggest that small studies with non-significant results are missing."), class = "plot-explanation")
                            ),
                            # verbatimTextOutput("bivariateBiasTestResults")
                   ),
@@ -608,15 +547,13 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container", style = "width: 100%;",
                                         withSpinner(plotlyOutput("confidenceRegionShiftPlot", height = "600px")),
-                                        p(HTML("<strong>What it is:</strong> This plot shows how the joint confidence region of the overall effect (μ) and heterogeneity (τ) shifts when each study is removed one at a time. The solid black line is the confidence region from the full dataset.<br>
-                                                  <strong>How to interpret:</strong> This is a powerful sensitivity analysis. If a single study's removal (a colored line) causes a large shift in the confidence region away from the original, it indicates that the main results are highly dependent on that single study. Such influential studies should be carefully examined."), class = "plot-explanation")
+                                        p(HTML("<strong>Confidence Region Shift:</strong> Shows how the joint confidence region for (μ, τ) shifts when each study is removed. The black contour is from the full dataset; colored contours show leave-one-out results. Large shifts indicate that results may be sensitive to that particular study."), class = "plot-explanation")
                                     )
                              ),
                              column(6,
                                     div(class = "plot-container", style = "width: 100%;",
                                         withSpinner(plotlyOutput("enhancedBaujatPlot", height = "600px")),
-                                        p(HTML("<strong>What it is:</strong> A Baujat plot identifies influential studies by plotting each study's contribution to heterogeneity (Q statistic) against its influence on the pooled effect estimate.<br>
-                                                  <strong>How to interpret:</strong> Studies in the top-right quadrant contribute most to both heterogeneity and influence on the pooled result. These studies should be carefully examined to understand their impact on the overall findings."), class = "plot-explanation")
+                                        p(HTML("<strong>Baujat Plot:</strong> Plots each study's contribution to heterogeneity (Q statistic) against its influence on the pooled effect. Studies in the top-right quadrant contribute most to both and may warrant closer examination."), class = "plot-explanation")
                                     )
                              )
                            )

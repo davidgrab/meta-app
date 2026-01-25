@@ -675,8 +675,8 @@ calculate_random_residuals <- function(model) {
 # Add these new functions at the end of your existing functions.R file
 
 
-render_report <- function(random_results,
-                         fixed_results,
+render_report <- function(random_results, 
+                         fixed_results, 
                          bivariate_results,
                          data = NULL,
                          random_subgroup_results = NULL,
@@ -685,9 +685,11 @@ render_report <- function(random_results,
                          metaregression_results = NULL,
                          include_subgroup = FALSE,
                          include_metareg = FALSE,
-                         subgroup_var = NULL,  # New parameter
-                         moderator_var = NULL,  # New parameter
-                         moderator_type = NULL) {  # New parameter
+                         subgroup_var = NULL,
+                         moderator_var = NULL,
+                         moderator_type = NULL,
+                         # New configuration metadata parameters
+                         config_metadata = NULL) {  # List containing all configuration settings
   tryCatch({
     report_content <- generate_report_content()
     
@@ -821,7 +823,8 @@ render_report <- function(random_results,
         include_metareg = include_metareg,
         subgroup_var = subgroup_var,
         moderator_var = moderator_var,
-        moderator_type = moderator_type
+        moderator_type = moderator_type,
+        config_metadata = config_metadata
       ),
       quiet = TRUE
     )
@@ -989,6 +992,7 @@ params:
   subgroup_var: NA
   moderator_var: NA
   moderator_type: NA
+  config_metadata: NA
 ---
 
 ```{r setup, include=FALSE}
@@ -1026,6 +1030,52 @@ This report presents a comprehensive meta-analysis of your data using three comp
 
 ---
 
+# Analysis Configuration {#config}
+
+```{r config-table, echo=FALSE}
+safe_run({
+  if (!is.null(params$config_metadata)) {
+    cfg <- params$config_metadata
+    
+    # Build configuration table
+    config_rows <- data.frame(
+      Setting = character(),
+      Value = character(),
+      stringsAsFactors = FALSE
+    )
+    
+    if (!is.null(cfg$dataset_name) && cfg$dataset_name != "") {
+      config_rows <- rbind(config_rows, data.frame(Setting = "Dataset", Value = cfg$dataset_name))
+    }
+    if (!is.null(params$data)) {
+      config_rows <- rbind(config_rows, data.frame(Setting = "Number of Studies", Value = as.character(nrow(params$data))))
+    }
+    if (!is.null(cfg$effect_measure)) {
+      config_rows <- rbind(config_rows, data.frame(Setting = "Effect Measure", Value = cfg$effect_measure))
+    }
+    if (!is.null(cfg$data_type)) {
+      config_rows <- rbind(config_rows, data.frame(Setting = "Data Type", Value = cfg$data_type))
+    }
+    if (!is.null(cfg$heterogeneity_estimator)) {
+      config_rows <- rbind(config_rows, data.frame(Setting = "Heterogeneity Estimator", Value = cfg$heterogeneity_estimator))
+    }
+    if (!is.null(cfg$efficacy_direction)) {
+      direction_text <- if(cfg$efficacy_direction == "left") "Lower values beneficial" else "Higher values beneficial"
+      config_rows <- rbind(config_rows, data.frame(Setting = "Efficacy Direction", Value = direction_text))
+    }
+    if (!is.null(cfg$analysis_date)) {
+      config_rows <- rbind(config_rows, data.frame(Setting = "Analysis Date", Value = cfg$analysis_date))
+    }
+    
+    if (nrow(config_rows) > 0) {
+      knitr::kable(config_rows, col.names = c("Setting", "Value"), align = c("l", "l"))
+    }
+  }
+})
+```
+
+---
+
 # Random Effects Analysis
 
 ## Effect Size & Heterogeneity
@@ -1057,12 +1107,6 @@ safe_run(outlier_detection_plot(params$random_results))
 ```
 
 **Interpretation:** Studies with standardized residuals beyond ±1.96 (dashed lines) are potential outliers. These studies may be methodologically different or represent distinct populations. Consider sensitivity analysis excluding these studies.
-
-```{r re-effect-dist, fig.width=10, fig.height=6}
-safe_run(effect_distribution_plot(params$random_results))
-```
-
-**Interpretation:** This histogram shows the distribution of individual study effect sizes. The red dashed line marks the pooled estimate. Bimodal or highly skewed distributions may indicate subgroup effects or the need for stratified analysis.
 
 ## Publication Bias
 
@@ -1137,12 +1181,6 @@ safe_run(qq_plot_fixed_residuals(params$fixed_results))
 ```
 
 **Interpretation:** This Q-Q plot tests whether standardized residuals r_i = (Y_i - θ̂)/σ_i follow N(0,1). Points within the gray envelope support the fixed effects assumption. Systematic deviations suggest the sampling model may be misspecified.
-
-```{r fe-radial, fig.width=10, fig.height=6}
-safe_run(radial(params$fixed_results))
-```
-
-**Interpretation:** The radial (Galbraith) plot displays standardized effects against precision. Studies should scatter randomly around the regression line. Outliers far from the line contribute disproportionately to heterogeneity.
 
 ```{r fe-outlier, fig.width=10, fig.height=6}
 safe_run(outlier_detection_plot(params$fixed_results))
@@ -1237,12 +1275,21 @@ safe_run({
 ```{r biv-efficacy-harm, fig.width=10, fig.height=6}
 safe_run({
   if (!is.null(params$bivariate_results) && !is.null(params$bivariate_results$dev_pvals)) {
+    # Get user preference for beneficial direction from config
+    left_is_beneficial <- if (!is.null(params$config_metadata) && !is.null(params$config_metadata$efficacy_direction)) {
+      params$config_metadata$efficacy_direction == "left"
+    } else {
+      # Default: left is beneficial for OR/RR, right for SMD
+      params$bivariate_results$sm != "SMD"
+    }
+    
     CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(params$bivariate_results$dev_pvals, sm = params$bivariate_results$sm)
     comp.eff.harm.plot(CDF.ci.obj,
                       efficacy.is.OR.le1 = (params$bivariate_results$sm == "OR"),
                       mlb = "Efficacy/Harm Plot",
                       xlb = paste("Effect Size (", params$bivariate_results$sm, ")"),
-                      sm = params$bivariate_results$sm)
+                      sm = params$bivariate_results$sm,
+                      left_is_beneficial = left_is_beneficial)
   }
 })
 ```

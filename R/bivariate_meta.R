@@ -252,12 +252,20 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   log_if_verbose(sprintf("H² = %8.4f", H2))
   
   # Calculate deviance and p-values
-  # Set appropriate range for mu based on summary measure
+  # Set appropriate range for mu and tau based on summary measure and MLE estimates
+  # IMPORTANT: tau grid must extend beyond the MLE to capture the full confidence region ellipse
+  
+  # Adaptive tau grid: ensure it extends well beyond the MLE estimate
+  # Use at least 2.5x the estimated tau, with minimum of 1.0 and maximum of 3.0
+  # Handle edge cases where tau might be 0, NA, NaN, or Inf
+  tau_safe <- if (is.finite(tau) && tau > 0) tau else 0.1
+  tau_max <- max(1.0, min(3.0, 2.5 * tau_safe + 0.5))
+  tau.vec <- seq(0.01, tau_max, length.out = 150)
+  
   if (sm == "SMD") {
     # For SMD, use wider range around the MLE estimate with higher resolution
     mu_range <- max(3, 1.5 * max(abs(c(y.k, mu))))
     mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for smoother contours
-    tau.vec <- seq(0.01, 1, length.out = 150)  # Higher resolution for smoother contours
   } else {
     # For OR/RR, use adaptive range based on data to ensure full confidence region is captured
     # Consider the range of observed effect sizes and add generous margins
@@ -277,7 +285,6 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
     mu_max <- min(mu_max, 2.5)   # Don't go above exp(2.5) ≈ 12.18
     
     mu.vec <- seq(mu_min, mu_max, length.out = 150)  # Increased resolution for smoother contours
-    tau.vec <- seq(0.01, 1, length.out = 150)  # Increased resolution
   }
   
   # For all summary measures, use the standard chi-squared approximation.
@@ -525,12 +532,13 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
   seq.tau <- tryCatch({
     sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2, ]
   }, error = function(e) {
-    seq(0.01, 1, length.out = n.tau)
+    seq(0.01, 3, length.out = n.tau)  # Extended fallback range for tau
   })
   
-  # Clamp sequences to reasonable ranges
+  # Clamp sequences to reasonable ranges (use actual grid max for tau, not hardcoded 1)
+  tau_max_from_grid <- max(seq.tau, na.rm = TRUE)
   seq.mu <- pmax(pmin(seq.mu, max_ci), min_ci)
-  seq.tau <- pmax(pmin(seq.tau, 1), 0.01)
+  seq.tau <- pmax(pmin(seq.tau, tau_max_from_grid), 0.01)
   
   x.mu <- rep(seq.mu, n.tau)
   x.tau <- rep(seq.tau, each = n.mu)
@@ -545,9 +553,9 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
     MLE.tau <- mean(seq.tau, na.rm = TRUE)
   }
   
-  # Clamp MLE values
+  # Clamp MLE values (use actual grid max for tau)
   MLE.mu <- pmax(pmin(MLE.mu, max_ci), min_ci)
-  MLE.tau <- pmax(pmin(MLE.tau, 1), 0.01)
+  MLE.tau <- pmax(pmin(MLE.tau, tau_max_from_grid), 0.01)
   
   # Calculate logit probabilities with bounds
   logit.p <- log.odds(pmax(pmin(c(pval.mat), 1 - 1/N.sig), 1/N.sig))
@@ -617,10 +625,14 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
 #' @param xlb X-axis label
 #' @param min.OR Minimum OR to display
 #' @param max.OR Maximum OR to display
+#' @param left_is_beneficial Logical, if TRUE then left side (lower values) is shown in green (beneficial),
+#'        if FALSE then right side (higher values) is shown in green. Default is TRUE for OR/RR (lower=better),
+#'        and FALSE for SMD (higher=better). User can override this default.
 #' @return A ggplot object representing the efficacy/harm plot
 #' @export
 comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Efficacy/Harm Plot", 
-                               xlb = "Efficacy/Harm", min.OR = 0.3, max.OR = 3, sm = NULL) {
+                               xlb = "Efficacy/Harm", min.OR = 0.3, max.OR = 3, sm = NULL,
+                               left_is_beneficial = NULL) {
   
   # Helper: stable interpolation + monotone smoothing keeps CDF well-behaved
   safe_approx <- function(x, y, xout) {
@@ -676,6 +688,24 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
   # Check if we're dealing with SMD
   is_smd <- !is.null(sm) && sm == "SMD"
   
+  # Determine color assignment based on left_is_beneficial parameter
+
+  # If not specified, use default: left is beneficial for OR/RR, right is beneficial for SMD
+  if (is.null(left_is_beneficial)) {
+    left_is_beneficial <- !is_smd  # Default: TRUE for OR/RR, FALSE for SMD
+  }
+  
+  # Set colors based on user preference
+  # If left_is_beneficial = TRUE: left side (lower values) is green, right side is red
+  # If left_is_beneficial = FALSE: left side is red, right side is green
+  if (left_is_beneficial) {
+    left_color <- "forestgreen"   # Green for beneficial (left side)
+    right_color <- "firebrick"    # Red for harmful (right side)
+  } else {
+    left_color <- "firebrick"     # Red for harmful (left side)
+    right_color <- "forestgreen"  # Green for beneficial (right side)
+  }
+  
   if (is_smd) {
     # For SMD: Use linear scale centered around 0
     x.seq <- seq(-3, 3, length = 1000)
@@ -712,9 +742,9 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     cdf.ll <- pmin(cdf.lower, cdf.est)
     cdf.ul <- pmax(cdf.upper, cdf.est)
     
-    # Set colors: for SMD, values > 0 are considered beneficial (green), < 0 harmful (red)
-    le0.col <- 2  # Red for x < 0
-    gt0.col <- 3  # Green for x > 0
+    # Use user-configurable colors (already set above based on left_is_beneficial)
+    le0.col <- left_color   # Color for x < 0 (left side)
+    gt0.col <- right_color  # Color for x > 0 (right side)
     
     # Calculate values for plotting with SMD ranges
     le0.vec <- seq(-3, 0, length = 200)
@@ -811,9 +841,9 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
   cdf.ll <- pmin(cdf.lower, cdf.est)
   cdf.ul <- pmax(cdf.upper, cdf.est)
   
-  # Set colors for RR/OR: values > 1 are considered beneficial (green), < 1 harmful (red)
-  le1.col <- 2   # Red for x < 1
-  mt1.col <- 3   # Green for x > 1
+  # Use user-configurable colors (already set above based on left_is_beneficial)
+  le1.col <- left_color   # Color for x < 1 (left side)
+  mt1.col <- right_color  # Color for x > 1 (right side)
   
   # Calculate values for plotting with fixed ranges
   le1.vec <- exp(seq(log(min.OR), 0, length = 200))
@@ -1080,6 +1110,10 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
                              color = "green"),
                  name = "Full Model MLE")
   
+  # Initialize y_min and y_max outside the if/else for reference line use
+  y_min <- 0
+  y_max <- 1
+  
   # Calculate axis limits from all contours (full model + all LOO)
   if (sm == "SMD") {
     # Collect all x and y values from all contours
@@ -1219,11 +1253,11 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     )
   }
   
-  # Add reference line
+  # Add reference line (using y_min and y_max calculated in the if/else blocks above)
   ref_val <- if (sm == "SMD") 0 else 1
   p <- add_trace(p,
                  x = c(ref_val, ref_val),
-                 y = c(0, 1),
+                 y = c(y_min, y_max),
                  type = "scatter", mode = "lines",
                  line = list(color = "gray", dash = "dash"),
                  showlegend = FALSE)

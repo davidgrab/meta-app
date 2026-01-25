@@ -219,16 +219,28 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   log_if_verbose(sprintf("H^2 = %8.4f", H2))
   
   # Calculate deviance and p-values
-  # Set appropriate range for mu based on summary measure
+  # Set appropriate range for mu and tau based on summary measure and MLE estimates
+  # IMPORTANT: tau grid must extend beyond the MLE to capture the full confidence region ellipse
+  
+  # Adaptive tau grid: ensure it extends well beyond the MLE estimate
+  # Use at least 2.5x the estimated tau, with minimum of 1.0 and maximum of 3.0
+  # Handle edge cases where tau might be 0, NA, NaN, or Inf
+  tau_safe <- if (is.finite(tau) && tau > 0) tau else 0.1
+  tau_max <- max(1.0, min(3.0, 2.5 * tau_safe + 0.5))
+  tau.vec <- seq(0.01, tau_max, length.out = 150)
+  
   if (sm == "SMD") {
     # For SMD, use wider range around the MLE estimate with higher resolution
     mu_range <- max(3, 1.5 * max(abs(c(y.k, mu))))
     mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for smoother contours
-    tau.vec <- seq(0.01, 1, length.out = 150)  # Higher resolution for smoother contours
   } else {
-    # For OR/RR, use traditional log scale range
-  mu.vec <- seq(-1, 1, length.out = 100)
-  tau.vec <- seq(0.01, 1, length.out = 100)
+    # For OR/RR, use adaptive range based on data
+    y_range <- range(y.k, na.rm = TRUE)
+    mu_center <- mu
+    mu_range_width <- max(3.0, 2.0 * diff(y_range), 2.5 * abs(mu))
+    mu_min <- max(min(mu_center - mu_range_width/2, y_range[1] - 1.0, -1.5), -2.5)
+    mu_max <- min(max(mu_center + mu_range_width/2, y_range[2] + 1.0, 1.5), 2.5)
+    mu.vec <- seq(mu_min, mu_max, length.out = 150)
   }
   
   # For all summary measures, use the standard chi-squared approximation.

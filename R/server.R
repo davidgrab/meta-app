@@ -38,7 +38,6 @@ server <- function(input, output, session) {
   # Load example datasets from CSV files
   exampleData <- read.csv("data/hypericum_depression_default.csv", stringsAsFactors = FALSE)
   colditzData <- read.csv("data/colditz_1994_bcg_vaccine.csv", stringsAsFactors = FALSE)
-  yusufData <- read.csv("data/yusuf_1985_beta_blockers.csv", stringsAsFactors = FALSE)
   smdData <- as.data.frame(read_excel("data/CBT_versus_other_therapies_formatted.xlsx"))
 
   print("Functions sourced")
@@ -197,10 +196,6 @@ server <- function(input, output, session) {
           "<p>This dataset contains results from ", nrow(colditzData), " studies examining the effectiveness of the Bacillus Calmette-Guerin (BCG) vaccine against tuberculosis. It shows substantial heterogeneity between studies, potentially related to the geographic latitude where the studies were conducted.</p>",
           "<p>Source: Available in the metadat R package as dat.colditz1994</p>",
           "<hr>",
-          "<h4>Yusuf et al. (1985) - Beta-Blockers Dataset</h4>",
-          "<p>This dataset contains results from ", nrow(yusufData), " studies on the effectiveness of beta blockers for reducing mortality after myocardial infarction. It is from Table 6 of the original publication and demonstrates clear treatment effects with studies of varying sizes.</p>",
-          "<p>Source: Available in the metafor R package as dat.yusuf1985</p>",
-          "<hr>",
           "<h4>Hypericum (St. John's Wort) - Depression Dataset</h4>",
           "<p>This dataset comes from a Cochrane systematic review of randomized controlled trials comparing Hypericum extracts (St. John's Wort) to placebo in patients with major depressive disorder. It includes ", nrow(exampleData), " RCTs with binary outcomes measuring response to treatment (responder vs. non-responder) reported as relative risk (RR).</p>",
           "<p>Hypericum extracts are herbal remedies used for treating depression symptoms, and this dataset demonstrates the effectiveness comparison against placebo treatments.</p>",
@@ -261,8 +256,9 @@ server <- function(input, output, session) {
     }
   )
   
-  # New reactive value
+  # New reactive values
   currentData <- reactiveVal(NULL)
+  currentDatasetName <- reactiveVal("Unknown")
   
   # Dataset description
   output$datasetDescription <- renderUI({
@@ -270,7 +266,6 @@ server <- function(input, output, session) {
     
     description <- switch(dataset_choice,
       "colditz" = paste(nrow(colditzData), "studies on BCG vaccine effectiveness against tuberculosis. Classic dataset with substantial heterogeneity and potential moderators (latitude)."),
-      "yusuf" = paste(nrow(yusufData), "studies on beta-blockers for reducing mortality after myocardial infarction. Widely used dataset with clear treatment effects and varying study sizes."),
       "default" = paste("Cochrane review of", nrow(exampleData), "RCTs comparing Hypericum (St. John's Wort) to placebo in major depressive disorder. Binary outcome (response to treatment) reported as relative risk (RR)."),
       "smd" = paste(nrow(smdData), "studies comparing cognitive-behavioral therapy (CBT) to control conditions for depression, with outcomes reported as continuous effect sizes with 95% confidence intervals.")
     )
@@ -284,18 +279,17 @@ server <- function(input, output, session) {
     
     if (dataset_choice == "colditz") {
       currentData(colditzData)
+      currentDatasetName("Colditz et al. (1994) - BCG Vaccine")
       updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Colditz et al. (1994) BCG Vaccine Dataset", type = "message")
-    } else if (dataset_choice == "yusuf") {
-      currentData(yusufData)
-      updateRadioButtons(session, "data_type", selected = "binary")
-      showNotification("Loaded Yusuf et al. (1985) Beta-Blockers Dataset", type = "message")
     } else if (dataset_choice == "smd") {
       currentData(smdData)
+      currentDatasetName("CBT for Depression (Continuous)")
       updateRadioButtons(session, "data_type", selected = "smd")
       showNotification("Loaded CBT for Depression (Continuous) Dataset", type = "message")
     } else {
       currentData(exampleData)
+      currentDatasetName("Hypericum (St. John's Wort) - Depression")
       updateRadioButtons(session, "data_type", selected = "binary")
       showNotification("Loaded Default Example Dataset", type = "message")
     }
@@ -320,6 +314,7 @@ server <- function(input, output, session) {
     # ------------------------------------------------------------------------------
 
     currentData(df)
+    currentDatasetName(paste("Uploaded:", input$datafile$name))
   })
   
   output$dataPreview <- renderDT({
@@ -590,11 +585,6 @@ server <- function(input, output, session) {
     outlier_detection_plot(combinedResults()$random)
   })
   
-  output$effectDistributionPlot <- renderPlot({
-    req(combinedResults()$random)
-    effect_distribution_plot(combinedResults()$random)
-  })
-  
   output$randomFunnelPlot <- renderPlot({
     req(combinedResults()$random)
     funnel(combinedResults()$random)
@@ -633,11 +623,6 @@ server <- function(input, output, session) {
            xlab = paste0("Effect Size (", effect_measure_label(), ")"),
            main = paste0("Fixed Effects Forest Plot (", effect_measure_label(), ")"))
   }, height = function() forest_plot_height())
-  
-  output$fixedModelFitPlot <- renderPlot({
-    req(combinedResults()$fixed)
-    radial(combinedResults()$fixed)
-  })
   
   output$fixedOverallSummary <- renderPrint({
     req(combinedResults()$fixed)
@@ -906,12 +891,21 @@ server <- function(input, output, session) {
     effect_label <- effect_measure_label()
     plot_title <- paste("Efficacy/Harm Plot for", effect_label)
     
+    # Get user's choice for beneficial direction
+    left_is_beneficial <- if (!is.null(input$efficacy_direction)) {
+      input$efficacy_direction == "left"
+    } else {
+      # Default: left is beneficial for OR/RR, right for SMD
+      bivariate_result()$sm != "SMD"
+    }
+    
     CDF.ci.obj <- comp.mu.tau.dev.CDF.CI(bivariate_result()$dev_pvals, sm = bivariate_result()$sm)
     comp.eff.harm.plot(CDF.ci.obj,
                        efficacy.is.OR.le1 = (bivariate_result()$sm == "OR"),
                        mlb = plot_title,
                        xlb = paste("Effect Size (", effect_label, ")"),
-                       sm = bivariate_result()$sm)
+                       sm = bivariate_result()$sm,
+                       left_is_beneficial = left_is_beneficial)
   }, height = 500)  # Set explicit height for better visibility
   
   # Probability Table for Clinical Thresholds
@@ -1252,22 +1246,18 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Random Effects Residuals and Effect Distribution Info
+  # Random Effects Residuals Info
   observeEvent(input$random_residuals_info, {
     showModal(modalDialog(
-      title = "Random Effects: Residuals and Effect Distribution",
+      title = "Random Effects: Model Diagnostics",
       HTML(paste0(
-        "This section helps assess model assumptions and effect size distribution:<br><br>",
+        "This section helps assess model assumptions:<br><br>",
         "1. Q-Q Plot:<br>",
         "   - Assesses whether effect sizes are normally distributed<br>",
         "   - Points should roughly follow the diagonal line for normality<br><br>",
         "2. Outlier Detection Plot:<br>",
         "   - Identifies potential outliers based on standardized residuals<br>",
-        "   - Studies outside the dashed lines may be considered outliers<br><br>",
-        "3. Effect Distribution Plot:<br>",
-        "   - Histogram showing the distribution of effect sizes across studies<br>",
-        "   - Helps visualize the central tendency and spread of effects<br>",
-        "   - Can indicate skewness or multi-modality in effect sizes"
+        "   - Studies outside the dashed lines may be considered outliers"
       )),
       easyClose = TRUE,
       footer = NULL
@@ -1366,10 +1356,10 @@ server <- function(input, output, session) {
     ))
   })
   
-  # Fixed Effects Residuals and Effect Distribution Info
+  # Fixed Effects Residuals Info
   observeEvent(input$fixed_residuals_info, {
     showModal(modalDialog(
-      title = "Fixed Effects: Residuals and Effect Distribution",
+      title = "Fixed Effects: Model Diagnostics",
       HTML(paste0(
         "This section helps assess model assumptions for the fixed effects model:<br><br>",
         "1. Q-Q Plot:<br>",
@@ -1377,10 +1367,7 @@ server <- function(input, output, session) {
         "   - Points should roughly follow the diagonal line for normality<br><br>",
         "2. Outlier Detection Plot:<br>",
         "   - Identifies potential outliers in the fixed effects model<br>",
-        "   - Studies outside the dashed lines may be considered outliers<br><br>",
-        "3. Effect Distribution:<br>",
-        "   - Visualizes the distribution of effect sizes across studies<br>",
-        "   - Helps assess the appropriateness of the fixed effects assumption"
+        "   - Studies outside the dashed lines may be considered outliers"
       )),
       easyClose = TRUE,
       footer = NULL
@@ -2664,6 +2651,17 @@ server <- function(input, output, session) {
         moderator_var <- if (isTRUE(input$include_metareg_report)) input$report_mod_variable else NULL
         moderator_type <- if (isTRUE(input$include_metareg_report)) input$report_mod_type else NULL
 
+        # Build configuration metadata
+        config_metadata <- list(
+          dataset_name = currentDatasetName(),
+          effect_measure = input$effect_measure,
+          data_type = input$data_type,
+          heterogeneity_estimator = input$het_estimator,
+          confidence_level = if (!is.null(input$confidence_level)) input$confidence_level else 95,
+          efficacy_direction = if (!is.null(input$efficacy_direction)) input$efficacy_direction else "left",
+          analysis_date = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        )
+        
         output_file <- render_report(
           random_results(),
           fixed_results(),
@@ -2673,7 +2671,8 @@ server <- function(input, output, session) {
           include_metareg = isTRUE(input$include_metareg_report),
           subgroup_var = subgroup_var,
           moderator_var = moderator_var,
-          moderator_type = moderator_type
+          moderator_type = moderator_type,
+          config_metadata = config_metadata
         )
 
         incProgress(0.6)
