@@ -131,6 +131,17 @@ The Joint Confidence Region method provides a frequentist approach to jointly es
 **Based on:**
 > Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. *Journal of Clinical Epidemiology*, 107, 101-106.
 
+### Implementation Notes
+
+This implementation follows the original Saad et al. (2019) methodology with one robustness enhancement:
+
+**Confidence Region Fallback**: The original code uses loess smoothing on the p-value surface to identify (μ, τ) pairs within the 95% confidence region. For datasets with many studies (e.g., 50+ studies), the confidence region becomes extremely concentrated, and loess smoothing may compress all p-values below the significance threshold, producing zero CI points.
+
+To handle this edge case, we added a fallback that creates three synthetic CI points spanning `[MLE.μ - MLE.τ, MLE.μ + MLE.τ]` when loess produces no points. This fallback:
+- Only triggers for large datasets with very concentrated confidence regions
+- Uses the estimated heterogeneity (τ) as the offset, which is statistically principled since uncertainty in μ scales with τ under the random-effects model
+- Ensures the app never fails on edge cases not encountered by the original authors
+
 ## Acknowledgments
 
 - [Shiny](https://shiny.posit.co/) by Posit

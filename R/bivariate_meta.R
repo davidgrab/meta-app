@@ -576,10 +576,11 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
   mu.ci.vec <- mu.pred.vec[alpha < smth.pval.mat]
   tau.ci.vec <- tau.pred.vec[alpha < smth.pval.mat]
   
-  # Ensure we have CI points
+  # Ensure we have CI points - use MLE.tau as offset (matches thesis code)
+  # The fallback formula creates 3 points spanning [MLE.mu - MLE.tau, MLE.mu + MLE.tau]
   if (length(mu.ci.vec) == 0) {
-    mu.ci.vec <- c(MLE.mu - 0.1, MLE.mu, MLE.mu + 0.1)
-    tau.ci.vec <- c(MLE.tau, MLE.tau, MLE.tau)
+    mu.ci.vec <- c(MLE.mu - MLE.tau, MLE.mu, MLE.mu + MLE.tau)
+    tau.ci.vec <- rep(MLE.tau, 3)
   }
   
   # Ensure tau values are positive
