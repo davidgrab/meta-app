@@ -660,6 +660,9 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     })
   }
   
+  # Check if we're dealing with SMD (defined early so smooth_monotone can use it)
+  is_smd <- !is.null(sm) && sm == "SMD"
+  
   smooth_monotone <- function(x, y, increasing = TRUE) {
     keep <- is.finite(x) & is.finite(y)
     if (sum(keep) < 3) {
@@ -668,25 +671,34 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     } else {
       x_keep <- x[keep]
       y_keep <- y[keep]
+      # Adaptive smoothing: gentler for SMD (steeper CDFs), stronger for OR/RR
+      spar_val <- if (is_smd) 0.3 else 0.65
       y_smooth <- tryCatch({
-        stats::predict(stats::smooth.spline(x_keep, y_keep, spar = 0.65), x)$y
+        stats::predict(stats::smooth.spline(x_keep, y_keep, spar = spar_val), x)$y
       }, error = function(e) {
         stats::approx(x_keep, y_keep, xout = x, rule = 2, ties = "ordered")$y
       })
     }
     y_smooth <- pmax(0, pmin(1, y_smooth))
+    # Monotonicity enforcement: isotonic regression for SMD (preserves values better),
+    # cummax for OR/RR (handles log-scale noise)
     if (increasing) {
-      y_smooth <- cummax(y_smooth)
+      if (is_smd) {
+        y_smooth <- stats::isoreg(seq_along(y_smooth), y_smooth)$yf
+      } else {
+        y_smooth <- cummax(y_smooth)
+      }
     } else {
-      y_smooth <- rev(cummax(rev(y_smooth)))
+      if (is_smd) {
+        y_smooth <- rev(stats::isoreg(seq_along(y_smooth), rev(y_smooth))$yf)
+      } else {
+        y_smooth <- rev(cummax(rev(y_smooth)))
+      }
     }
     return(y_smooth)
   }
   
   clamp_prob <- function(p) pmax(0, pmin(1, p))
-  
-  # Check if we're dealing with SMD
-  is_smd <- !is.null(sm) && sm == "SMD"
   
   # Determine color assignment based on left_is_beneficial parameter
 
