@@ -232,7 +232,7 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   if (sm == "SMD") {
     # For SMD, use wider range around the MLE estimate with higher resolution
     mu_range <- max(3, 1.5 * max(abs(c(y.k, mu))))
-    mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for smoother contours
+    mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for accurate contours
   } else {
     # For OR/RR, use adaptive range based on data
     y_range <- range(y.k, na.rm = TRUE)

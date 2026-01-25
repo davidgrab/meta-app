@@ -265,7 +265,7 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
   if (sm == "SMD") {
     # For SMD, use wider range around the MLE estimate with higher resolution
     mu_range <- max(3, 1.5 * max(abs(c(y.k, mu))))
-    mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for smoother contours
+    mu.vec <- seq(-mu_range, mu_range, length.out = 150)  # Higher resolution for accurate contours
   } else {
     # For OR/RR, use adaptive range based on data to ensure full confidence region is captured
     # Consider the range of observed effect sizes and add generous margins
@@ -284,7 +284,7 @@ metabiv <- function(event.e = NULL, n.e = NULL, event.c = NULL, n.c = NULL, stud
     mu_min <- max(mu_min, -2.5)  # Don't go below exp(-2.5) ≈ 0.082
     mu_max <- min(mu_max, 2.5)   # Don't go above exp(2.5) ≈ 12.18
     
-    mu.vec <- seq(mu_min, mu_max, length.out = 150)  # Increased resolution for smoother contours
+    mu.vec <- seq(mu_min, mu_max, length.out = 150)  # Higher resolution for accurate contours
   }
   
   # For all summary measures, use the standard chi-squared approximation.
@@ -502,11 +502,15 @@ compute_confidence_region <- function(pval.mat, level.ma) {
 #' @title Compute CDF and Confidence Intervals
 #' @description Calculates the CDF and its confidence intervals with clamped ranges
 #' @param dev.lst A list containing the deviance and p-value matrices
-#' @param N.sig Number of simulations for smoothing
+#' @param N.sig Number of grid points for p-value interpolation
 #' @param alpha Significance level
 #' @param min_ci Minimum value for confidence intervals (default: log(0.2))
 #' @param max_ci Maximum value for confidence intervals (default: log(10))
-#' @return A list containing the CDF vector, MLE CDF, and lower and upper CIs
+#' @return A list containing: [1] CDF probability values, [2] MLE effect thresholds,
+#'   [3] CI lower effect thresholds, [4] CI upper effect thresholds
+#' @details Computes the inverse CDF (quantile function) for each (μ, τ) pair in the
+#'   confidence region, then takes min/max to get confidence bands. This matches
+#'   the original Saad et al. (2019) implementation exactly.
 #' @export
 comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05, 
                                   min_ci = log(0.2), max_ci = log(10), sm = NULL) {
@@ -522,7 +526,7 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
     max_ci <- 3
   }
   
-  # Extract sequences with error handling
+  # Extract mu and tau sequences from dimension names
   seq.mu <- tryCatch({
     sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2, ]
   }, error = function(e) {
@@ -532,90 +536,78 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
   seq.tau <- tryCatch({
     sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2, ]
   }, error = function(e) {
-    seq(0.01, 3, length.out = n.tau)  # Extended fallback range for tau
+    seq(0.01, 3, length.out = n.tau)
   })
   
-  # Clamp sequences to reasonable ranges (use actual grid max for tau, not hardcoded 1)
-  tau_max_from_grid <- max(seq.tau, na.rm = TRUE)
-  seq.mu <- pmax(pmin(seq.mu, max_ci), min_ci)
-  seq.tau <- pmax(pmin(seq.tau, tau_max_from_grid), 0.01)
-  
+  # Create full grid of (mu, tau) pairs (exactly as original lines 456-457)
   x.mu <- rep(seq.mu, n.tau)
   x.tau <- rep(seq.tau, each = n.mu)
   
-  # Find MLE with safety checks
-  zero_indices <- which(dev.mat == min(dev.mat, na.rm = TRUE))
-  if (length(zero_indices) > 0) {
-    MLE.mu <- mean(x.mu[zero_indices], na.rm = TRUE)
-    MLE.tau <- mean(x.tau[zero_indices], na.rm = TRUE)
-  } else {
-    MLE.mu <- mean(seq.mu, na.rm = TRUE)
-    MLE.tau <- mean(seq.tau, na.rm = TRUE)
-  }
+  # Find MLE (exactly as original line 458-459)
+  # Original uses which(dev.mat == 0), we use which.min for robustness
+  mle_idx <- which.min(as.vector(dev.mat))
+  MLE.mu <- x.mu[mle_idx]
+  MLE.tau <- max(x.tau[mle_idx], 0.01)
   
-  # Clamp MLE values (use actual grid max for tau)
-  MLE.mu <- pmax(pmin(MLE.mu, max_ci), min_ci)
-  MLE.tau <- pmax(pmin(MLE.tau, tau_max_from_grid), 0.01)
+  # Compute logit of p-values (EXACTLY as original lines 461-463)
+  logit.p <- log.odds(c(pval.mat))
+  logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
+  logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
   
-  # Calculate logit probabilities with bounds
-  logit.p <- log.odds(pmax(pmin(c(pval.mat), 1 - 1/N.sig), 1/N.sig))
-  
-  # Fit loess model with error handling
+  # Fit loess model (EXACTLY as original line 464 - note: no degree argument = default degree 1)
   logit.p.loess <- tryCatch({
-    loess(logit.p ~ x.mu + x.tau, span = 0.1, degree = 2)
+    loess(logit.p ~ x.mu + x.tau, span = 0.1)
   }, error = function(e) {
-    # Fallback to simpler model if loess fails
     lm(logit.p ~ x.mu + x.tau)
   })
   
-  # Create prediction grid with clamped ranges
+  # Create fine prediction grid
   tau.pred.vec <- rep(seq(min(seq.tau), max(seq.tau), length = 200), 200)
   mu.pred.vec <- rep(seq(min(seq.mu), max(seq.mu), length = 200), each = 200)
   
-  # Get smoothed probabilities
+  # Get interpolated p-values (EXACTLY as original line 468)
   smth.pval.mat <- tryCatch({
     inv.log.odds(predict(logit.p.loess, data.frame(x.mu = mu.pred.vec, x.tau = tau.pred.vec)))
   }, error = function(e) {
-    # Fallback to simple interpolation if prediction fails
-    rep(mean(inv.log.odds(logit.p), na.rm = TRUE), length(mu.pred.vec))
+    rep(0.5, length(mu.pred.vec))
   })
   
-  # Calculate confidence intervals
+  # Get (mu, tau) pairs inside the (1-alpha) confidence region
   mu.ci.vec <- mu.pred.vec[alpha < smth.pval.mat]
   tau.ci.vec <- tau.pred.vec[alpha < smth.pval.mat]
   
-  # Ensure we have some values for CI
+  # Ensure we have CI points
   if (length(mu.ci.vec) == 0) {
-    mu.ci.vec <- c(MLE.mu - MLE.tau, MLE.mu + MLE.tau)
-    tau.ci.vec <- c(MLE.tau, MLE.tau)
+    mu.ci.vec <- c(MLE.mu - 0.1, MLE.mu, MLE.mu + 0.1)
+    tau.ci.vec <- c(MLE.tau, MLE.tau, MLE.tau)
   }
   
+  # Ensure tau values are positive
+  tau.ci.vec <- pmax(tau.ci.vec, 0.01)
   n.ci <- length(mu.ci.vec)
   
-  # Calculate CDF with extended ranges to allow 0 and 1 probabilities
-  # Use 0.001 to 0.999 to allow near-0 and near-1 probabilities while avoiding Inf from qnorm
-  CDF.vec <- seq(0.001, 0.999, length = 199)
-  MLE.CDF <- pmax(pmin(qnorm(CDF.vec, mean = MLE.mu, sd = MLE.tau), max_ci), min_ci)
+  # ===== ORIGINAL METHOD: Inverse CDF (Quantile Function) =====
+  # For each probability p, compute the effect threshold c = Φ^(-1)(p; μ, τ)
+  # This is exactly how Saad et al. (2019) compute it
   
-  # Use the statistically correct method for both SMD and OR/RR
-  # This properly accounts for uncertainty in both mu and tau parameters
-  n_cdf <- length(CDF.vec)
+  CDF.vec <- seq(0.01, 0.99, length = 99)
+  
+  # MLE: effect thresholds at each probability level
+  MLE.CDF <- qnorm(CDF.vec, mean = MLE.mu, sd = MLE.tau)
+  
+  # CI: for each (mu, tau) in CI region, compute thresholds, then take min/max
+  # EXACTLY as original Saad et al. (2019) line 475-477
   ci.CDF.mat <- array(
-    pmax(pmin(
-      qnorm(rep(CDF.vec, each = n.ci), 
-            mean = rep(mu.ci.vec, n_cdf), 
-            sd = rep(tau.ci.vec, n_cdf)),
-      max_ci), min_ci),
-    dim = c(n.ci, n_cdf)
+    qnorm(rep(CDF.vec, each = n.ci), 
+          mean = rep(mu.ci.vec, 99), 
+          sd = rep(tau.ci.vec, 99)),
+    dim = c(n.ci, 99)
   )
-  
   ci.CDF.ll <- apply(ci.CDF.mat, 2, min)
   ci.CDF.ul <- apply(ci.CDF.mat, 2, max)
   
-  # Final safety check on bounds
-  ci.CDF.ll <- pmax(ci.CDF.ll, min_ci)
-  ci.CDF.ul <- pmin(ci.CDF.ul, max_ci)
-  
+  # Return: [1] probability values, [2] MLE thresholds, [3] CI lower, [4] CI upper
+  # This is the ORIGINAL format from Saad et al. (2019) line 479
   return(list(CDF.vec, MLE.CDF, ci.CDF.ll, ci.CDF.ul))
 }
 
@@ -636,140 +628,65 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
                                xlb = "Efficacy/Harm", min.OR = 0.3, max.OR = 3, sm = NULL,
                                left_is_beneficial = NULL) {
   
-  # Helper: stable interpolation + monotone smoothing keeps CDF well-behaved
-  safe_approx <- function(x, y, xout) {
-    tryCatch({
-      keep <- is.finite(x) & is.finite(y)
-      x_keep <- x[keep]
-      y_keep <- y[keep]
-      if (length(x_keep) < 2) {
-        fallback <- ifelse(all(!is.finite(y)), 0.5, mean(y, na.rm = TRUE))
-        return(rep(fallback, length(xout)))
-      }
-      ord <- order(x_keep)
-      x_ordered <- x_keep[ord]
-      y_ordered <- y_keep[ord]
-      unique_idx <- !duplicated(x_ordered)
-      x_unique <- x_ordered[unique_idx]
-      y_unique <- y_ordered[unique_idx]
-      if (length(x_unique) < 2) {
-        fallback <- ifelse(all(!is.finite(y_unique)), 0.5, mean(y_unique, na.rm = TRUE))
-        return(rep(fallback, length(xout)))
-      }
-      stats::approx(x_unique, y_unique, xout = xout, rule = 2, ties = "ordered")$y
-    }, error = function(e) {
-      rep(mean(y, na.rm = TRUE), length(xout))
-    })
-  }
-  
-  # Check if we're dealing with SMD (defined early so smooth_monotone can use it)
+  # Check if we're dealing with SMD
   is_smd <- !is.null(sm) && sm == "SMD"
   
-  smooth_monotone <- function(x, y, increasing = TRUE) {
-    keep <- is.finite(x) & is.finite(y)
-    if (sum(keep) < 3) {
-      fallback <- ifelse(all(!is.finite(y[keep])), 0.5, mean(y[keep], na.rm = TRUE))
-      y_smooth <- rep(ifelse(is.na(fallback), 0.5, fallback), length(y))
-    } else {
-      x_keep <- x[keep]
-      y_keep <- y[keep]
-      # Adaptive smoothing: gentler for SMD (steeper CDFs), stronger for OR/RR
-      spar_val <- if (is_smd) 0.3 else 0.65
-      y_smooth <- tryCatch({
-        stats::predict(stats::smooth.spline(x_keep, y_keep, spar = spar_val), x)$y
-      }, error = function(e) {
-        stats::approx(x_keep, y_keep, xout = x, rule = 2, ties = "ordered")$y
-      })
-    }
-    y_smooth <- pmax(0, pmin(1, y_smooth))
-    # Monotonicity enforcement: isotonic regression for SMD (preserves values better),
-    # cummax for OR/RR (handles log-scale noise)
-    if (increasing) {
-      if (is_smd) {
-        y_smooth <- stats::isoreg(seq_along(y_smooth), y_smooth)$yf
-      } else {
-        y_smooth <- cummax(y_smooth)
-      }
-    } else {
-      if (is_smd) {
-        y_smooth <- rev(stats::isoreg(seq_along(y_smooth), rev(y_smooth))$yf)
-      } else {
-        y_smooth <- rev(cummax(rev(y_smooth)))
-      }
-    }
-    return(y_smooth)
-  }
-  
-  clamp_prob <- function(p) pmax(0, pmin(1, p))
-  
   # Determine color assignment based on left_is_beneficial parameter
-
   # If not specified, use default: left is beneficial for OR/RR, right is beneficial for SMD
   if (is.null(left_is_beneficial)) {
     left_is_beneficial <- !is_smd  # Default: TRUE for OR/RR, FALSE for SMD
   }
   
   # Set colors based on user preference
-  # If left_is_beneficial = TRUE: left side (lower values) is green, right side is red
-  # If left_is_beneficial = FALSE: left side is red, right side is green
   if (left_is_beneficial) {
-    left_color <- "forestgreen"   # Green for beneficial (left side)
-    right_color <- "firebrick"    # Red for harmful (right side)
+    left_color <- "forestgreen"
+    right_color <- "firebrick"
   } else {
-    left_color <- "firebrick"     # Red for harmful (left side)
-    right_color <- "forestgreen"  # Green for beneficial (right side)
+    left_color <- "firebrick"
+    right_color <- "forestgreen"
   }
+  
+  # ===== ORIGINAL METHOD (Saad et al. 2019) =====
+  # CDF.ci.obj contains:
+  # [1] CDF.vec = probability values (0.01 to 0.99)
+  # [2] MLE.CDF = effect thresholds at MLE
+  # [3] ci.CDF.ll = CI lower effect thresholds
+  # [4] ci.CDF.ul = CI upper effect thresholds
+  
+  # ===== EXACTLY AS ORIGINAL Saad et al. (2019) =====
+  # CDF.ci.obj[[1]] = CDF.vec (probability values 0.01 to 0.99)
+  # CDF.ci.obj[[2]] = MLE.CDF (effect thresholds at MLE)
+  # CDF.ci.obj[[3]] = ci.CDF.ll (CI lower thresholds)
+  # CDF.ci.obj[[4]] = ci.CDF.ul (CI upper thresholds)
   
   if (is_smd) {
     # For SMD: Use linear scale centered around 0
-    x.seq <- seq(-3, 3, length = 1000)
+    # Extended range for robust interpolation at boundaries
+    x.seq <- seq(-5, 5, length = 1000)
     
-    # Use the CDF values directly (no exponential transformation)
-    x.est.taper <- c(
-      seq(-3, min(CDF.ci.obj[[2]]), length = 50),
-      CDF.ci.obj[[2]],
-      seq(max(CDF.ci.obj[[2]]), 3, length = 50)
-    )
+    # Taper x values with boundary extensions (ensures CDF touches 0 and 1)
+    x.est.taper <- c(seq(-5, min(CDF.ci.obj[[2]]), length = 50), CDF.ci.obj[[2]], seq(max(CDF.ci.obj[[2]]), 5, length = 50))
+    x.ll.taper <- c(seq(-5, min(CDF.ci.obj[[3]]), length = 50), CDF.ci.obj[[3]], seq(max(CDF.ci.obj[[3]]), 5, length = 50))
+    x.ul.taper <- c(seq(-5, min(CDF.ci.obj[[4]]), length = 50), CDF.ci.obj[[4]], seq(max(CDF.ci.obj[[4]]), 5, length = 50))
     
-    x.ll.taper <- c(
-      seq(-3, min(CDF.ci.obj[[3]]), length = 50),
-      CDF.ci.obj[[3]],
-      seq(max(CDF.ci.obj[[3]]), 3, length = 50)
-    )
+    # Interpolate CDFs with boundary values 0 and 1
+    cdf.est <- approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
+    cdf.ll <- approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
+    cdf.ul <- approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
     
-    x.ul.taper <- c(
-      seq(-3, min(CDF.ci.obj[[4]]), length = 50),
-      CDF.ci.obj[[4]],
-      seq(max(CDF.ci.obj[[4]]), 3, length = 50)
-    )
+    le0.col <- left_color
+    gt0.col <- right_color
     
-    # Calculate CDFs with error handling + smoothing
-    cdf.est <- safe_approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
-    cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
-    cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
-    
-    cdf.est <- smooth_monotone(x.seq, clamp_prob(cdf.est))
-    cdf.ll <- smooth_monotone(x.seq, clamp_prob(cdf.ll))
-    cdf.ul <- smooth_monotone(x.seq, clamp_prob(cdf.ul))
-    cdf.lower <- pmin(cdf.ll, cdf.ul)
-    cdf.upper <- pmax(cdf.ll, cdf.ul)
-    cdf.ll <- pmin(cdf.lower, cdf.est)
-    cdf.ul <- pmax(cdf.upper, cdf.est)
-    
-    # Use user-configurable colors (already set above based on left_is_beneficial)
-    le0.col <- left_color   # Color for x < 0 (left side)
-    gt0.col <- right_color  # Color for x > 0 (right side)
-    
-    # Calculate values for plotting with SMD ranges
+    # Calculate values for plotting (200 points, matching original article)
     le0.vec <- seq(-3, 0, length = 200)
-    le0.est <- safe_approx(x.seq, cdf.est, xout = le0.vec)
-    le0.ll <- safe_approx(x.seq, cdf.ll, xout = le0.vec)
-    le0.ul <- safe_approx(x.seq, cdf.ul, xout = le0.vec)
+    le0.est <- approx(x.seq, cdf.est, xout = le0.vec)$y
+    le0.ll <- approx(x.seq, cdf.ll, xout = le0.vec)$y
+    le0.ul <- approx(x.seq, cdf.ul, xout = le0.vec)$y
     
     gt0.vec <- seq(0, 3, length = 200)
-    gt0.est <- safe_approx(x.seq, 1-cdf.est, xout = gt0.vec)
-    gt0.ll <- safe_approx(x.seq, 1-cdf.ll, xout = gt0.vec)
-    gt0.ul <- safe_approx(x.seq, 1-cdf.ul, xout = gt0.vec)
+    gt0.est <- approx(x.seq, 1 - cdf.est, xout = gt0.vec)$y
+    gt0.ll <- approx(x.seq, 1 - cdf.ll, xout = gt0.vec)$y
+    gt0.ul <- approx(x.seq, 1 - cdf.ul, xout = gt0.vec)$y
     
     # Create data frame for plotting
     plot_data <- rbind(
@@ -777,13 +694,11 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
       data.frame(x = gt0.vec, y = gt0.est, lower = gt0.ll, upper = gt0.ul, group = "gt0")
     )
     
-    # Remove any non-finite values
-    plot_data <- plot_data[is.finite(plot_data$x) & 
-                          is.finite(plot_data$y) & 
-                          is.finite(plot_data$lower) & 
-                          is.finite(plot_data$upper), ]
+    # Remove non-finite values
+    plot_data <- plot_data[is.finite(plot_data$x) & is.finite(plot_data$y) & 
+                          is.finite(plot_data$lower) & is.finite(plot_data$upper), ]
     
-    # --- NEW: Focus x-axis on region where probability > threshold ---
+    # Focus x-axis on region where probability > threshold
     prob_thresh <- 0.005
     nonzero_idx <- which(plot_data$y > prob_thresh)
     if (length(nonzero_idx) > 0) {
@@ -794,14 +709,10 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
     } else {
       x_lims <- range(plot_data$x, na.rm = TRUE)
     }
-    # ---------------------------------------------------------------
 
-    # Create plot with ggplot2 - linear scale for SMD with auto-scaled x-axis
-    x_range <- range(plot_data$x, na.rm = TRUE)
-    x_margin <- diff(x_range) * 0.1
-    
+    # Create plot with ggplot2 - linear scale for SMD
     p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
-      geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
+      geom_line(aes(y = y), linewidth = 1) +
       geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
       scale_x_continuous(breaks = pretty(x_lims, n = 8),
                         limits = x_lims) +
@@ -813,110 +724,81 @@ comp.eff.harm.plot <- function(CDF.ci.obj, efficacy.is.OR.le1 = TRUE, mlb = "Eff
       geom_vline(xintercept = 0, linetype = "dashed", color = "gray50")
     
   } else {
-    # Original code for OR/RR with log scale
-  x.seq <- exp(seq(-5, log(10), length = 1000))
+    # ===== EXACTLY AS ORIGINAL Saad et al. (2019) - OR/RR =====
+    # Original code from lines 599-606 of R_functions_for_logNormal_OR-TO-RR_analysis 141217.R
+    x.seq <- exp(seq(-5, log(10), length = 1000))
+    
+    # Taper x values with boundary extensions (EXACTLY as original - no eps offset)
+    x.est.taper <- c(seq(exp(-5), min(exp(CDF.ci.obj[[2]])), length = 50), 
+                     exp(CDF.ci.obj[[2]]), 
+                     seq(max(exp(CDF.ci.obj[[2]])), 10, length = 50))
+    x.ll.taper <- c(seq(exp(-5), min(exp(CDF.ci.obj[[3]])), length = 50), 
+                    exp(CDF.ci.obj[[3]]), 
+                    seq(max(exp(CDF.ci.obj[[3]])), 10, length = 50))
+    x.ul.taper <- c(seq(exp(-5), min(exp(CDF.ci.obj[[4]])), length = 50), 
+                    exp(CDF.ci.obj[[4]]), 
+                    seq(max(exp(CDF.ci.obj[[4]])), 10, length = 50))
+    
+    # Interpolate CDFs (EXACTLY as original using approx)
+    cdf.est <- approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
+    cdf.ll <- approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
+    cdf.ul <- approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), xout = x.seq)$y
+    
+    le1.col <- left_color
+    mt1.col <- right_color
+    
+    # Calculate values for plotting (EXACTLY as original Saad et al. method)
+    le1.vec <- exp(seq(log(min.OR), 0, length = 200))
+    le1.est <- approx(x.seq, cdf.est, xout = le1.vec)$y
+    le1.ll <- approx(x.seq, cdf.ll, xout = le1.vec)$y
+    le1.ul <- approx(x.seq, cdf.ul, xout = le1.vec)$y
+    
+    mt1.vec <- exp(seq(0, log(max.OR), length = 200))
+    mt1.est <- approx(x.seq, 1 - cdf.est, xout = mt1.vec)$y
+    mt1.ll <- approx(x.seq, 1 - cdf.ll, xout = mt1.vec)$y
+    mt1.ul <- approx(x.seq, 1 - cdf.ul, xout = mt1.vec)$y
+    
+    # Create data frame for ggplot2 (matching original Saad et al. approach)
+    plot_data <- rbind(
+      data.frame(x = le1.vec, y = le1.est, lower = le1.ll, upper = le1.ul, group = "le1"),
+      data.frame(x = mt1.vec, y = mt1.est, lower = mt1.ll, upper = mt1.ul, group = "mt1")
+    )
   
-  # Safely get CDF values with finite bounds
-  safe_exp <- function(x) {
-    ex <- exp(x)
-    ex[!is.finite(ex)] <- ifelse(x[!is.finite(ex)] < 0, min.OR, max.OR)
-    return(ex)
-  }
-  
-  # Apply safe exponential transformation
-  x.est.taper <- c(
-    seq(min.OR, min(safe_exp(CDF.ci.obj[[2]])), length = 50),
-    safe_exp(CDF.ci.obj[[2]]),
-    seq(max(safe_exp(CDF.ci.obj[[2]])), max.OR, length = 50)
-  )
-  
-  x.ll.taper <- c(
-    seq(min.OR, min(safe_exp(CDF.ci.obj[[3]])), length = 50),
-    safe_exp(CDF.ci.obj[[3]]),
-    seq(max(safe_exp(CDF.ci.obj[[3]])), max.OR, length = 50)
-  )
-  
-  x.ul.taper <- c(
-    seq(min.OR, min(safe_exp(CDF.ci.obj[[4]])), length = 50),
-    safe_exp(CDF.ci.obj[[4]]),
-    seq(max(safe_exp(CDF.ci.obj[[4]])), max.OR, length = 50)
-  )
-  
-  # Calculate CDFs with error handling
-  cdf.est <- safe_approx(x.est.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
-  cdf.ll <- safe_approx(x.ll.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
-  cdf.ul <- safe_approx(x.ul.taper, c(rep(0, 50), CDF.ci.obj[[1]], rep(1, 50)), x.seq)
-  
-  cdf.est <- smooth_monotone(x.seq, clamp_prob(cdf.est))
-  cdf.ll <- smooth_monotone(x.seq, clamp_prob(cdf.ll))
-  cdf.ul <- smooth_monotone(x.seq, clamp_prob(cdf.ul))
-  cdf.lower <- pmin(cdf.ll, cdf.ul)
-  cdf.upper <- pmax(cdf.ll, cdf.ul)
-  cdf.ll <- pmin(cdf.lower, cdf.est)
-  cdf.ul <- pmax(cdf.upper, cdf.est)
-  
-  # Use user-configurable colors (already set above based on left_is_beneficial)
-  le1.col <- left_color   # Color for x < 1 (left side)
-  mt1.col <- right_color  # Color for x > 1 (right side)
-  
-  # Calculate values for plotting with fixed ranges
-  le1.vec <- exp(seq(log(min.OR), 0, length = 200))
-  le1.est <- safe_approx(x.seq, cdf.est, xout = le1.vec)
-  le1.ll <- safe_approx(x.seq, cdf.ll, xout = le1.vec)
-  le1.ul <- safe_approx(x.seq, cdf.ul, xout = le1.vec)
-  
-  mt1.vec <- exp(seq(0, log(max.OR), length = 200))
-  mt1.est <- safe_approx(x.seq, 1-cdf.est, xout = mt1.vec)
-  mt1.ll <- safe_approx(x.seq, 1-cdf.ll, xout = mt1.vec)
-  mt1.ul <- safe_approx(x.seq, 1-cdf.ul, xout = mt1.vec)
-  
-  # Create data frame for plotting
-  plot_data <- rbind(
-    data.frame(x = le1.vec, y = le1.est, lower = le1.ll, upper = le1.ul, group = "le1"),
-    data.frame(x = mt1.vec, y = mt1.est, lower = mt1.ll, upper = mt1.ul, group = "mt1")
-  )
-  
-  # Remove any non-finite values
-  plot_data <- plot_data[is.finite(plot_data$x) & 
-                        is.finite(plot_data$y) & 
-                        is.finite(plot_data$lower) & 
-                        is.finite(plot_data$upper), ]
+    # Remove non-finite values
+    plot_data <- plot_data[is.finite(plot_data$x) & is.finite(plot_data$y) & 
+                          is.finite(plot_data$lower) & is.finite(plot_data$upper), ]
 
-  # --- NEW: Focus x-axis on region where probability > threshold ---
-  prob_thresh <- 0.005
-  nonzero_idx <- which(plot_data$y > prob_thresh)
-  if (length(nonzero_idx) > 0) {
-    x_focus <- range(plot_data$x[nonzero_idx], na.rm = TRUE)
-    x_factor <- 1.05
-    x_lims <- c(x_focus[1] / x_factor, x_focus[2] * x_factor)
-    plot_data <- plot_data[plot_data$x >= x_lims[1] & plot_data$x <= x_lims[2], ]
-  } else {
-    x_lims <- range(plot_data$x, na.rm = TRUE)
-  }
-  # ---------------------------------------------------------------
+    # Focus x-axis on region where probability > threshold
+    prob_thresh <- 0.005
+    nonzero_idx <- which(plot_data$y > prob_thresh)
+    if (length(nonzero_idx) > 0) {
+      x_focus <- range(plot_data$x[nonzero_idx], na.rm = TRUE)
+      x_factor <- 1.05
+      x_lims <- c(x_focus[1] / x_factor, x_focus[2] * x_factor)
+      plot_data <- plot_data[plot_data$x >= x_lims[1] & plot_data$x <= x_lims[2], ]
+    } else {
+      x_lims <- range(plot_data$x, na.rm = TRUE)
+    }
 
-  # Calculate nice breaks for log scale
-  log_range <- log10(x_lims)
-  log_breaks <- pretty(log_range, n = 6)
-  x_breaks <- 10^log_breaks
-  x_breaks <- x_breaks[x_breaks >= x_lims[1] & x_breaks <= x_lims[2]]
+    # Calculate nice breaks for log scale
+    log_range <- log10(x_lims)
+    log_breaks <- pretty(log_range, n = 6)
+    x_breaks <- 10^log_breaks
+    x_breaks <- x_breaks[x_breaks >= x_lims[1] & x_breaks <= x_lims[2]]
 
-  # Create plot with ggplot2 - log scale for OR/RR with auto-scaled x-axis
-  x_range <- range(plot_data$x, na.rm = TRUE)
-  x_factor <- 1.2  # multiplicative margin for log scale
-  
-  p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
-    geom_line(aes(y = y), linewidth = 1) +  # Changed from size = 1
-    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-    scale_x_log10(breaks = x_breaks,
-                  labels = format(x_breaks, digits = 2),
-                  limits = x_lims) +
-    scale_color_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
-    scale_fill_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
-    labs(title = mlb, x = xlb, y = "Probability") +
-    theme_minimal() +
-    theme(legend.position = "none") +
-    geom_vline(xintercept = 1, linetype = "dashed", color = "gray50")
+    # Create plot with ggplot2 - log scale for OR/RR
+    p <- ggplot(plot_data, aes(x = x, y = y, color = group, fill = group)) +
+      geom_line(aes(y = y), linewidth = 1) +
+      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+      scale_x_log10(breaks = x_breaks,
+                    labels = format(x_breaks, digits = 2),
+                    limits = x_lims) +
+      scale_color_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
+      scale_fill_manual(values = c("le1" = le1.col, "mt1" = mt1.col)) +
+      labs(title = mlb, x = xlb, y = "Probability") +
+      theme_minimal() +
+      theme(legend.position = "none") +
+      geom_vline(xintercept = 1, linetype = "dashed", color = "gray50")
   }
   
   return(p)
@@ -1148,7 +1030,7 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     y_range <- range(all_y_vals, na.rm = TRUE)
     
     # Start with generous margins (10% for linear scale) to ensure ellipses are fully visible
-    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    # Use larger margin to ensure curves are fully visible
     x_margin <- diff(x_range) * 0.10
     y_margin <- diff(y_range) * 0.10
     
@@ -1210,7 +1092,7 @@ confidence_region_shift_plot <- function(x, alpha = 0.05) {
     y_range <- range(all_y_vals, na.rm = TRUE)
     
     # Start with generous margins (10% multiplicative for log scale x-axis, 10% additive for y-axis)
-    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    # Use larger margin to ensure curves are fully visible
     x_factor <- 1.10  # 10% multiplicative margin for log scale (ensures ellipse is fully visible)
     y_margin <- diff(y_range) * 0.10  # 10% additive margin for y-axis
     
@@ -1659,97 +1541,6 @@ comp.tau.mu.log.RR.dev.pvals <- function(data.tbl, mu.vec.tst, tau.vec.tst) {
 }
 
 
-# plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), N.sig = 100, mlb = "", mu_mle = NULL, tau_mle = NULL) {
-#   # Extract dimensions and sequences
-#   n.mu <- dim(pval.mat)[1]
-#   n.tau <- dim(pval.mat)[2]
-#   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
-#   seq.tau <- sapply(strsplit(dimnames(pval.mat)[[2]], "tau ="), as.numeric)[2,]
-# 
-#     # Create prediction grid in log scale
-#   mu.pred.vec <- seq(min(seq.mu), max(seq.mu), length.out = 100)
-#   tau.pred.vec <- seq(min(seq.tau), max(seq.tau), length.out = 100)
-#   
-#   # Calculate p-values
-#   logit.p <- log.odds(c(pval.mat))
-#   logit.p[c(pval.mat) < 1/N.sig] <- log.odds(1/N.sig) - (log.odds(2/N.sig) - log.odds(1/N.sig))
-#   logit.p[c(pval.mat) > 1 - 1/N.sig] <- log.odds((N.sig-1)/N.sig) + (log.odds((N.sig-1)/N.sig) - log.odds((N.sig-2)/N.sig))
-#   
-#   # Fit loess model
-#   logit.p.loess <- loess(logit.p ~ rep(seq.mu, n.tau) + rep(seq.tau, each = n.mu), span = 0.1)
-#   
-#   # Create prediction grid
-#   pred.grid <- expand.grid(
-#     x = mu.pred.vec,
-#     y = tau.pred.vec
-#   )
-#   
-#   # Get smoothed p-values
-#   smth.pval.mat <- matrix(
-#     inv.log.odds(predict(logit.p.loess, pred.grid)),
-#     nrow = 100, ncol = 100
-#   )
-#   
-#   # Convert mu values to exp scale for plotting
-#   plot_mu <- exp(mu.pred.vec)
-#   
-#   #browser()
-#   
-#   # Set up plot
-#   par(mar = c(5, 5, 4, 2) + 0.1)
-#   plot(1, type = "n", log = "x",
-#        xlim = c(0.3, 3.2),  # Fixed range that works well for both OR and RR
-#        ylim = range(tau.pred.vec),
-#        xlab = "Effect Size (OR/RR)", 
-#        ylab = "tau",
-#        main = mlb,
-#        cex.lab = 1.2, 
-#        cex.axis = 0.8, 
-#        cex.main = 1.2,
-#        xaxt = "n")
-#   
-#   # Add contours
-#   contour(plot_mu, tau.pred.vec, smth.pval.mat, 
-#           levels = p.cntr.vec,
-#           col = c("red", "blue"), 
-#           add = TRUE, 
-#           drawlabels = FALSE)
-#   
-#   # Add reference line at 1
-#   abline(v = 1, lty = 2, col = "gray")
-#   
-#   # Add MLE point
-#   if(is.null(mu_mle) || is.null(tau_mle)) {
-#     mle_index <- which(dev.mat == min(dev.mat), arr.ind = TRUE)[1,]
-#     mu_mle <- seq.mu[mle_index[1]]
-#     tau_mle <- seq.tau[mle_index[2]]
-#   }
-#   points(exp(mu_mle), tau_mle, pch = 3, col = "green", cex = 1.5, lwd = 2)
-#   
-#   # Add reference lines with proper transformation
-#   #abline(0, 1/qnorm(0.75), col = "blue", lty = 3)
-#   #abline(0.5/qnorm(0.75), -1/qnorm(0.75), col = "blue", lty = 3)
-#   
-#   # Add vertical reference lines
-#   abline(v = exp(0), col = "blue", lty = 3)
-#   # abline(v = exp(0.5), col = "blue", lty = 3)
-#   
-#   # Add custom x-axis
-#   axis(1, at = c(0.3, 0.5, 1.0, 2.0, 3.2))
-#   
-#   # Add legend
-#   legend("topright", 
-#          legend = c("95% CI", "50% CI", "MLE"),
-#          col = c("red", "blue", "green"), 
-#          lty = c(1, 1, NA), 
-#          pch = c(NA, NA, 3),
-#          cex = 0.8, 
-#          bg = "white", 
-#          box.lwd = 0)
-#   
-#   invisible(list(mu_mle = mu_mle, tau_mle = tau_mle))
-# }
-
 plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = "", xlab = "Effect Size (OR/RR)", mu_mle = NULL, tau_mle = NULL, sm = NULL) {
   # Extract sequences for µ and τ
   seq.mu <- sapply(strsplit(dimnames(pval.mat)[[1]], "mu ="), as.numeric)[2,]
@@ -1788,7 +1579,7 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
     y_range <- range(all_y, na.rm = TRUE)
     
     # Start with generous margins (10% for linear scale) to ensure ellipses are fully visible
-    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    # Use larger margin to ensure curves are fully visible
     x_margin <- diff(x_range) * 0.10
     y_margin <- diff(y_range) * 0.10
     
@@ -1852,7 +1643,7 @@ plot.mu.tau.CI <- function(dev.mat, pval.mat, p.cntr.vec = c(0.05, 0.50), mlb = 
     y_range <- range(all_y, na.rm = TRUE)
     
     # Start with a generous margin to ensure ellipse is fully visible
-    # Use larger margin to account for curve interpolation/smoothing that may extend beyond data points
+    # Use larger margin to ensure curves are fully visible
     x_factor <- 1.10  # 10% multiplicative margin for log scale (ensures ellipse is fully visible)
     y_margin <- diff(y_range) * 0.10  # 10% additive margin for y-axis
     

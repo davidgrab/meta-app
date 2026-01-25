@@ -427,15 +427,21 @@ test_that("CDF values are valid probabilities and monotonically increasing", {
   
   cdf_result <- comp.mu.tau.dev.CDF.CI(biv_result$dev_pvals, sm = "RR")
   
-  # CDF.vec should be probabilities from 0.01 to 0.99
+  # Original Saad et al. format: 
+  # [1] CDF.vec = probability values (0.01 to 0.99)
+  # [2] MLE.CDF = effect thresholds at MLE
+  # [3] ci.CDF.ll = CI lower effect thresholds
+  # [4] ci.CDF.ul = CI upper effect thresholds
+  
+  # [1] CDF.vec should be probabilities from 0.01 to 0.99
   expect_true(all(cdf_result[[1]] >= 0 & cdf_result[[1]] <= 1))
   expect_true(all(diff(cdf_result[[1]]) > 0))  # Monotonically increasing
   
-  # MLE.CDF should be effect sizes, monotonically increasing with CDF
+  # [2] MLE.CDF should be effect thresholds, monotonically increasing
   expect_true(all(is.finite(cdf_result[[2]])))
   expect_true(all(diff(cdf_result[[2]]) >= 0))  # Monotonically non-decreasing
   
-  # CI bounds should be finite and ordered
+  # [3] CI lower and [4] CI upper should be finite effect thresholds
   expect_true(all(is.finite(cdf_result[[3]])))  # Lower CI
   expect_true(all(is.finite(cdf_result[[4]])))  # Upper CI
   expect_true(all(cdf_result[[3]] <= cdf_result[[4]]))  # Lower <= Upper
@@ -534,11 +540,14 @@ test_that("SMD data produces valid CDF and probability values", {
                       studlab = test_data$studlab, sm = "RR")
   
   # Simulate SMD by treating mu/tau as SMD scale
-  # This tests the SMD-specific smoothing code path
   cdf_obj <- comp.mu.tau.dev.CDF.CI(smd_test$dev_pvals, sm = "SMD")
   
-  # CDF should still be valid
+  # Original format: [1] CDF.vec (probs), [2] MLE thresholds, [3] CI lower, [4] CI upper
+  # [1] CDF.vec should be valid probabilities
   expect_true(all(cdf_obj[[1]] >= 0 & cdf_obj[[1]] <= 1))
+  
+  # [2] MLE thresholds should be finite
+  expect_true(all(is.finite(cdf_obj[[2]])))
   
   prob_table <- calculate_threshold_probabilities_from_cdf(cdf_obj, NULL, sm = "SMD", direction = "greater")
   
