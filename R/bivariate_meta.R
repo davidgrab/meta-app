@@ -592,19 +592,21 @@ comp.mu.tau.dev.CDF.CI <- function(dev.lst, N.sig = 100, alpha = 0.05,
   
   n.ci <- length(mu.ci.vec)
   
-  # Calculate CDF with clamped ranges
-  CDF.vec <- seq(0.01, 0.99, length = 99)
+  # Calculate CDF with extended ranges to allow 0 and 1 probabilities
+  # Use 0.001 to 0.999 to allow near-0 and near-1 probabilities while avoiding Inf from qnorm
+  CDF.vec <- seq(0.001, 0.999, length = 199)
   MLE.CDF <- pmax(pmin(qnorm(CDF.vec, mean = MLE.mu, sd = MLE.tau), max_ci), min_ci)
   
   # Use the statistically correct method for both SMD and OR/RR
   # This properly accounts for uncertainty in both mu and tau parameters
+  n_cdf <- length(CDF.vec)
   ci.CDF.mat <- array(
     pmax(pmin(
       qnorm(rep(CDF.vec, each = n.ci), 
-            mean = rep(mu.ci.vec, 99), 
-            sd = rep(tau.ci.vec, 99)),
+            mean = rep(mu.ci.vec, n_cdf), 
+            sd = rep(tau.ci.vec, n_cdf)),
       max_ci), min_ci),
-    dim = c(n.ci, 99)
+    dim = c(n.ci, n_cdf)
   )
   
   ci.CDF.ll <- apply(ci.CDF.mat, 2, min)

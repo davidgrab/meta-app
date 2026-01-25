@@ -406,3 +406,228 @@ test_that("metabiv confidence intervals are properly ordered", {
   expect_true(all(biv_result$lower.k <= biv_result$y.k))
   expect_true(all(biv_result$y.k <= biv_result$upper.k))
 })
+
+# ============================================================================
+# COMPREHENSIVE VALIDATION TESTS FOR CDF, EFFICACY-HARM, AND CONFIDENCE REGIONS
+# ============================================================================
+
+# BCG Vaccine data for testing (known benchmark)
+bcg_data <- data.frame(
+  studlab = as.character(1:13),
+  event.e = c(4, 6, 3, 62, 33, 180, 8, 505, 29, 17, 186, 5, 27),
+  n.e = c(123, 306, 231, 13598, 5069, 1361, 2545, 87886, 7470, 1699, 50634, 2493, 16886),
+  event.c = c(11, 29, 11, 248, 47, 372, 10, 499, 45, 65, 141, 3, 29),
+  n.c = c(139, 303, 220, 12867, 5808, 1079, 629, 87892, 7232, 1600, 27338, 2338, 17825)
+)
+
+test_that("CDF values are valid probabilities and monotonically increasing", {
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  cdf_result <- comp.mu.tau.dev.CDF.CI(biv_result$dev_pvals, sm = "RR")
+  
+  # CDF.vec should be probabilities from 0.01 to 0.99
+  expect_true(all(cdf_result[[1]] >= 0 & cdf_result[[1]] <= 1))
+  expect_true(all(diff(cdf_result[[1]]) > 0))  # Monotonically increasing
+  
+  # MLE.CDF should be effect sizes, monotonically increasing with CDF
+  expect_true(all(is.finite(cdf_result[[2]])))
+  expect_true(all(diff(cdf_result[[2]]) >= 0))  # Monotonically non-decreasing
+  
+  # CI bounds should be finite and ordered
+  expect_true(all(is.finite(cdf_result[[3]])))  # Lower CI
+  expect_true(all(is.finite(cdf_result[[4]])))  # Upper CI
+  expect_true(all(cdf_result[[3]] <= cdf_result[[4]]))  # Lower <= Upper
+})
+
+test_that("Confidence region deviance matrix has correct structure", {
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  dev_pvals <- biv_result$dev_pvals
+  dev_mat <- dev_pvals[[1]]
+  pval_mat <- dev_pvals[[2]]
+  
+  # Deviance matrix should be numeric and have correct dimensions
+  expect_true(is.matrix(dev_mat) || is.array(dev_mat))
+  expect_true(all(is.finite(dev_mat)))
+  expect_true(all(dev_mat >= 0))  # Deviances are non-negative
+  
+  # P-value matrix should have values between 0 and 1
+  expect_true(is.matrix(pval_mat) || is.array(pval_mat))
+  expect_true(all(is.finite(pval_mat)))
+  expect_true(all(pval_mat >= 0 & pval_mat <= 1))
+  
+  # MLE should have minimum deviance (close to 0)
+  min_dev <- min(dev_mat, na.rm = TRUE)
+  expect_true(min_dev < 0.01)  # MLE has deviance near 0
+  
+  # Maximum p-value should be at or near MLE
+  max_pval <- max(pval_mat, na.rm = TRUE)
+  expect_true(max_pval > 0.99)  # MLE has p-value close to 1
+})
+
+test_that("Efficacy-Harm probability table has consistent CI bounds", {
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  cdf_obj <- comp.mu.tau.dev.CDF.CI(biv_result$dev_pvals, sm = "RR")
+  prob_table <- calculate_threshold_probabilities_from_cdf(cdf_obj, NULL, sm = "RR", direction = "greater")
+  
+  # Probabilities should be between 0 and 1
+  expect_true(all(prob_table$Probability >= 0 & prob_table$Probability <= 1))
+  expect_true(all(prob_table$CI_Lower >= 0 & prob_table$CI_Lower <= 1))
+  expect_true(all(prob_table$CI_Upper >= 0 & prob_table$CI_Upper <= 1))
+  
+  # CI bounds should be properly ordered
+  expect_true(all(prob_table$CI_Lower <= prob_table$CI_Upper))
+  
+  # Probability should be within or close to CI bounds
+  # (allowing small tolerance for numerical issues)
+  expect_true(all(prob_table$CI_Lower <= prob_table$Probability + 0.01))
+  expect_true(all(prob_table$Probability <= prob_table$CI_Upper + 0.01))
+  
+  # CI should not all be the same (would indicate a bug)
+  expect_true(length(unique(prob_table$CI_Lower)) > 1 || length(unique(prob_table$CI_Upper)) > 1)
+  
+  # Upper CI should vary across thresholds (not all 0.99)
+  expect_true(max(prob_table$CI_Upper) - min(prob_table$CI_Upper) > 0.01)
+})
+
+test_that("Efficacy-Harm probabilities are monotonic across thresholds", {
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  cdf_obj <- comp.mu.tau.dev.CDF.CI(biv_result$dev_pvals, sm = "RR")
+  
+  # P(θ ≥ T) should decrease as T increases
+  prob_table_greater <- calculate_threshold_probabilities_from_cdf(cdf_obj, NULL, sm = "RR", direction = "greater")
+  sorted_probs <- prob_table_greater$Probability[order(prob_table_greater$Threshold)]
+  expect_true(all(diff(sorted_probs) <= 0.01))  # Allow small tolerance
+  
+  # P(θ ≤ T) should increase as T increases
+  prob_table_less <- calculate_threshold_probabilities_from_cdf(cdf_obj, NULL, sm = "RR", direction = "less")
+  sorted_probs_less <- prob_table_less$Probability[order(prob_table_less$Threshold)]
+  expect_true(all(diff(sorted_probs_less) >= -0.01))  # Allow small tolerance
+})
+
+test_that("Efficacy-Harm plot renders without error and returns valid data", {
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  cdf_obj <- comp.mu.tau.dev.CDF.CI(biv_result$dev_pvals, sm = "RR")
+  
+  pdf(NULL)  # Suppress plot output
+  expect_error(comp.eff.harm.plot(cdf_obj, sm = "RR", left_is_beneficial = TRUE), NA)
+  dev.off()
+})
+
+test_that("SMD data produces valid CDF and probability values", {
+  # Create SMD-like test data (continuous outcome simulation)
+  smd_test <- metabiv(event.e = test_data$event.e, n.e = test_data$n.e, 
+                      event.c = test_data$event.c, n.c = test_data$n.c, 
+                      studlab = test_data$studlab, sm = "RR")
+  
+  # Simulate SMD by treating mu/tau as SMD scale
+  # This tests the SMD-specific smoothing code path
+  cdf_obj <- comp.mu.tau.dev.CDF.CI(smd_test$dev_pvals, sm = "SMD")
+  
+  # CDF should still be valid
+  expect_true(all(cdf_obj[[1]] >= 0 & cdf_obj[[1]] <= 1))
+  
+  prob_table <- calculate_threshold_probabilities_from_cdf(cdf_obj, NULL, sm = "SMD", direction = "greater")
+  
+  # Probabilities should be valid
+  expect_true(all(prob_table$Probability >= 0 & prob_table$Probability <= 1))
+  expect_true(all(prob_table$CI_Lower <= prob_table$CI_Upper))
+})
+
+test_that("Confidence region boundaries contain the MLE", {
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  dev_pvals <- biv_result$dev_pvals
+  pval_mat <- dev_pvals[[2]]
+  
+  # Extract mu and tau sequences from dimension names
+  mu_seq <- as.numeric(gsub("mu = ", "", rownames(pval_mat)))
+  tau_seq <- as.numeric(gsub("tau = ", "", colnames(pval_mat)))
+  
+  # Find indices of MLE (highest p-value)
+  max_idx <- which(pval_mat == max(pval_mat, na.rm = TRUE), arr.ind = TRUE)[1,]
+  mle_mu <- mu_seq[max_idx[1]]
+  mle_tau <- tau_seq[max_idx[2]]
+  
+  # MLE should be close to the metabiv estimates
+  expect_true(abs(mle_mu - biv_result$mu) < 0.1)
+  expect_true(abs(mle_tau - biv_result$tau) < 0.2)
+  
+  # 95% CI region (p > 0.05) should contain MLE
+  ci95_region <- which(pval_mat > 0.05, arr.ind = TRUE)
+  expect_true(nrow(ci95_region) > 0)  # Region should not be empty
+  
+  # MLE should be within the 95% region
+  mu_in_region <- any(abs(mu_seq[ci95_region[,1]] - biv_result$mu) < 0.1)
+  tau_in_region <- any(abs(tau_seq[ci95_region[,2]] - biv_result$tau) < 0.2)
+  expect_true(mu_in_region && tau_in_region)
+})
+
+test_that("BCG vaccine analysis produces expected protective effect", {
+  # BCG vaccine is known to be protective (RR < 1)
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  # Effect should be negative (log RR < 0 means protective)
+  expect_true(biv_result$mu < 0)
+  
+  # RR should be less than 1
+  expect_true(exp(biv_result$mu) < 1)
+  
+  # There should be substantial heterogeneity (known from literature)
+  expect_true(biv_result$tau > 0.1)
+  expect_true(biv_result$I2 > 50)
+})
+
+test_that("Probability bounds can reach 0 and 1 for extreme thresholds", {
+  biv_result <- metabiv(event.e = bcg_data$event.e, n.e = bcg_data$n.e, 
+                        event.c = bcg_data$event.c, n.c = bcg_data$n.c, 
+                        studlab = bcg_data$studlab, sm = "RR")
+  
+  cdf_obj <- comp.mu.tau.dev.CDF.CI(biv_result$dev_pvals, sm = "RR")
+  
+  # Test with extreme thresholds that should give probabilities near 0 and 1
+  extreme_thresholds <- c(0.01, 0.1, 10, 100)  # Very low and very high RR values
+  prob_table <- calculate_threshold_probabilities_from_cdf(
+    cdf_obj, 
+    custom_thresholds = extreme_thresholds, 
+    sm = "RR", 
+    direction = "greater"
+  )
+  
+  # For very low threshold (RR = 0.01), P(θ ≥ T) should be very high (close to 1)
+  low_threshold_row <- prob_table[prob_table$Threshold == 0.01, ]
+  if (nrow(low_threshold_row) > 0) {
+    expect_true(low_threshold_row$Probability > 0.95 || low_threshold_row$CI_Upper > 0.99)
+  }
+  
+  # For very high threshold (RR = 100), P(θ ≥ T) should be very low (close to 0)
+  high_threshold_row <- prob_table[prob_table$Threshold == 100, ]
+  if (nrow(high_threshold_row) > 0) {
+    expect_true(high_threshold_row$Probability < 0.05 || high_threshold_row$CI_Lower < 0.01)
+  }
+  
+  # CI bounds should be able to reach near 0 and near 1
+  all_ci_lower <- prob_table$CI_Lower
+  all_ci_upper <- prob_table$CI_Upper
+  
+  # At least some CI bounds should be able to get close to 0 or 1
+  # (not all stuck at 0.01 or 0.99)
+  expect_true(min(all_ci_lower) < 0.05 || max(all_ci_upper) > 0.95)
+})

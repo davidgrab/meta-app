@@ -2551,8 +2551,10 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
   ci.CDF.ll <- CDF.ci.obj[[3]]      # Lower confidence bound effect sizes
   ci.CDF.ul <- CDF.ci.obj[[4]]      # Upper confidence bound effect sizes
   
+  is_smd <- is.null(sm) || sm == "SMD"
+  
   # Set default thresholds based on summary measure
-  if (is.null(sm) || sm == "SMD") {
+  if (is_smd) {
     default_thresholds <- c(-0.10, 0.00, 0.20, 0.50, 0.80)
   } else {
     # For OR/RR, use log scale internally but display as original scale
@@ -2581,6 +2583,64 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
   # Remove duplicates and sort
   all_thresholds <- sort(unique(round(all_thresholds, 6)))
   
+  # Create a fine grid for interpolation with extended range to allow 0 and 1 probabilities
+  x_range <- range(c(MLE.CDF, ci.CDF.ll, ci.CDF.ul), na.rm = TRUE)
+  # Extend the range by 20% on each side to allow extrapolation to 0 and 1
+  x_extension <- (x_range[2] - x_range[1]) * 0.2
+  x_range_extended <- c(x_range[1] - x_extension, x_range[2] + x_extension)
+  x.seq <- seq(x_range_extended[1], x_range_extended[2], length.out = 500)
+  
+  # Interpolate CDFs onto the fine grid
+  # Add boundary points to MLE.CDF and CDF.vec to enable extrapolation to 0 and 1
+  MLE.CDF_extended <- c(x_range_extended[1], MLE.CDF, x_range_extended[2])
+  CDF.vec_extended <- c(0, CDF.vec, 1)  # CDF goes from 0 to 1 at extremes
+  
+  ci.CDF.ll_extended <- c(x_range_extended[1], ci.CDF.ll, x_range_extended[2])
+  ci.CDF.ul_extended <- c(x_range_extended[1], ci.CDF.ul, x_range_extended[2])
+  
+  cdf_mle_raw <- approx(MLE.CDF_extended, CDF.vec_extended, xout = x.seq, rule = 2)$y
+  cdf_ll_raw <- approx(ci.CDF.ll_extended, CDF.vec_extended, xout = x.seq, rule = 2)$y
+  cdf_ul_raw <- approx(ci.CDF.ul_extended, CDF.vec_extended, xout = x.seq, rule = 2)$y
+  
+  # Clamp to [0,1]
+  clamp_prob <- function(p) pmax(0, pmin(1, p))
+  cdf_mle_raw <- clamp_prob(cdf_mle_raw)
+  cdf_ll_raw <- clamp_prob(cdf_ll_raw)
+  cdf_ul_raw <- clamp_prob(cdf_ul_raw)
+  
+  # Apply smoothing consistent with the plot
+  smooth_cdf <- function(x, y) {
+    keep <- is.finite(x) & is.finite(y)
+    if (sum(keep) < 3) {
+      return(rep(mean(y, na.rm = TRUE), length(y)))
+    }
+    x_keep <- x[keep]
+    y_keep <- y[keep]
+    # Use gentler smoothing for SMD (steeper CDFs), stronger for OR/RR
+    spar_val <- if (is_smd) 0.3 else 0.65
+    y_smooth <- tryCatch({
+      stats::predict(stats::smooth.spline(x_keep, y_keep, spar = spar_val), x)$y
+    }, error = function(e) {
+      stats::approx(x_keep, y_keep, xout = x, rule = 2)$y
+    })
+    y_smooth <- clamp_prob(y_smooth)
+    # Ensure monotonicity
+    if (is_smd) {
+      y_smooth <- stats::isoreg(seq_along(y_smooth), y_smooth)$yf
+    } else {
+      y_smooth <- cummax(y_smooth)
+    }
+    return(y_smooth)
+  }
+  
+  cdf_mle <- smooth_cdf(x.seq, cdf_mle_raw)
+  cdf_ll <- smooth_cdf(x.seq, cdf_ll_raw)
+  cdf_ul <- smooth_cdf(x.seq, cdf_ul_raw)
+  
+  # Ensure proper ordering of CI bounds
+  cdf_lower <- pmin(cdf_ll, cdf_ul)
+  cdf_upper <- pmax(cdf_ll, cdf_ul)
+  
   threshold_vals <- numeric(length(all_thresholds))
   prob_vals <- numeric(length(all_thresholds))
   ci_lower_vals <- numeric(length(all_thresholds))
@@ -2589,18 +2649,25 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
   for (i in seq_along(all_thresholds)) {
     T_val <- all_thresholds[i]
     
-    # Base calculation uses P(θ ≥ T); we convert later if needed
-    prob_mle <- 1 - approx(MLE.CDF, CDF.vec, xout = T_val, rule = 2)$y
-    prob_lower <- 1 - approx(ci.CDF.ul, CDF.vec, xout = T_val, rule = 2)$y
-    prob_upper <- 1 - approx(ci.CDF.ll, CDF.vec, xout = T_val, rule = 2)$y
+    # Interpolate on the smoothed CDFs (x.seq -> CDF values)
+    # P(θ ≤ T) = CDF(T), so P(θ ≥ T) = 1 - CDF(T)
+    cdf_at_T_mle <- approx(x.seq, cdf_mle, xout = T_val, rule = 2)$y
+    cdf_at_T_lower <- approx(x.seq, cdf_lower, xout = T_val, rule = 2)$y
+    cdf_at_T_upper <- approx(x.seq, cdf_upper, xout = T_val, rule = 2)$y
     
-    prob_mle <- pmax(0, pmin(1, prob_mle))
-    prob_lower <- pmax(0, pmin(1, prob_lower))
-    prob_upper <- pmax(0, pmin(1, prob_upper))
+    # P(θ ≥ T) = 1 - CDF(T)
+    prob_mle <- 1 - cdf_at_T_mle
+    # Lower CDF gives higher exceedance probability; upper CDF gives lower exceedance
+    prob_exceed_from_lower_cdf <- 1 - cdf_at_T_lower
+    prob_exceed_from_upper_cdf <- 1 - cdf_at_T_upper
+    
+    prob_mle <- clamp_prob(prob_mle)
+    prob_exceed_from_lower_cdf <- clamp_prob(prob_exceed_from_lower_cdf)
+    prob_exceed_from_upper_cdf <- clamp_prob(prob_exceed_from_upper_cdf)
     
     prob_vals[i] <- prob_mle
-    ci_lower_vals[i] <- min(prob_lower, prob_upper)
-    ci_upper_vals[i] <- max(prob_lower, prob_upper)
+    ci_lower_vals[i] <- min(prob_exceed_from_lower_cdf, prob_exceed_from_upper_cdf)
+    ci_upper_vals[i] <- max(prob_exceed_from_lower_cdf, prob_exceed_from_upper_cdf)
     
     threshold_vals[i] <- if (!is.null(sm) && sm %in% c("OR", "RR")) {
       exp(T_val)
@@ -2613,14 +2680,14 @@ calculate_threshold_probabilities_from_cdf <- function(CDF.ci.obj, custom_thresh
     prob_vals <- 1 - prob_vals
     new_lower <- 1 - ci_upper_vals
     new_upper <- 1 - ci_lower_vals
-    ci_lower_vals <- pmax(0, pmin(1, pmin(new_lower, new_upper)))
-    ci_upper_vals <- pmax(0, pmin(1, pmax(new_lower, new_upper)))
+    ci_lower_vals <- clamp_prob(pmin(new_lower, new_upper))
+    ci_upper_vals <- clamp_prob(pmax(new_lower, new_upper))
   } else {
-    ci_lower_vals <- pmax(0, pmin(1, ci_lower_vals))
-    ci_upper_vals <- pmax(0, pmin(1, ci_upper_vals))
+    ci_lower_vals <- clamp_prob(ci_lower_vals)
+    ci_upper_vals <- clamp_prob(ci_upper_vals)
   }
   
-  prob_vals <- pmax(0, pmin(1, prob_vals))
+  prob_vals <- clamp_prob(prob_vals)
   
   result_df <- data.frame(
     Threshold = round(threshold_vals, 3),
