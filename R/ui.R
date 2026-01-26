@@ -421,7 +421,7 @@ ui <- page_fillable(
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("confidenceRegionPlot", height = "600px"))
                            ),
-                           p(HTML("<strong>Joint Confidence Region:</strong> Shows the joint confidence region for the overall effect (μ) and heterogeneity (τ) at multiple confidence levels (50%, 90%, 95%, 99%). The cross marks the MLE. A wider region indicates greater uncertainty. Unlike traditional methods that treat τ as fixed, this visualizes how uncertainty in μ and τ are interrelated."), class = "plot-explanation"),
+                           p(HTML("<strong>Joint Confidence Region:</strong> Shows the joint confidence region for the overall effect (μ) and heterogeneity (τ) at multiple confidence levels (50%, 90%, 95%, 99%). The cross marks the MLE. A wider region indicates greater uncertainty. Unlike traditional methods that treat τ as fixed, this visualizes how uncertainty in μ and τ are interrelated.<br><strong>Note (binary outcomes):</strong> For OR/RR, the model estimates μ on the log scale, but for convenience we display the x-axis on the original OR/RR scale (i.e., exp(μ)) using a log-scaled axis."), class = "plot-explanation"),
                            
                            div(class = "plot-container", style = "width: 100%;",
                                withSpinner(plotOutput("efficacyHarmPlot", height = "500px")),
@@ -547,7 +547,7 @@ ui <- page_fillable(
                              column(6, 
                                     div(class = "plot-container", style = "width: 100%;",
                                         withSpinner(plotlyOutput("confidenceRegionShiftPlot", height = "600px")),
-                                        p(HTML("<strong>Confidence Region Shift:</strong> Shows how the joint confidence region for (μ, τ) shifts when each study is removed. The black contour is from the full dataset; colored contours show leave-one-out results. Large shifts indicate that results may be sensitive to that particular study."), class = "plot-explanation")
+                                        p(HTML("<strong>Confidence Region Shift:</strong> Shows how the joint confidence region for (μ, τ) shifts when each study is removed. The black contour is from the full dataset; colored contours show leave-one-out results. Large shifts indicate that results may be sensitive to that particular study.<br><strong>Note (binary outcomes):</strong> For OR/RR, the x-axis is shown on the original OR/RR scale (exp(μ)) using a log-scaled axis."), class = "plot-explanation")
                                     )
                              ),
                              column(6,
