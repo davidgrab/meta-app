@@ -1004,6 +1004,11 @@ library(scales)
 library(grid)
 library(gridExtra)
 
+# Ensure all app plotting functions are available during report rendering
+# (some sections use functions defined in the app codebase).
+try(source("R/bivariate_meta.R"), silent = TRUE)
+try(source("R/functions.R"), silent = TRUE)
+
 safe_run <- function(expr, fallback = NULL) {
   tryCatch(expr, error = function(e) fallback)
 }
@@ -1256,15 +1261,19 @@ safe_run({
 
 ```{r biv-confidence-region, fig.width=10, fig.height=8}
 safe_run({
-  if (!is.null(params$bivariate_results)) {
-    conf_region <- compute_confidence_region(params$bivariate_results)
-    plot(conf_region$mu_vals, conf_region$tau_vals, type = "l",
-         xlab = expression(mu), ylab = expression(tau),
-         main = "95% Confidence Region for (μ, τ)")
-    points(params$bivariate_results$mu, params$bivariate_results$tau, pch = 19, col = "red", cex = 1.5)
-    legend("topright", legend = c("95% CR", "MLE"), 
-           lty = c(1, NA), pch = c(NA, 19), col = c("black", "red"))
-  }
+  if (!is.null(params$bivariate_results) && !is.null(params$bivariate_results$dev_pvals)) {
+    sm <- params$bivariate_results$sm
+    xlab_txt <- if (isTRUE(sm == "SMD")) "Effect Size (SMD)" else paste0("Effect Size (", sm, ", log scale)")
+    plot.mu.tau.CI(
+      params$bivariate_results$dev_pvals[[1]],
+      params$bivariate_results$dev_pvals[[2]],
+      mlb = "Confidence Region for (μ, τ)",
+      xlab = xlab_txt,
+      mu_mle = params$bivariate_results$mu,
+      tau_mle = params$bivariate_results$tau,
+      sm = sm
+    )
+  } 
 })
 ```
 
@@ -1343,9 +1352,8 @@ safe_run(qq_plot_bivariate_blups(params$bivariate_results))
 
 ```{r biv-confidence-shift, fig.width=10, fig.height=8}
 safe_run({
-  if(exists("confidence_region_shift_plot")) {
-    p <- confidence_region_shift_plot(params$bivariate_results)
-    print(p)
+  if (!is.null(params$bivariate_results) && exists("confidence_region_shift_plot")) {
+    confidence_region_shift_plot(params$bivariate_results)
   }
 })
 ```
@@ -1354,9 +1362,8 @@ safe_run({
 
 ```{r biv-baujat, fig.width=10, fig.height=6}
 safe_run({
-  if(exists("enhanced_baujat_plot")) {
-    p <- enhanced_baujat_plot(params$bivariate_results)
-    print(p)
+  if (!is.null(params$bivariate_results) && exists("enhanced_baujat_plot")) {
+    enhanced_baujat_plot(params$bivariate_results)
   }
 })
 ```
