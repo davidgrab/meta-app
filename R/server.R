@@ -121,7 +121,11 @@ server <- function(input, output, session) {
     print("Info button clicked")
     showModal(modalDialog(
       title = "About this App",
-      "This app performs advanced meta-analysis with GRADE assessment. Upload your data, choose analysis options, and explore the results across different models.",
+      HTML(paste0(
+        "<p>This app performs advanced meta-analysis with GRADE assessment. Upload your data, choose analysis options, and explore the results across different models.</p>",
+        "<p><strong>Source code:</strong> <a href='https://github.com/davidgrab/meta-app' target='_blank' rel='noopener noreferrer'>GitHub Repository</a></p>",
+        "<p><strong>Report a bug / request a feature:</strong> <a href='https://github.com/davidgrab/meta-app/issues' target='_blank' rel='noopener noreferrer'>GitHub Issues</a></p>"
+      )),
       easyClose = TRUE,
       footer = NULL
     ))
@@ -1090,6 +1094,8 @@ server <- function(input, output, session) {
         "<h5 style='margin-top: 0; color: #2c3e50;'>About This App</h5>",
         "<p>This application was developed by <strong>David Grabois</strong> as part of a Master's thesis at <strong>Tel Aviv University</strong>, Department of Statistics and Operations Research.</p>",
         "<p><strong>Thesis:</strong> <em>\"Modern Meta-Analysis: Joint Confidence Regions for Effect Size and Heterogeneity\"</em></p>",
+        "<p><strong>Source code:</strong> <a href='https://github.com/davidgrab/meta-app' target='_blank' rel='noopener noreferrer'>GitHub Repository</a> &nbsp;|&nbsp; ",
+        "<strong>Support:</strong> <a href='https://github.com/davidgrab/meta-app/issues' target='_blank' rel='noopener noreferrer'>GitHub Issues</a></p>",
         "<p>The app implements the <strong>Joint Confidence Region (JCR)</strong> method based on:</p>",
         "<p style='margin-left: 15px; font-size: 0.9em;'><em>Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. Journal of Clinical Epidemiology, 107, 101-106.</em></p>",
         "<p>The JCR method provides a frequentist approach to jointly estimating the overall effect (μ) and between-study heterogeneity (τ) using Maximum Likelihood Estimation, with confidence regions constructed via likelihood-ratio tests, enabling probability statements about treatment effects in new populations.</p>",

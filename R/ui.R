@@ -69,6 +69,15 @@ ui <- page_fillable(
                          icon = icon("info-circle"), 
                          class = "btn-outline-secondary btn-sm",
                          style = "margin-right: 8px;"),
+             tags$a(
+               href = "https://github.com/davidgrab/meta-app",
+               target = "_blank",
+               rel = "noopener noreferrer",
+               class = "btn btn-outline-secondary btn-sm",
+               style = "margin-right: 8px;",
+               title = "GitHub",
+               bs_icon("github")
+             ),
              input_dark_mode(id = "dark_mode", mode = "light", 
                             style = "font-size: 0.8em; padding: 0; width: 20px; height: 20px; border-radius: 50%;")
       )
