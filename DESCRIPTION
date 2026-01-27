@@ -25,12 +25,13 @@ Imports:
     knitr,
     rmarkdown,
     scales,
-    sodium,
-    jsonlite
+    jsonlite,
+    metarep
+Remotes:
+    IJaljuli/metarep
 Suggests:
     testthat (>= 3.0.0),
-    rsconnect,
-    metarep,
-    shinyauthr
+    rsconnect
 LazyData: true
 RoxygenNote: 7.2.3
+
