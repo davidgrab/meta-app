@@ -17,8 +17,8 @@ logs/
 *.log
 
 # Build artifacts
-manifest.json
-docs/manifest.json
+# manifest.json is required for Posit Cloud deployment
+!manifest.json
 Rplots.pdf
 docs/Rplots.pdf
 *.png
