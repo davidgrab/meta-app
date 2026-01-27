@@ -876,9 +876,6 @@ render_report <- function(random_results,
           subgroup_var = subgroup_var,
           moderator_var = moderator_var,
           moderator_type = moderator_type,
-          subgroup_var = subgroup_var,
-          moderator_var = moderator_var,
-          moderator_type = moderator_type,
           replicability_result = replicability_result,
           consistency_status = consistency_status,
           config_metadata = config_metadata
@@ -1056,7 +1053,6 @@ params:
   data: NA
   subgroup_var: NA
   moderator_var: NA
-  moderator_type: NA
   moderator_type: NA
   config_metadata: NA
   replicability_result: NA

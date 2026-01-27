@@ -14,37 +14,44 @@ library(shinycssloaders)
 # Source the functions file
 source("R/functions.R")
 
-# Define the custom theme for light mode - Clean, professional colors
+# Define the custom theme for light mode - Vibrant, modern colors
 light_theme <- bs_theme(
   version = 5,
   bg = "#FFFFFF",
-  fg = "#2c3e50",
-  primary = "#34495e", # Muted blue-gray for primary actions
-
-  secondary = "#95a5a6", # Soft gray for secondary elements
-  success = "#27ae60", # Muted green
-  info = "#5d6d7e", # Slate gray for info
-  warning = "#f39c12", # Muted orange
-  danger = "#c0392b", # Muted red
-  base_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  heading_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  font_scale = 0.9
+  fg = "#1e293b", # Slate 800 - High contrast text
+  primary = "#4f46e5", # Indigo 600 - Valid Vibrant Primary
+  secondary = "#64748b", # Slate 500
+  success = "#10b981", # Emerald 500
+  info = "#0ea5e9", # Sky 500
+  warning = "#f59e0b", # Amber 500
+  danger = "#ef4444", # Red 500
+  base_font = font_google("Inter", local = FALSE),
+  heading_font = font_google("Plus Jakarta Sans", local = FALSE),
+  code_font = font_google("Fira Code", local = FALSE),
+  "border-radius" = "0.5rem",
+  "btn-border-radius" = "0.5rem",
+  "card-border-radius" = "0.75rem",
+  font_scale = 0.95
 )
 
-# Define dark theme - Consistent with light theme colors
+# Define dark theme - Consistent with light theme but optimized for dark mode
 dark_theme <- bs_theme(
   version = 5,
-  bg = "#1a1d21",
-  fg = "#ecf0f1",
-  primary = "#5dade2", # Lighter blue for visibility on dark
-  secondary = "#7f8c8d", # Muted gray
-  success = "#2ecc71", # Brighter green for dark mode
-  info = "#74b9ff", # Light blue for info
-  warning = "#f1c40f", # Yellow-gold
-  danger = "#e74c3c", # Coral red
-  base_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  heading_font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  font_scale = 0.9
+  bg = "#0f172a", # Slate 900 - Deep, rich background
+  fg = "#f8fafc", # Slate 50
+  primary = "#6366f1", # Indigo 500 - Slightly lighter for dark mode
+  secondary = "#94a3b8", # Slate 400
+  success = "#34d399", # Emerald 400
+  info = "#38bdf8", # Sky 400
+  warning = "#fbbf24", # Amber 400
+  danger = "#f87171", # Red 400
+  base_font = font_google("Inter", local = FALSE),
+  heading_font = font_google("Plus Jakarta Sans", local = FALSE),
+  code_font = font_google("Fira Code", local = FALSE),
+  "border-radius" = "0.5rem",
+  "btn-border-radius" = "0.5rem",
+  "card-border-radius" = "0.75rem",
+  font_scale = 0.95
 )
 
 ui <- page_fillable(
@@ -64,11 +71,8 @@ ui <- page_fillable(
         )
       ),
       column(4,
-        style = "text-align: right;",
-        input_dark_mode(
-          id = "dark_mode", mode = "light",
-          style = "font-size: 0.8em; padding: 0; width: 20px; height: 20px; border-radius: 50%;"
-        )
+        class = "d-flex align-items-center justify-content-end",
+        input_dark_mode(id = "dark_mode", mode = "light")
       )
     )
   ),
@@ -102,38 +106,119 @@ ui <- page_fillable(
     navset_card_tab(
       id = "main_tabs",
       nav_panel(
-        "Data Preview",
-        actionButton("data_info", "How to Upload Data", icon = icon("question-circle")),
-        fluidRow(
-          column(6, downloadButton("downloadSampleStructure", "Download Sample Structure")),
-          column(
-            6,
+        "About",
+        card(
+          class = "border-0 shadow-none bg-transparent",
+          card_body(
+            class = "text-center",
+            h1("Meta-Analysis & Replicability App", class = "display-5 fw-bold text-primary mb-3"),
+            p("A comprehensive tool for modern meta-analysis, replicability assessment, and evidence synthesis.", class = "lead mb-4"),
             div(
-              div(
-                style = "display: flex; align-items: center;",
-                selectInput("exampleDatasetChoice", "Choose Example Dataset:",
-                  choices = list(
-                    "Hypericum (St. John's Wort) - Depression (Default)" = "default",
-                    "Colditz et al. (1994) - BCG Vaccine" = "colditz",
-                    "CBT for Depression (Continuous)" = "smd"
-                  ),
-                  selected = "default"
-                ),
-                actionButton("dataset_info", "",
-                  icon = icon("info-circle"),
-                  class = "btn-outline-secondary",
-                  style = "margin-left: 8px; width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;"
-                )
-              ),
-              uiOutput("datasetDescription"),
-              actionButton("loadExampleData", "Load Example Dataset"),
-              style = "display: flex; flex-direction: column;"
+              class = "d-flex justify-content-center gap-3",
+              actionButton("jump_to_upload", "Start Analysis", icon = icon("rocket"), class = "btn-lg btn-primary"),
+              actionButton("jump_to_docs", "Read Documentation", icon = icon("book"), class = "btn-lg btn-outline-secondary")
+            ),
+            div(
+              class = "mt-5 text-muted small",
+              p(
+                "Source code available on ", tags$a(href = "https://github.com/davidgrab/meta-app", target = "_blank", "GitHub"), " | ",
+                tags$a(href = "https://github.com/davidgrab/meta-app/issues", target = "_blank", "Report a Bug")
+              )
             )
           )
         ),
-        br(),
-        DTOutput("dataPreview"),
-        helpText("This tab displays the uploaded data. Review your data here to ensure it has been correctly loaded and formatted.")
+        layout_column_wrap(
+          width = 1 / 3,
+          card(
+            card_header(bsicons::bs_icon("bar-chart-fill"), " Standard Meta-Analysis"),
+            card_body("Perform Fixed and Random Effects meta-analysis with complete heterogeneity statistics (I², Q-test), forest plots, and funnel plots for publication bias.")
+          ),
+          card(
+            card_header(bsicons::bs_icon("layers-fill"), " Advanced Methods"),
+            card_body("Utilize the Joint Confidence Region (JCR) method for bivariate 2-step analysis, providing robust estimates even in the presence of heterogeneity.")
+          ),
+          card(
+            card_header(bsicons::bs_icon("check-circle-fill"), " Replicability Analysis"),
+            card_body("Assess the replicability of your findings using the r-value method, determining the minimum number of studies contributing to the effect.")
+          )
+        ),
+        card(
+          card_header("How to Use"),
+          accordion(
+            accordion_panel(
+              "1. Upload Your Data",
+              "To begin your analysis, you need to provide data. You can either:",
+              tags$ul(
+                tags$li("Use the ", strong("Browse"), " button in the sidebar to upload your own CSV or Excel file."),
+                tags$li("Go to the ", strong("Data Preview"), " tab to load one of our built-in example datasets.")
+              ),
+              "Once your data is loaded, it will appear in the 'Data View' table."
+            ),
+            accordion_panel(
+              "2. Configure and Analyze",
+              "After loading your data, use the sidebar to:",
+              tags$ul(
+                tags$li("Select your ", strong("Data Type"), " (Binary or Continuous)."),
+                tags$li("Choose your ", strong("Heterogeneity Estimator"), " (e.g., DL, REML, Paule-Mandel)."),
+                tags$li("Click the ", strong("Analyze"), " button to process the data.")
+              )
+            ),
+            accordion_panel(
+              "3. Explore Results",
+              "Once the analysis is complete, the specialized tabs (Random Effects, Fixed Effects, JCR, etc.) will be unlocked. Navigate through them to view forest plots, diagnostics, and replicability insights."
+            )
+          )
+        )
+      ),
+      nav_panel(
+        "Data Preview",
+        card(
+          card_header(class = "bg-transparent", "Data Tools"),
+          card_body(
+            fluidRow(
+              column(
+                6,
+                h5("Structure Template"),
+                downloadButton("downloadSampleStructure", "Download Sample CSV", class = "btn-secondary w-100")
+              ),
+              column(
+                6,
+                h5("Example Data"),
+                div(
+                  class = "d-flex gap-2",
+                  div(
+                    class = "flex-grow-1",
+                    selectInput("exampleDatasetChoice", NULL,
+                      choices = list(
+                        "Hypericum (St. John's Wort)" = "default",
+                        "Colditz et al. (BCG Vaccine)" = "colditz",
+                        "CBT for Depression (Continuous)" = "smd"
+                      ),
+                      selected = "default",
+                      width = "100%"
+                    )
+                  ),
+                  actionButton("loadExampleData", "Load", class = "btn-primary")
+                ),
+                uiOutput("datasetDescription")
+              )
+            )
+          )
+        ),
+        card(
+          full_screen = TRUE,
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            "Data View",
+            tooltip(
+              bsicons::bs_icon("question-circle"),
+              "Review your data here to ensure it has been correctly loaded and formatted."
+            )
+          ),
+          card_body(
+            DTOutput("dataPreview", height = "100%")
+          )
+        )
       ),
       # nav_panel("Overall Results",
       #           tabsetPanel(
@@ -176,15 +261,42 @@ ui <- page_fillable(
           # ),
           tabPanel(
             "Effect Size and Heterogeneity",
-            div(
-              class = "plot-container",
-              style = "max-height: 600px; overflow-y: auto;",
-              withSpinner(plotOutput("randomForestPlot"))
+            accordion(
+              open = FALSE,
+              accordion_panel(
+                "Method Explanation: Random Effects Model",
+                icon = bsicons::bs_icon("info-circle"),
+                "The Random Effects model assumes that the true effect size varies across studies. It incorporates both within-study variance and between-study heterogeneity (tau-squared). Use this model when you expect the treatment effect to differ between populations or settings."
+              )
             ),
-            p(HTML("<strong>Forest Plot:</strong> Displays effect sizes and confidence intervals for each study, with the pooled random-effects estimate shown as a diamond. Square sizes are proportional to study weights. If the diamond does not cross the line of no effect (1 for OR/RR, 0 for SMD), the pooled result is statistically significant."), class = "plot-explanation"),
-            actionButton("re_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
-            verbatimTextOutput("randomOverallSummary"),
-            verbatimTextOutput("randomHeterogeneitySummary")
+            card(
+              full_screen = TRUE,
+              card_header(
+                "Forest Plot & Results",
+                tooltip(
+                  bsicons::bs_icon("info-circle"),
+                  "Visualizes individual study effects and the overall pooled estimate."
+                )
+              ),
+              card_body(
+                withSpinner(plotOutput("randomForestPlot", height = "600px"))
+              ),
+              card_footer(
+                class = "text-muted",
+                p(HTML("<strong>Forest Plot:</strong> Displays effect sizes and confidence intervals for each study. The diamond represents the pooled random-effects estimate. <br><strong>Diamond width:</strong> 95% Confidence Interval. <strong>Square size:</strong> Study weight."), class = "m-0 small")
+              )
+            ),
+            # Summary boxes currently output verbatim text, let's keep them below for now or put in a separate card
+            card(
+              card_header("Statistical Summary"),
+              card_body(
+                layout_column_wrap(
+                  width = 1 / 2,
+                  div(h6("Model Results"), verbatimTextOutput("randomOverallSummary")),
+                  div(h6("Heterogeneity Statistics"), verbatimTextOutput("randomHeterogeneitySummary"))
+                )
+              )
+            )
           ),
           tabPanel(
             "Subgroup Analysis",
@@ -326,6 +438,14 @@ ui <- page_fillable(
         tabsetPanel(
           tabPanel(
             "Effect Size and Heterogeneity",
+            accordion(
+              open = FALSE,
+              accordion_panel(
+                "Method Explanation: Fixed Effects Model",
+                icon = bsicons::bs_icon("info-circle"),
+                "The Fixed Effects model assumes that all studies share a common true effect size. Differences in observed effects are due solely to sampling error. This model is appropriate when studies are functionally identical and heterogeneity is negligible."
+              )
+            ),
             div(
               class = "plot-container",
               style = "max-height: 600px; overflow-y: auto;",
@@ -463,6 +583,14 @@ ui <- page_fillable(
         tabsetPanel(
           tabPanel(
             "Effect Size and Heterogeneity",
+            accordion(
+              open = FALSE,
+              accordion_panel(
+                "Method Explanation: JCR (Joint Confidence Region)",
+                icon = bsicons::bs_icon("info-circle"),
+                "The JCR method uses a bivariate model to jointly estimate the overall effect and heterogeneity. It provides a visual confidence region and allows for rigorous replicability assessment. Unlike standard methods, it directly accounts for the uncertainty in heterogeneity estimation."
+              )
+            ),
             actionButton("biv_effect_size_heterogeneity_info", "", icon = icon("info-circle"), class = "help-text"),
 
             # JCR Forest Plot (full width)
@@ -646,6 +774,14 @@ ui <- page_fillable(
       ),
       nav_panel(
         "Replicability Analysis",
+        accordion(
+          open = FALSE,
+          accordion_panel(
+            "Method Explanation: Replicability (r-value)",
+            icon = bsicons::bs_icon("repeat"),
+            "The r-value quantifies the replicability of a meta-analytic finding. It represents the smallest number of studies required to support the observed effect. A low r-value (e.g., ≤ 0.05) indicates the finding is robust and not driven by a single study."
+          )
+        ),
         fluidRow(
           column(
             12,
@@ -749,6 +885,14 @@ ui <- page_fillable(
       ),
       nav_panel(
         "Meta-Regression",
+        accordion(
+          open = FALSE,
+          accordion_panel(
+            "Method Explanation: Meta-Regression",
+            icon = bsicons::bs_icon("graph-up"),
+            "Meta-regression explores the relationship between study characteristics (moderators) and effect sizes. It helps identify sources of heterogeneity by managing factors that might influence the intervention's effectiveness."
+          )
+        ),
         actionButton("metaregression_info", "", icon = icon("info-circle"), class = "help-text"),
         fluidRow(
           column(

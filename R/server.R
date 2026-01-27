@@ -150,48 +150,44 @@ server <- function(input, output, session) {
     print("Data info button clicked")
 
     binary_instructions <- HTML(
-      paste0(
-        "<h4>Binary (2x2) Data</h4>",
-        "1. Prepare your CSV or Excel file with the following columns:<br>",
-        "<b>Required columns:</b> <b>study, ie, it, pe, pt</b><br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ie</b>: Intervention group events<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>it</b>: Intervention group total<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pe</b>: Placebo/control group events<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>pt</b>: Placebo/control group total<br><br>",
-        "<b>Optional columns for subgroup analysis and meta-regression:</b><br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>subgroup</b>: Categorical variable for subgroup analysis<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>moderator1, moderator2, ...</b>: Continuous or categorical variables for meta-regression<br><br>",
-        "2. Click 'Browse' to select your file.<br><br>",
-        "3. The data will load and display in the 'Data Preview' tab."
-      )
+      "<h4>Binary (2x2) Data</h4>
+      <p>Prepare your CSV or Excel file with the following columns:</p>
+      <table class='table table-sm table-bordered'>
+        <thead><tr><th>Column</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>study</code></td><td>Study label/ID</td></tr>
+          <tr><td><code>ie</code></td><td>Intervention events</td></tr>
+          <tr><td><code>it</code></td><td>Intervention total</td></tr>
+          <tr><td><code>pe</code></td><td>Placebo events</td></tr>
+          <tr><td><code>pt</code></td><td>Placebo total</td></tr>
+        </tbody>
+      </table>
+      <p><em>Optional:</em> <code>subgroup</code> for categorical analysis, <code>moderator1</code> for regression.</p>"
     )
 
     smd_instructions <- HTML(
-      paste0(
-        "<h4>Continuous Data</h4>",
-        "1. Prepare your CSV or Excel file with the following columns:<br>",
-        "<b>Required columns:</b> <b>study, smd, ci_lower, ci_upper</b><br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>study</b>: Study label<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>smd</b>: Standardized Mean Difference<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_lower</b>: Lower bound of the 95% confidence interval<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>ci_upper</b>: Upper bound of the 95% confidence interval<br>",
-        "<br><b>Note:</b> The SMD column may also appear as <b>CoNC</b> or <b>HeadGrid-G</b>. All are interpreted as SMD for now.<br><br>",
-        "<b>Optional columns for subgroup analysis and meta-regression:</b><br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>subgroup</b>: Categorical variable for subgroup analysis<br>",
-        "&nbsp;&nbsp;&nbsp;&nbsp;• <b>moderator1, moderator2, ...</b>: Continuous or categorical variables for meta-regression<br><br>",
-        "2. Click 'Browse' to select your file.<br><br>",
-        "3. The app will calculate the standard error and variance for you."
-      )
+      "<h4>Continuous Data</h4>
+      <p>Prepare your CSV or Excel file with the following columns:</p>
+      <table class='table table-sm table-bordered'>
+        <thead><tr><th>Column</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>study</code></td><td>Study label/ID</td></tr>
+          <tr><td><code>smd</code></td><td>Standardized Mean Difference (Effect Size)</td></tr>
+          <tr><td><code>ci_lower</code></td><td>Lower 95% Confidence Interval</td></tr>
+          <tr><td><code>ci_upper</code></td><td>Upper 95% Confidence Interval</td></tr>
+        </tbody>
+      </table>
+      <p><em>Note:</em> 'smd' can also be named 'CoNC' or 'HeadGrid-G'.</p>"
     )
 
     modal_content <- if (input$data_type == "smd") smd_instructions else binary_instructions
 
     showModal(modalDialog(
-      title = "How to Upload Data",
+      title = "Data Format Requirements",
       modal_content,
       easyClose = TRUE,
-      footer = NULL
+      footer = modalButton("Close"),
+      size = "m"
     ))
   })
 
@@ -2881,7 +2877,19 @@ server <- function(input, output, session) {
     }
   )
 
-  # ------------------------------------------------------------------
+  # Navigation handlers for "About" page buttons
+  observeEvent(input$jump_to_upload, {
+    nav_select("main_tabs", "Data Preview")
+  })
+
+  observeEvent(input$jump_to_docs, {
+    # Documentation is already on the About page, let's just make sure we stay there
+    # or potentially scroll to the "How to Use" section if possible.
+    # For now, navigating to About and showing a notification.
+    nav_select("main_tabs", "About")
+    showNotification("Scroll down to the 'How to Use' section for detailed documentation.", type = "message")
+  })
+
   # Flag to indicate that data are loaded and Analyze was clicked
   # This drives visibility of the "Download Report" button in the UI
   # ------------------------------------------------------------------
