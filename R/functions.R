@@ -1148,7 +1148,31 @@ safe_run({
 
 ---
 
+# Summary Analysis
+
+```{r overall-summary, echo=FALSE}
+safe_run({
+  summary_df <- compare_models(list(
+    random = params$random_results,
+    fixed = params$fixed_results,
+    bivariate = params$bivariate_results
+  ))
+  knitr::kable(summary_df, caption = "Comparison of Meta-Analysis Models")
+})
 ```
+
+```{r overall-interpretation, echo=FALSE, results="asis"}
+safe_run({
+  interp <- interpret_results(list(
+    random = params$random_results,
+    fixed = params$fixed_results,
+    bivariate = params$bivariate_results
+  ))
+  cat(interp)
+})
+```
+
+---
 
 # Replicability Analysis
 

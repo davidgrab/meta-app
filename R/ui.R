@@ -95,13 +95,14 @@ ui <- page_fillable(
       shinyjs::disabled(actionButton("analyze", "Analyze", class = "btn-primary")),
       uiOutput("analyzeHelpText"),
       hr(),
-      h4("Data Cleaning"),
-      checkboxInput("remove_na", "Remove rows with NA values", value = TRUE),
-      hr(),
       conditionalPanel(
         condition = "output.analysisReady == true",
-        actionButton("prepareReport", "Download Report", icon = icon("file-pdf"))
-      )
+        actionButton("prepareReport", "Download Report", icon = icon("file-pdf"), class = "btn-success w-100")
+      ),
+      hr(),
+      h4("Data Cleaning"),
+      checkboxInput("remove_na", "Remove rows with NA values", value = TRUE),
+      hr()
     ),
     navset_card_tab(
       id = "main_tabs",
@@ -123,28 +124,44 @@ ui <- page_fillable(
               p(
                 "Source code available on ", tags$a(href = "https://github.com/davidgrab/meta-app", target = "_blank", "GitHub"), " | ",
                 tags$a(href = "https://github.com/davidgrab/meta-app/issues", target = "_blank", "Report a Bug")
+              ),
+              p(
+                "Powered by ", tags$a(href = "https://cran.r-project.org/package=meta", target = "_blank", "meta"),
+                " and ", tags$a(href = "https://www.metafor-project.org/", target = "_blank", "metafor"), " packages."
               )
             )
           )
         ),
-        layout_column_wrap(
-          width = 1 / 3,
-          card(
-            card_header(bsicons::bs_icon("bar-chart-fill"), " Standard Meta-Analysis"),
-            card_body("Perform Fixed and Random Effects meta-analysis with complete heterogeneity statistics (I², Q-test), forest plots, and funnel plots for publication bias.")
+        accordion(
+          open = FALSE,
+          accordion_panel(
+            "Standard Meta-Analysis",
+            icon = bsicons::bs_icon("bar-chart-fill"),
+            "Perform Fixed and Random Effects meta-analysis with complete heterogeneity statistics (I², Q-test), forest plots, and funnel plots for publication bias."
           ),
-          card(
-            card_header(bsicons::bs_icon("layers-fill"), " Advanced Methods"),
-            card_body("Utilize the Joint Confidence Region (JCR) method for bivariate 2-step analysis, providing robust estimates even in the presence of heterogeneity.")
+          accordion_panel(
+            "Advanced Methods",
+            icon = bsicons::bs_icon("layers-fill"),
+            "Utilize the Joint Confidence Region (JCR) method for bivariate 2-step analysis, providing robust estimates even in the presence of heterogeneity.",
+            tags$blockquote(
+              style = "font-size: 0.9em; margin-top: 10px; border-left: 3px solid #6366f1; padding-left: 10px;",
+              "Based on: Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. Journal of Clinical Epidemiology, 107, 101-106."
+            )
           ),
-          card(
-            card_header(bsicons::bs_icon("check-circle-fill"), " Replicability Analysis"),
-            card_body("Assess the replicability of your findings using the r-value method, determining the minimum number of studies contributing to the effect.")
+          accordion_panel(
+            "Replicability Analysis",
+            icon = bsicons::bs_icon("check-circle-fill"),
+            "Assess the replicability of your findings using the r-value method, determining the minimum number of studies contributing to the effect.",
+            tags$blockquote(
+              style = "font-size: 0.9em; margin-top: 10px; border-left: 3px solid #10b981; padding-left: 10px;",
+              "Based on: Jaljuli, I., et al. (2021). Quantifying Replicability and Consistency in Systematic Reviews. (Jaljuli, I., Yekutieli, D., & Benjamini, Y.)."
+            )
           )
         ),
         card(
           card_header("How to Use"),
           accordion(
+            open = FALSE,
             accordion_panel(
               "1. Upload Your Data",
               "To begin your analysis, you need to provide data. You can either:",

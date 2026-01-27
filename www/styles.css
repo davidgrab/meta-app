@@ -4,13 +4,16 @@
    =========================================== */
 
 /* Global Transitions for smooth theme switching */
-body, .card, .btn, .form-control {
+body,
+.card,
+.btn,
+.form-control {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* App Header */
 .app-header {
-  padding: 12px 0;
+  padding: 4px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   margin-bottom: 0;
   background-color: transparent;
@@ -33,11 +36,21 @@ body, .card, .btn, .form-control {
 }
 
 /* Light/Dark Logo Visibility */
-.logo-for-light { display: block !important; }
-.logo-for-dark { display: none !important; }
+.logo-for-light {
+  display: block !important;
+}
 
-[data-bs-theme="dark"] .logo-for-light { display: none !important; }
-[data-bs-theme="dark"] .logo-for-dark { display: block !important; }
+.logo-for-dark {
+  display: none !important;
+}
+
+[data-bs-theme="dark"] .logo-for-light {
+  display: none !important;
+}
+
+[data-bs-theme="dark"] .logo-for-dark {
+  display: block !important;
+}
 
 /* ===========================================
    MODERN COMPONENTS
@@ -53,42 +66,52 @@ body, .card, .btn, .form-control {
 [data-bs-theme="dark"] .card {
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-  background-color: #1e293b; /* Slate 800 surface */
+  background-color: #1e293b;
+  /* Slate 800 surface */
 }
 
 /* Plot Containers */
 .plot-container {
   background-color: #ffffff;
-  border-radius: 0.75rem; /* Matches card-border-radius */
+  border-radius: 0.75rem;
+  /* Matches card-border-radius */
   padding: 15px;
   margin-bottom: 15px;
-  border: 1px solid rgba(0,0,0,0.03);
+  border: 1px solid rgba(0, 0, 0, 0.03);
 }
 
 [data-bs-theme="dark"] .plot-container {
-  background-color: #1e293b; /* Match card bg */
-  border-color: rgba(255,255,255,0.05);
+  background-color: #1e293b;
+  /* Match card bg */
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 /* Explanations styled as modern alerts/callouts */
 .plot-explanation {
   margin-top: 1rem;
   font-size: 0.9em;
-  background-color: #f8fafc; /* Slate 50 */
-  border-left: 4px solid #6366f1; /* Indigo 500 */
+  background-color: #f8fafc;
+  /* Slate 50 */
+  border-left: 4px solid #6366f1;
+  /* Indigo 500 */
   border-radius: 0 0.5rem 0.5rem 0;
   padding: 1rem;
-  color: #334155; /* Slate 700 */
+  color: #334155;
+  /* Slate 700 */
 }
 
 [data-bs-theme="dark"] .plot-explanation {
-  background-color: rgba(99, 102, 241, 0.1); /* Indigo tint */
-  border-left-color: #818cf8; /* Indigo 400 */
-  color: #e2e8f0; /* Slate 200 */
+  background-color: rgba(99, 102, 241, 0.1);
+  /* Indigo tint */
+  border-left-color: #818cf8;
+  /* Indigo 400 */
+  color: #e2e8f0;
+  /* Slate 200 */
 }
 
 .section-explanation {
-  color: #64748b; /* Slate 500 */
+  color: #64748b;
+  /* Slate 500 */
   font-size: 0.95em;
   margin-bottom: 1rem;
 }
@@ -112,7 +135,8 @@ body, .card, .btn, .form-control {
 /* Typography Headers */
 h4 {
   font-weight: 700;
-  color: #0f172a; /* Slate 900 */
+  color: #0f172a;
+  /* Slate 900 */
   margin-top: 2rem;
   margin-bottom: 1rem;
   font-size: 1.25rem;
@@ -142,13 +166,14 @@ table.dataTable thead th {
 
 /* Utilities */
 .hr-subtle {
-  border-top: 1px solid rgba(0,0,0,0.05);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
   margin: 2rem 0;
 }
 
 /* Loading Spinner Color */
 .spinner-border {
-  color: #6366f1 !important; /* Indigo 500 */
+  color: #6366f1 !important;
+  /* Indigo 500 */
 }
 
 /* Floating Help Button */
@@ -156,6 +181,7 @@ table.dataTable thead th {
   color: #94a3b8;
   transition: color 0.2s;
 }
+
 .info-btn:hover {
   color: #6366f1;
 }

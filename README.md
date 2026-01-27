@@ -37,7 +37,8 @@ Try the app in your browser:
 
 - **Meta-Regression**: Explore moderator effects on treatment outcomes
 - **Subgroup Analysis**: Compare effects across categorical variables
-- **Downloadable Reports**: Export comprehensive analysis reports
+- **Comprehensive Reports**: Export HTML reports with model comparisons and diagnostics
+- **Polished UI**: Optimized layout with collapsible About page and streamlined sidebar
 - **Multiple Data Formats**: Support for CSV and Excel files
 
 ## Quick Start
