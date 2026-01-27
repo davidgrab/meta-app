@@ -23,9 +23,14 @@ Imports:
     openxlsx,
     readxl,
     knitr,
-    rmarkdown
+    rmarkdown,
+    scales,
+    sodium,
+    jsonlite
 Suggests:
     testthat (>= 3.0.0),
-    rsconnect
+    rsconnect,
+    metarep,
+    shinyauthr
 LazyData: true
 RoxygenNote: 7.2.3

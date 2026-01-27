@@ -11,16 +11,19 @@ Try the app in your browser:
 ## Features
 
 ### Core Meta-Analysis Methods
+
 - **Fixed Effects Model**: Common effect estimation using inverse-variance weighting
 - **Random Effects Model**: DerSimonian-Laird and other heterogeneity estimators
 - **Joint Confidence Region (JCR) Method**: Advanced approach using joint MLE estimation of effect size (μ) and between-study heterogeneity (τ), based on Saad et al. (2019)
 
 ### Effect Size Measures
+
 - Risk Ratio (RR)
 - Odds Ratio (OR)
 - Continuous effect sizes (SMD or MD)
 
 ### Diagnostics & Visualization
+
 - **Forest Plots**: Interactive visualizations with study weights and confidence intervals
 - **Confidence Region Plots**: 2D joint confidence regions for μ and τ (JCR method)
 - **Efficacy-Harm Probability Plots**: Probability tables for treatment decisions
@@ -28,8 +31,10 @@ Try the app in your browser:
 - **Funnel Plots**: Publication bias assessment with trim-and-fill
 - **Baujat & Influence Plots**: Identify influential studies
 - **Leave-One-Out Analysis**: Sensitivity to individual studies
+- **Replicability Analysis**: Quantify the number of studies supporting an effect and calculate r-values to ensure findings are not driven by single studies (based on Jaljuli et al., 2021)
 
 ### Additional Features
+
 - **Meta-Regression**: Explore moderator effects on treatment outcomes
 - **Subgroup Analysis**: Compare effects across categorical variables
 - **Downloadable Reports**: Export comprehensive analysis reports
@@ -40,12 +45,14 @@ Try the app in your browser:
 ### Run Locally
 
 1. Clone this repository:
+
    ```bash
    git clone https://github.com/davidgrab/meta-app.git
    cd meta-app
    ```
 
 2. Install required R packages:
+
    ```r
    install.packages(c(
      "shiny", "meta", "metafor", "ggplot2", "plotly", "DT", 
@@ -55,6 +62,7 @@ Try the app in your browser:
    ```
 
 3. Run the app:
+
    ```r
    shiny::runApp()
    ```
@@ -62,8 +70,9 @@ Try the app in your browser:
 ### Data Format
 
 **Binary (2×2) data:**
+
 | Column | Description |
-|--------|-------------|
+| --- | --- |
 | `study` | Study identifier |
 | `ie` | Intervention events |
 | `it` | Intervention total |
@@ -71,8 +80,9 @@ Try the app in your browser:
 | `pt` | Placebo/control total |
 
 **Continuous data:**
+
 | Column | Description |
-|--------|-------------|
+| --- | --- |
 | `study` | Study identifier |
 | `smd` | Effect size (SMD or MD) |
 | `ci_lower` | Lower confidence interval |
@@ -80,19 +90,20 @@ Try the app in your browser:
 
 ## Project Structure
 
-```
+```text
 meta-app/
 ├── app.R                 # Main Shiny app entry point
 ├── R/
 │   ├── ui.R              # User interface definition
 │   ├── server.R          # Server logic and reactives
 │   ├── functions.R       # Helper functions and plotting
-│   └── bivariate_meta.R  # JCR method implementation
+│   ├── bivariate_meta.R  # JCR method implementation
+│   └── replicability.R   # Replicability analysis implementation
 ├── data/                 # Example datasets
 ├── www/                  # Static assets (CSS, logos)
-├── tests/testthat/       # Unit tests
-├── jcrmeta/              # R package for JCR method (in development)
-├── docs/                 # Documentation
+├── tests/                # Unit tests and artifacts
+├── jcrmeta/              # R package for JCR method (Synchronized)
+├── docs/                 # Documentation and articles
 └── .circleci/            # CI/CD configuration
 ```
 
@@ -138,6 +149,7 @@ This implementation follows the original Saad et al. (2019) methodology with one
 **Confidence Region Fallback**: The original code uses loess smoothing on the p-value surface to identify (μ, τ) pairs within the 95% confidence region. For datasets with many studies (e.g., 50+ studies), the confidence region becomes extremely concentrated, and loess smoothing may compress all p-values below the significance threshold, producing zero CI points.
 
 To handle this edge case, we added a fallback that creates three synthetic CI points spanning `[MLE.μ - MLE.τ, MLE.μ + MLE.τ]` when loess produces no points. This fallback:
+
 - Only triggers for large datasets with very concentrated confidence regions
 - Uses the estimated heterogeneity (τ) as the offset, which is statistically principled since uncertainty in μ scales with τ under the random-effects model
 - Ensures the app never fails on edge cases not encountered by the original authors

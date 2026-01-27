@@ -38,6 +38,8 @@ docs/PACKAGE_ENHANCEMENTS.md
 docs/SummaryMD.md
 docs/theory_appendices.md
 docs/post.md
+# Non-pushable articles
+docs/replecability_analsis_artical.pdf
 
 # Test artifacts (keep testthat/ but ignore loose test files)
 tests/local_functions_test.R
