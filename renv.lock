@@ -1986,29 +1986,6 @@
       "Maintainer": "Hadley Wickham <hadley@posit.co>",
       "Repository": "CRAN"
     },
-    "jcrmeta": {
-      "Package": "jcrmeta",
-      "Version": "0.1.0",
-      "Source": "Local",
-      "Title": "Joint Confidence Region Meta-Analysis",
-      "Authors@R": "person(\"First\", \"Last\", , \"first.last@example.com\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"YOUR-ORCID-ID\"))",
-      "Description": "Joint Confidence Region (JCR) meta-analysis method (Saad et al., 2019). Provides joint maximum likelihood estimation of effect size (μ) and heterogeneity (τ) with comprehensive statistical methods including odds ratio and risk ratio calculations.",
-      "License": "MIT",
-      "Encoding": "UTF-8",
-      "Roxygen": "list(markdown = TRUE)",
-      "RoxygenNote": "7.3.2",
-      "Imports": [
-        "stats"
-      ],
-      "Suggests": [
-        "testthat (>= 3.0.0)"
-      ],
-      "Config/testthat/edition": "3",
-      "Author": "First Last [aut, cre] (ORCID: YOUR-ORCID-ID)",
-      "Maintainer": "First Last <first.last@example.com>",
-      "RemoteType": "local",
-      "RemoteUrl": "./jcrmeta"
-    },
     "jose": {
       "Package": "jose",
       "Version": "1.2.1",
@@ -4250,44 +4227,6 @@
       "Maintainer": "Winston Chang <winston@posit.co>",
       "Repository": "CRAN"
     },
-    "shinyauthr": {
-      "Package": "shinyauthr",
-      "Version": "1.0.0",
-      "Source": "Repository",
-      "Type": "Package",
-      "Title": "'Shiny' Authentication Modules",
-      "Authors@R": "c(person(given = \"Paul\",  family = \"Campbell\",  email = \"pacampbell91@gmail.com\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0003-1018-6606\")), person(given = \"Michael\",  family = \"Dewar\",  email = \"michael.p.dewar@gmail.com\",  role = \"ctb\"))",
-      "Description": "Add in-app user authentication to 'shiny',  allowing you to secure publicly hosted apps and  build dynamic user interfaces from user information.",
-      "License": "MIT + file LICENSE",
-      "Encoding": "UTF-8",
-      "Imports": [
-        "shiny (>= 1.5.0)",
-        "shinyjs",
-        "dplyr",
-        "rlang",
-        "sodium",
-        "glue"
-      ],
-      "Suggests": [
-        "DBI",
-        "RSQLite",
-        "lubridate",
-        "shinydashboard",
-        "testthat (>= 3.0.0)",
-        "shinytest",
-        "knitr",
-        "rmarkdown",
-        "covr"
-      ],
-      "RoxygenNote": "7.1.1",
-      "URL": "https://github.com/paulc91/shinyauthr",
-      "BugReports": "https://github.com/paulc91/shinyauthr/issues",
-      "Config/testthat/edition": "3",
-      "NeedsCompilation": "no",
-      "Author": "Paul Campbell [aut, cre] (<https://orcid.org/0000-0003-1018-6606>), Michael Dewar [ctb]",
-      "Maintainer": "Paul Campbell <pacampbell91@gmail.com>",
-      "Repository": "CRAN"
-    },
     "shinycssloaders": {
       "Package": "shinycssloaders",
       "Version": "1.1.0",
@@ -4383,29 +4322,6 @@
       "NeedsCompilation": "no",
       "Author": "Aaron Jacobs [aut], E. David Aja [aut, cre], Posit Software, PBC [cph, fnd]",
       "Maintainer": "E. David Aja <david@posit.co>",
-      "Repository": "CRAN"
-    },
-    "sodium": {
-      "Package": "sodium",
-      "Version": "1.4.0",
-      "Source": "Repository",
-      "Type": "Package",
-      "Title": "A Modern and Easy-to-Use Crypto Library",
-      "Authors@R": "person(\"Jeroen\", \"Ooms\", role = c(\"aut\", \"cre\"), email = \"jeroenooms@gmail.com\", comment = c(ORCID = \"0000-0002-4035-0289\"))",
-      "Description": "Bindings to 'libsodium' <https://doc.libsodium.org/>: a modern,  easy-to-use software library for encryption, decryption, signatures, password hashing and more. Sodium uses curve25519, a state-of-the-art Diffie-Hellman  function by Daniel Bernstein, which has become very popular after it was  discovered that the NSA had backdoored Dual EC DRBG.",
-      "License": "MIT + file LICENSE",
-      "URL": "https://docs.ropensci.org/sodium/ https://github.com/r-lib/sodium",
-      "BugReports": "https://github.com/r-lib/sodium/issues",
-      "SystemRequirements": "libsodium (>= 1.0.3)",
-      "VignetteBuilder": "knitr",
-      "Suggests": [
-        "knitr",
-        "rmarkdown"
-      ],
-      "RoxygenNote": "7.2.3",
-      "NeedsCompilation": "yes",
-      "Author": "Jeroen Ooms [aut, cre] (<https://orcid.org/0000-0002-4035-0289>)",
-      "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
       "Repository": "CRAN"
     },
     "sourcetools": {
