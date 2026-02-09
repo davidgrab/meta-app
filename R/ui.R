@@ -112,7 +112,7 @@ ui <- page_fillable(
           class = "border-0 shadow-none bg-transparent",
           card_body(
             class = "text-center",
-            h1("Meta-Analysis & Replicability App", class = "display-5 fw-bold text-primary mb-3"),
+            h1("Advanced Meta-Analysis Methods", class = "display-5 fw-bold text-primary mb-3"),
             p("A comprehensive tool for modern meta-analysis, replicability assessment, and evidence synthesis.", class = "lead mb-4"),
             div(
               class = "d-flex justify-content-center gap-3",
@@ -140,21 +140,17 @@ ui <- page_fillable(
             "Perform Fixed and Random Effects meta-analysis with complete heterogeneity statistics (I², Q-test), forest plots, and funnel plots for publication bias."
           ),
           accordion_panel(
-            "Advanced Methods",
+            "Advanced Meta-Analysis Methods",
             icon = bsicons::bs_icon("layers-fill"),
-            "Utilize the Joint Confidence Region (JCR) method for bivariate 2-step analysis, providing robust estimates even in the presence of heterogeneity.",
+            p(strong("Joint Confidence Region (JCR)."), " The JCR method uses a bivariate model to jointly estimate the overall effect (μ) and between-study heterogeneity (τ), with confidence regions and efficacy/harm plots. It provides robust inference when heterogeneity is poorly estimated."),
             tags$blockquote(
-              style = "font-size: 0.9em; margin-top: 10px; border-left: 3px solid #6366f1; padding-left: 10px;",
-              "Based on: Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. Journal of Clinical Epidemiology, 107, 101-106."
-            )
-          ),
-          accordion_panel(
-            "Replicability Analysis",
-            icon = bsicons::bs_icon("check-circle-fill"),
-            "Assess the replicability of your findings using the r-value method, determining the minimum number of studies contributing to the effect.",
+              style = "font-size: 0.9em; margin-top: 8px; margin-bottom: 14px; border-left: 3px solid #6366f1; padding-left: 10px;",
+              "Saad, A., Yekutieli, D., Lev-Ran, S., Gross, R., & Guyatt, G. H. (2019). Getting more out of meta-analyses: a new approach to meta-analysis in light of unexplained heterogeneity. Journal of Clinical Epidemiology, 107, 101-106."
+            ),
+            p(strong("Replicability (r-value)."), " The r-value quantifies replicability of effect direction across studies. It is the minimum number of studies needed to support the observed effect; low r-value (e.g. ≤ 0.05) indicates the finding is not driven by a single study. Lower bounds u_R and u_L give, with 95% confidence, the minimum number of studies showing increase or decrease. Consistency is assessed from these bounds (e.g. inconsistency when both directions are supported; consistency when at least two studies support one direction and none the other)."),
             tags$blockquote(
-              style = "font-size: 0.9em; margin-top: 10px; border-left: 3px solid #10b981; padding-left: 10px;",
-              "Based on: Jaljuli, I., et al. (2021). Quantifying Replicability and Consistency in Systematic Reviews. (Jaljuli, I., Yekutieli, D., & Benjamini, Y.)."
+              style = "font-size: 0.9em; margin-top: 8px; border-left: 3px solid #10b981; padding-left: 10px;",
+              "Jaljuli, I., Yekutieli, D., & Benjamini, Y. (2021). Quantifying Replicability and Consistency in Systematic Reviews. Implemented via the metarep R package."
             )
           )
         ),

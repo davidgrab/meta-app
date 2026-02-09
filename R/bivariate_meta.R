@@ -1339,25 +1339,6 @@ forest.metabiv <- function(x, xlab = "Effect Size", title = "Forest Plot") {
   )
 }
 
-# Helper function to validate metabiv object
-validate_metabiv <- function(x) {
-  required_elements <- c("y.k", "sigma.2.k", "sm", "mu", "tau", 
-                         "lower", "upper", "lower.k", "upper.k")
-  
-  missing_elements <- required_elements[!required_elements %in% names(x)]
-  
-  if (length(missing_elements) > 0) {
-    stop("Invalid metabiv object: missing elements: ", 
-         paste(missing_elements, collapse = ", "))
-  }
-  
-  if (!all(sapply(x$sigma.2.k, is.numeric)) || 
-      !all(sapply(x$y.k, is.numeric))) {
-    stop("Invalid metabiv object: non-numeric effect sizes or variances")
-  }
-  
-  invisible(TRUE)
-}
 #' @title Print Method for Metabiv Objects
 #' @description Prints a summary of the bivariate meta-analysis results
 #' @param x A metabiv object

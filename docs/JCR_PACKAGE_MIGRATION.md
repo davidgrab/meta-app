@@ -2,6 +2,8 @@
 
 This document outlines a safe, incremental plan to migrate the Joint Confidence Region (JCR) method implementation from the app code (`R/bivariate_meta.R`) into the reusable package located in `jcrmeta/`.
 
+**Implementation alignment:** The app uses **`R/bivariate_meta.R`** at runtime; **`jcrmeta/R/metabiv.R`** is the package copy and must stay **identical** in calculations and structure. See **`docs/JCR_IMPLEMENTATION.md`** for how the app implements JCR and how to keep the package in sync (e.g. `Rscript scripts/sync_jcrmeta_from_app.R` after editing the app’s JCR code).
+
 ### Goals
 - Consolidate JCR method core logic into the `jcrmeta` package.
 - Keep the Shiny app functional throughout (no breaking UI).

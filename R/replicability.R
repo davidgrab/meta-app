@@ -1,6 +1,13 @@
 # replicability.R
 # Helper functions for replicability analysis using metarep package
 # Based on Jaljuli et al. (2021): "Quantifying Replicability and Consistency in Systematic Reviews"
+#
+# Validation vs article critical concepts:
+# - r-value: replicability measure (minimum number of studies supporting the effect); we use metarep::metarep() which implements the paper's r-value.
+# - u_R, u_L: lower bounds (95% confidence) on number of studies with positive/negative effect direction; we use rval_result$u_R, rval_result$u_L from metarep.
+# - Replicability statement: "at least X show increase, at least Y show decrease (95% confidence)" matches the paper's reporting (Figure 8 style).
+# - Consistency (Section 2.5): Inconsistent when min(u_L, u_R) >= 1; Supports consistency when (u_R >= 2 and u_L == 0) or (u_L >= 2 and u_R == 0). Implemented in get_consistency_status().
+# - No distributional assumptions; supports fixed- and random-effects (common.effect parameter). Both supported in our UI.
 
 library(meta)
 library(ggplot2)
